@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "allowArbitraryExtensions": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["@webgpu/types", "vite/client", "node"]
+  },
+  "include": ["src", "shaders/*.d.wgsl.ts"]
+}

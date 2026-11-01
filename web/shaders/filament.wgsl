@@ -1,0 +1,146 @@
+// Filaments — microtubules, actin, intermediate filaments, chromatin fibres, collagen — as chains of capsules, each
+// segment a camera-facing quad ray-traced in the fragment shader (exact depth and normal, so they meet the membranes
+// and molecules properly at any zoom). A filament thinner than a pixel can't be traced: vs_thin draws it instead as a
+// soft line a pixel or so wide into the glass targets, its opacity the fraction of the pixel it really covers — the way
+// a fluorescence image shows filaments far below the resolution limit.
+#include "world.wgsl"
+
+struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32, len: f32 }
+@group(2) @binding(0) var<storage, read> segs: array<Seg>;
+
+struct VOut {
+  @builtin(position) pos: vec4f,
+  @location(0) world: vec3f,
+  @location(1) @interpolate(flat) seg: u32,
+  @location(2) across: f32,
+  @location(3) cover: f32,
+}
+struct GOutD { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32, @builtin(frag_depth) depth: f32 }
+struct OitOut { @location(0) accum: vec4f, @location(1) reveal: vec4f }
+
+// the drawn radius: up close, molecules (tubulin, actin) take over the surface, so the tube shrinks to a core
+fn segRadius(s: Seg) -> f32 {
+  var core = select(1.0, mix(0.72, 1.0, smoothstep(120.0, 600.0, G.scale)), s.kind == 0u || s.kind == 1u);
+  if (s.kind == 3u) { core = mix(0.0, 1.0, smoothstep(160.0, 1400.0, G.scale)); }
+  return max(s.ra, s.rb) * core;
+}
+
+fn quad(vi: u32, s: Seg, thin: bool) -> VOut {
+  var out: VOut;
+  out.seg = vi / 6u;
+  let c = vi % 6u;
+  let corner = array<vec2f, 6>(vec2f(0.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(0.0, -1.0), vec2f(1.0, 1.0), vec2f(0.0, 1.0))[c];
+  let r = segRadius(s);
+  if (r <= 0.0) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); return out; }
+  let mid = (s.a + s.b) * 0.5;
+  let distEye = length(mid - frame.camPos);
+  let px = distEye * G.pxAngle;               // nm per pixel there
+  let wantPx = r / px;                        // radius in pixels
+  out.cover = clamp(wantPx / 0.75, 0.0, 1.0);
+  // the traced draw skips the sub-pixel ones; the thin draw skips the wide ones (a short overlap fades between)
+  if ((thin && wantPx > 1.6) || (!thin && wantPx < 0.9)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); return out; }
+  let rr = select(r, max(r, px * 0.9), thin);
+  let ax = s.b - s.a;
+  let along = normalize(ax);
+  let toEye = normalize(frame.camPos - mid);
+  var side = cross(along, toEye);
+  if (length(side) < 1e-4) { side = cross(along, vec3f(0.0, 1.0, 0.0)); }
+  side = normalize(side);
+  // extend past the ends by the radius (the caps), and widen a little for the perspective of a round tube
+  let p = mix(s.a - along * rr, s.b + along * rr, corner.x) + side * corner.y * rr * 1.15 + toEye * rr;
+  out.world = p;
+  out.across = corner.y;
+  out.pos = frame.viewProj * vec4f(p, 1.0);
+  if (isCut(mid)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+  return out;
+}
+@vertex fn vs_tube(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segs[vi / 6u], false); }
+@vertex fn vs_thin(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segs[vi / 6u], true); }
+
+// ray–capsule (Quilez)
+fn capsule(ro: vec3f, rd: vec3f, pa: vec3f, pb: vec3f, r: f32) -> f32 {
+  let ba = pb - pa; let oa = ro - pa;
+  let baba = dot(ba, ba); let bard = dot(ba, rd); let baoa = dot(ba, oa);
+  let rdoa = dot(rd, oa); let oaoa = dot(oa, oa);
+  let a = baba - bard * bard;
+  let b = baba * rdoa - baoa * bard;
+  let c = baba * oaoa - baoa * baoa - r * r * baba;
+  let h = b * b - a * c;
+  if (h >= 0.0) {
+    let t = (-b - sqrt(h)) / a;
+    let y = baoa + t * bard;
+    if (y > 0.0 && y < baba) { return t; }
+    let oc = select(ro - pb, oa, y <= 0.0);
+    let b2 = dot(rd, oc); let c2 = dot(oc, oc) - r * r;
+    let h2 = b2 * b2 - c2;
+    if (h2 > 0.0) { return -b2 - sqrt(h2); }
+  }
+  return -1.0;
+}
+
+struct Look { albedo: vec3f, sss: vec3f, dye: vec3f }
+fn look(kind: u32) -> Look {
+  var l: Look;
+  switch kind {
+    case 0u: { l.albedo = srgb(vec3f(0.62, 0.95, 0.72)); l.sss = srgb(vec3f(0.15, 0.6, 0.35)); l.dye = vec3f(0.2, 1.7, 0.35); }   // microtubule (tubulin-GFP)
+    case 1u: { l.albedo = srgb(vec3f(1.0, 0.45, 0.42)); l.sss = srgb(vec3f(0.7, 0.1, 0.12)); l.dye = vec3f(1.4, 0.15, 1.2); }     // actin (phalloidin)
+    case 2u: { l.albedo = srgb(vec3f(0.62, 0.66, 1.0)); l.sss = srgb(vec3f(0.25, 0.25, 0.7)); l.dye = vec3f(0.0); }               // intermediate filament
+    case 3u: { l.albedo = srgb(vec3f(0.36, 0.45, 0.98)); l.sss = srgb(vec3f(0.12, 0.12, 0.55)); l.dye = vec3f(0.1, 0.3, 1.5); }   // chromatin (DAPI)
+    default: { l.albedo = srgb(vec3f(0.95, 0.88, 0.80)); l.sss = srgb(vec3f(0.6, 0.45, 0.35)); l.dye = vec3f(0.0); }              // collagen
+  }
+  return l;
+}
+
+@fragment fn fs_tube(in: VOut) -> GOutD {
+  let s = segs[in.seg];
+  let ro = frame.camPos;
+  let rd = normalize(in.world - ro);
+  let r = segRadius(s);
+  let t = capsule(ro, rd, s.a, s.b, r);
+  if (t <= 0.0) { discard; }
+  let p = ro + rd * t;
+  if (isCut(p)) { discard; }
+  let ba = s.b - s.a;
+  let h = clamp(dot(p - s.a, ba) / dot(ba, ba), 0.0, 1.0);
+  var n = normalize(p - (s.a + ba * h));
+  let v = -rd;
+  let l = look(s.kind);
+  // fine ridges along the length: protofilaments on a microtubule, the twist of actin and collagen
+  let along = s.s0 + h * s.len;
+  let fp = t * G.pxAngle;
+  let ang = atan2(dot(n, normalize(cross(ba, vec3f(0.3, 1.0, 0.2)))), dot(n, normalize(cross(ba, cross(ba, vec3f(0.3, 1.0, 0.2))))));
+  var ridge = 0.0;
+  if (s.kind == 0u) { ridge = sin(ang * 13.0) * (1.0 - smoothstep(0.6, 2.5, fp)); }
+  else if (s.kind == 4u) { ridge = sin(along * 0.0935 * 6.2831853) * 0.6 * (1.0 - smoothstep(8.0, 30.0, fp)); }   // 67 nm D-banding
+  var sf: Surf;
+  sf.albedo = l.albedo * (0.92 + 0.08 * ridge); sf.sss = l.sss; sf.rough = 0.4; sf.wrap = 0.5; sf.trans = 0.5; sf.rim = 0.7;
+  var c = bioLight(n, v, sf);
+  c = mix(c, l.dye * (0.4 + 0.6 * pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.2)), G.fluo);
+  var out: GOutD;
+  out.color = vec4f(c, 1.0);
+  out.nrm = vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0);
+  out.id = 0x40000000u | (s.kind << 16u) | (s.fil & 0xffffu);
+  let clip = frame.viewProj * vec4f(p, 1.0);
+  out.depth = clip.z / clip.w;
+  return out;
+}
+
+@fragment fn fs_thin(in: VOut) -> OitOut {
+  let s = segs[in.seg];
+  if (isCut(in.world)) { discard; }
+  let l = look(s.kind);
+  // a soft line: brightest along its middle, its opacity the coverage it really has
+  let prof = 1.0 - smoothstep(0.2, 1.0, abs(in.across));
+  let fade = array<f32, 5>(0.3, 0.3, 0.25, 0.5, 0.16)[min(s.kind, 4u)];
+  let a = clamp(in.cover * prof * 0.9, 0.0, 1.0) * fade;
+  if (a < 0.003) { discard; }
+  let dist = length(in.world - frame.camPos);
+  var c = mix(l.albedo * select(1.3, 0.55, s.kind == 4u), l.dye, G.fluo);
+  c = mix(c, G.fogColor, fogAmount(dist));
+  let zn = dist / max(G.scale, 1.0);
+  let w = clamp(10.0 / (1e-5 + pow(zn / 4.0, 3.0)), 1e-2, 3e3) * a;
+  var out: OitOut;
+  out.accum = vec4f(c * a, a) * w;
+  out.reveal = vec4f(a);
+  return out;
+}

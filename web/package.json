@@ -1,0 +1,22 @@
+{
+  "name": "universe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5750 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5751 --strictPort",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ericrius1/weft": "^0.2.1",
+    "math": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@webgpu/types": "0.1.74",
+    "puppeteer-core": "^24.10.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

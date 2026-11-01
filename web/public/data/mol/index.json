@@ -1,0 +1,1917 @@
+{
+ "nucleosome": {
+  "pdb": "1KX5",
+  "beads": [
+   1562,
+   78,
+   5
+  ],
+  "radius": 10.74,
+  "min": [
+   -5.31,
+   -5.92,
+   -3.97
+  ],
+  "max": [
+   7.21,
+   10.05,
+   3.7
+  ],
+  "groups": [
+   {
+    "kind": "dna",
+    "chain": "I",
+    "name": "DNA (5'(ATCAATATCCACCTGCAGATACTACCAAAAGTGTATTTGGAAACTGCTCCATCAAAAGGCATGTTCAGCTGGAATCCAGCTGAACATGCCTTTTGATGGAGCAGTTTCCAAATACACTTTTGGTAGTATCTGCAGGTGGATATTGAT)3')"
+   },
+   {
+    "kind": "dna",
+    "chain": "J",
+    "name": "DNA (5'(ATCAATATCCACCTGCAGATACTACCAAAAGTGTATTTGGAAACTGCTCCATCAAAAGGCATGTTCAGCTGGATTCCAGCTGAACATGCCTTTTGATGGAGCAGTTTCCAAATACACTTTTGGTAGTATCTGCAGGTGGATATTGAT)3')"
+   },
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "histone H3"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "histone H4"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "histone H2A.1"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "histone H2B.2"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "histone H3"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "histone H4"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "histone H2A.1"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "histone H2B.2"
+   }
+  ],
+  "dnaEnds": [
+   [
+    [
+     -2.536,
+     4.877,
+     2.011
+    ],
+    [
+     3.11,
+     4.108,
+     -1.912
+    ]
+   ],
+   [
+    [
+     3.13,
+     3.95,
+     -2.988
+    ],
+    [
+     -2.504,
+     4.841,
+     0.963
+    ]
+   ]
+  ]
+ },
+ "ribosome": {
+  "pdb": "4UG0",
+  "beads": [
+   23334,
+   1166,
+   77
+  ],
+  "radius": 16.85,
+  "min": [
+   -12.77,
+   -15.53,
+   -15.03
+  ],
+  "max": [
+   15.8,
+   14.67,
+   13.71
+  ],
+  "groups": [
+   {
+    "kind": "rna",
+    "chain": "L5",
+    "name": "28S ribosomal RNA"
+   },
+   {
+    "kind": "rna",
+    "chain": "L7",
+    "name": "5S ribosomal RNA"
+   },
+   {
+    "kind": "rna",
+    "chain": "L8",
+    "name": "5.8S ribosomal RNA"
+   },
+   {
+    "kind": "protein",
+    "chain": "LA",
+    "name": "60S RIBOSOMAL PROTEIN L8"
+   },
+   {
+    "kind": "protein",
+    "chain": "LB",
+    "name": "60S RIBOSOMAL PROTEIN L3"
+   },
+   {
+    "kind": "protein",
+    "chain": "LC",
+    "name": "60S RIBOSOMAL PROTEIN L4"
+   },
+   {
+    "kind": "protein",
+    "chain": "LD",
+    "name": "60S RIBOSOMAL PROTEIN L5"
+   },
+   {
+    "kind": "protein",
+    "chain": "LE",
+    "name": "60S RIBOSOMAL PROTEIN L6"
+   },
+   {
+    "kind": "protein",
+    "chain": "LF",
+    "name": "60S RIBOSOMAL PROTEIN L7"
+   },
+   {
+    "kind": "protein",
+    "chain": "LG",
+    "name": "60S RIBOSOMAL PROTEIN L7A"
+   },
+   {
+    "kind": "protein",
+    "chain": "LH",
+    "name": "60S RIBOSOMAL PROTEIN L9"
+   },
+   {
+    "kind": "protein",
+    "chain": "LI",
+    "name": "60S RIBOSOMAL PROTEIN L10-LIKE"
+   },
+   {
+    "kind": "protein",
+    "chain": "LJ",
+    "name": "60S RIBOSOMAL PROTEIN L11"
+   },
+   {
+    "kind": "protein",
+    "chain": "LL",
+    "name": "60S RIBOSOMAL PROTEIN L13"
+   },
+   {
+    "kind": "protein",
+    "chain": "LM",
+    "name": "60S RIBOSOMAL PROTEIN L14"
+   },
+   {
+    "kind": "protein",
+    "chain": "LN",
+    "name": "60S RIBOSOMAL PROTEIN L15"
+   },
+   {
+    "kind": "protein",
+    "chain": "LO",
+    "name": "60S RIBOSOMAL PROTEIN L13A"
+   },
+   {
+    "kind": "protein",
+    "chain": "LP",
+    "name": "60S RIBOSOMAL PROTEIN L17"
+   },
+   {
+    "kind": "protein",
+    "chain": "LQ",
+    "name": "60S RIBOSOMAL PROTEIN L18"
+   },
+   {
+    "kind": "protein",
+    "chain": "LR",
+    "name": "60S RIBOSOMAL PROTEIN L19"
+   },
+   {
+    "kind": "protein",
+    "chain": "LS",
+    "name": "60S RIBOSOMAL PROTEIN L18A"
+   },
+   {
+    "kind": "protein",
+    "chain": "LT",
+    "name": "60S RIBOSOMAL PROTEIN L21"
+   },
+   {
+    "kind": "protein",
+    "chain": "LU",
+    "name": "60S RIBOSOMAL PROTEIN L22"
+   },
+   {
+    "kind": "protein",
+    "chain": "LV",
+    "name": "60S RIBOSOMAL PROTEIN L23"
+   },
+   {
+    "kind": "protein",
+    "chain": "LW",
+    "name": "60S RIBOSOMAL PROTEIN L24"
+   },
+   {
+    "kind": "protein",
+    "chain": "LX",
+    "name": "60S RIBOSOMAL PROTEIN L23A"
+   },
+   {
+    "kind": "protein",
+    "chain": "LY",
+    "name": "60S RIBOSOMAL PROTEIN L26"
+   },
+   {
+    "kind": "protein",
+    "chain": "LZ",
+    "name": "60S RIBOSOMAL PROTEIN L27"
+   },
+   {
+    "kind": "protein",
+    "chain": "La",
+    "name": "60S RIBOSOMAL PROTEIN L27A"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lb",
+    "name": "60S RIBOSOMAL PROTEIN L29"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lc",
+    "name": "60S RIBOSOMAL PROTEIN L30"
+   },
+   {
+    "kind": "protein",
+    "chain": "Ld",
+    "name": "60S RIBOSOMAL PROTEIN L31"
+   },
+   {
+    "kind": "protein",
+    "chain": "Le",
+    "name": "60S RIBOSOMAL PROTEIN L32"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lf",
+    "name": "60S RIBOSOMAL PROTEIN L35A"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lg",
+    "name": "60S RIBOSOMAL PROTEIN L34"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lh",
+    "name": "60S RIBOSOMAL PROTEIN L35"
+   },
+   {
+    "kind": "protein",
+    "chain": "Li",
+    "name": "60S RIBOSOMAL PROTEIN L36"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lj",
+    "name": "60S RIBOSOMAL PROTEIN L37"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lk",
+    "name": "60S RIBOSOMAL PROTEIN L38"
+   },
+   {
+    "kind": "protein",
+    "chain": "Ll",
+    "name": "60S RIBOSOMAL PROTEIN L39"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lm",
+    "name": "UBIQUITIN-60S RIBOSOMAL PROTEIN L40"
+   },
+   {
+    "kind": "protein",
+    "chain": "Ln",
+    "name": "60S RIBOSOMAL PROTEIN L41"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lo",
+    "name": "60S RIBOSOMAL PROTEIN L36A"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lp",
+    "name": "60S RIBOSOMAL PROTEIN L37A"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lr",
+    "name": "60S RIBOSOMAL PROTEIN L28"
+   },
+   {
+    "kind": "protein",
+    "chain": "Lz",
+    "name": "60S RIBOSOMAL PROTEIN L10A"
+   },
+   {
+    "kind": "rna",
+    "chain": "S2",
+    "name": "18S ribosomal RNA"
+   },
+   {
+    "kind": "rna",
+    "chain": "S6",
+    "name": "HUMAN INITIATOR MET-TRNA-I"
+   },
+   {
+    "kind": "protein",
+    "chain": "SA",
+    "name": "40S RIBOSOMAL PROTEIN SA"
+   },
+   {
+    "kind": "protein",
+    "chain": "SB",
+    "name": "40S RIBOSOMAL PROTEIN S3A"
+   },
+   {
+    "kind": "protein",
+    "chain": "SD",
+    "name": "40S RIBOSOMAL PROTEIN S3"
+   },
+   {
+    "kind": "protein",
+    "chain": "SE",
+    "name": "40S RIBOSOMAL PROTEIN S4, X ISOFORM"
+   },
+   {
+    "kind": "protein",
+    "chain": "SF",
+    "name": "40S RIBOSOMAL PROTEIN S5"
+   },
+   {
+    "kind": "protein",
+    "chain": "SH",
+    "name": "40S RIBOSOMAL PROTEIN S7"
+   },
+   {
+    "kind": "protein",
+    "chain": "SI",
+    "name": "40S RIBOSOMAL PROTEIN S8"
+   },
+   {
+    "kind": "protein",
+    "chain": "SK",
+    "name": "40S RIBOSOMAL PROTEIN S10"
+   },
+   {
+    "kind": "protein",
+    "chain": "SL",
+    "name": "40S RIBOSOMAL PROTEIN S11"
+   },
+   {
+    "kind": "protein",
+    "chain": "SP",
+    "name": "40S RIBOSOMAL PROTEIN S15"
+   },
+   {
+    "kind": "protein",
+    "chain": "SQ",
+    "name": "40S RIBOSOMAL PROTEIN S16"
+   },
+   {
+    "kind": "protein",
+    "chain": "SR",
+    "name": "40S RIBOSOMAL PROTEIN S17-LIKE"
+   },
+   {
+    "kind": "protein",
+    "chain": "SS",
+    "name": "40S RIBOSOMAL PROTEIN S18"
+   },
+   {
+    "kind": "protein",
+    "chain": "ST",
+    "name": "40S RIBOSOMAL PROTEIN S19"
+   },
+   {
+    "kind": "protein",
+    "chain": "SU",
+    "name": "40S RIBOSOMAL PROTEIN S20"
+   },
+   {
+    "kind": "protein",
+    "chain": "SV",
+    "name": "40S RIBOSOMAL PROTEIN S21"
+   },
+   {
+    "kind": "protein",
+    "chain": "SX",
+    "name": "40S RIBOSOMAL PROTEIN S23"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sa",
+    "name": "40S RIBOSOMAL PROTEIN S26"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sc",
+    "name": "40S RIBOSOMAL PROTEIN S28"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sd",
+    "name": "40S RIBOSOMAL PROTEIN S29"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sf",
+    "name": "UBIQUITIN-40S RIBOSOMAL PROTEIN S27A"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sg",
+    "name": "GUANINE NUCLEOTIDE-BINDING PROTEIN SUBUNIT BETA-2-LIKE 1"
+   },
+   {
+    "kind": "protein",
+    "chain": "SC",
+    "name": "40S RIBOSOMAL PROTEIN S2"
+   },
+   {
+    "kind": "protein",
+    "chain": "SG",
+    "name": "40S RIBOSOMAL PROTEIN S6"
+   },
+   {
+    "kind": "protein",
+    "chain": "SJ",
+    "name": "40S RIBOSOMAL PROTEIN S9"
+   },
+   {
+    "kind": "protein",
+    "chain": "SM",
+    "name": "40S RIBOSOMAL PROTEIN"
+   },
+   {
+    "kind": "protein",
+    "chain": "SN",
+    "name": "40S RIBOSOMAL PROTEIN S13"
+   },
+   {
+    "kind": "protein",
+    "chain": "SO",
+    "name": "40S RIBOSOMAL PROTEIN S14"
+   },
+   {
+    "kind": "protein",
+    "chain": "SW",
+    "name": "40S RIBOSOMAL PROTEIN S15A"
+   },
+   {
+    "kind": "protein",
+    "chain": "SY",
+    "name": "40S RIBOSOMAL PROTEIN S24"
+   },
+   {
+    "kind": "protein",
+    "chain": "SZ",
+    "name": "40S RIBOSOMAL PROTEIN S25"
+   },
+   {
+    "kind": "protein",
+    "chain": "Sb",
+    "name": "40S RIBOSOMAL PROTEIN S27"
+   },
+   {
+    "kind": "protein",
+    "chain": "Se",
+    "name": "40S RIBOSOMAL PROTEIN S30"
+   }
+  ]
+ },
+ "atpsynthase": {
+  "pdb": "6ZPO",
+  "beads": [
+   5142,
+   257,
+   17
+  ],
+  "radius": 20.44,
+  "min": [
+   -7.85,
+   -3.07,
+   -8.16
+  ],
+  "max": [
+   6.54,
+   20.33,
+   6.05
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "8",
+    "name": "ATP synthase protein 8"
+   },
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "ATP synthase subunit alpha, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "ATP synthase subunit alpha, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "ATP synthase subunit alpha, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "ATP synthase subunit beta, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "ATP synthase subunit beta, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "ATP synthase subunit beta, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "ATP synthase subunit gamma, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "ATP synthase subunit delta, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "I",
+    "name": "ATP synthase subunit epsilon, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "J",
+    "name": "ATPase inhibitor, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "K",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "L",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "M",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "N",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "O",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "P",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "Q",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "ATP synthase F(0) complex subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "S",
+    "name": "ATP synthase subunit O, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "a",
+    "name": "ATP synthase subunit a"
+   },
+   {
+    "kind": "protein",
+    "chain": "b",
+    "name": "ATP synthase F(0) complex subunit B1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "d",
+    "name": "ATP synthase subunit d, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "e",
+    "name": "ATP synthase subunit e, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "f",
+    "name": "ATP synthase subunit f, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "g",
+    "name": "ATP synthase subunit g, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "h",
+    "name": "ATP synthase-coupling factor 6, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "j",
+    "name": "ATP synthase subunit ATP5MPL, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "k",
+    "name": "ATP synthase membrane subunit DAPIT, mitochondrial"
+   }
+  ],
+  "rotor": [
+   7,
+   8,
+   9,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18
+  ]
+ },
+ "tubulin": {
+  "pdb": "1JFF",
+  "beads": [
+   838,
+   41,
+   3
+  ],
+  "radius": 5.4,
+  "min": [
+   -5.08,
+   -3.25,
+   -3.11
+  ],
+  "max": [
+   5.14,
+   2.65,
+   3.35
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "tubulin alpha chain"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "tubulin beta chain"
+   }
+  ]
+ },
+ "polymerase": {
+  "pdb": "5FLM",
+  "beads": [
+   4056,
+   202,
+   13
+  ],
+  "radius": 10.41,
+  "min": [
+   -6.23,
+   -8.37,
+   -6.75
+  ],
+  "max": [
+   8.47,
+   7.48,
+   9.38
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "DNA-DIRECTED RNA POLYMERASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB2"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB3"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB4"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "DNA-DIRECTED RNA POLYMERASES I, II, AND III SUBUNIT RPABC1"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "DNA-DIRECTED RNA POLYMERASES I, II, AND III SUBUNIT RPABC2"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB7"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "DNA-DIRECTED RNA POLYMERASES I, II, AND III SUBUNIT RPABC3"
+   },
+   {
+    "kind": "protein",
+    "chain": "I",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB9"
+   },
+   {
+    "kind": "protein",
+    "chain": "J",
+    "name": "DNA-DIRECTED RNA POLYMERASES I, II, AND III SUBUNIT RPABC5"
+   },
+   {
+    "kind": "protein",
+    "chain": "K",
+    "name": "DNA-DIRECTED RNA POLYMERASE II SUBUNIT RPB11"
+   },
+   {
+    "kind": "protein",
+    "chain": "L",
+    "name": "DNA-DIRECTED RNA POLYMERASES I, II, AND III SUBUNIT RPABC4"
+   },
+   {
+    "kind": "dna",
+    "chain": "N",
+    "name": "DNA, DNA-RNA ELONGATION SCAFFOLD"
+   },
+   {
+    "kind": "rna",
+    "chain": "P",
+    "name": "RNA, DNA-RNA ELONGATION SCAFFOLD"
+   },
+   {
+    "kind": "dna",
+    "chain": "T",
+    "name": "DNA, DNA-RNA ELONGATION SCAFFOLD"
+   }
+  ],
+  "dnaEnds": [
+   [
+    [
+     -3.461,
+     -6.565,
+     3.364
+    ],
+    [
+     4.691,
+     -0.967,
+     3.627
+    ]
+   ],
+   [
+    [
+     4.22,
+     -1.717,
+     4.244
+    ],
+    [
+     -2.987,
+     -6.969,
+     2.505
+    ]
+   ]
+  ]
+ },
+ "trna": {
+  "pdb": "1EHZ",
+  "beads": [
+   152,
+   7,
+   3
+  ],
+  "radius": 5.36,
+  "min": [
+   -3.87,
+   -2.52,
+   -4.41
+  ],
+  "max": [
+   2.55,
+   2.9,
+   3.72
+  ],
+  "groups": [
+   {
+    "kind": "rna",
+    "chain": "A",
+    "name": "TRANSFER RNA (PHE)"
+   }
+  ]
+ },
+ "gapdh": {
+  "pdb": "1U8F",
+  "beads": [
+   1332,
+   66,
+   4
+  ],
+  "radius": 5.15,
+  "min": [
+   -4.31,
+   -4.14,
+   -4.59
+  ],
+  "max": [
+   4.56,
+   4.04,
+   4.51
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "O",
+    "name": "Glyceraldehyde-3-phosphate dehydrogenase, liver"
+   },
+   {
+    "kind": "protein",
+    "chain": "P",
+    "name": "Glyceraldehyde-3-phosphate dehydrogenase, liver"
+   },
+   {
+    "kind": "protein",
+    "chain": "Q",
+    "name": "Glyceraldehyde-3-phosphate dehydrogenase, liver"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "Glyceraldehyde-3-phosphate dehydrogenase, liver"
+   }
+  ]
+ },
+ "proteasome": {
+  "pdb": "4R3O",
+  "beads": [
+   6286,
+   314,
+   20
+  ],
+  "radius": 10.98,
+  "min": [
+   -7.84,
+   -6.82,
+   -9.58
+  ],
+  "max": [
+   7.81,
+   7.36,
+   9.92
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "Proteasome subunit alpha type-6"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "Proteasome subunit alpha type-2"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "Proteasome subunit alpha type-4"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "Proteasome subunit alpha type-7"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "Proteasome subunit alpha type-5"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "Proteasome subunit alpha type-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "Proteasome subunit alpha type-3"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "Proteasome subunit beta type-6"
+   },
+   {
+    "kind": "protein",
+    "chain": "I",
+    "name": "Proteasome subunit beta type-7"
+   },
+   {
+    "kind": "protein",
+    "chain": "J",
+    "name": "Proteasome subunit beta type-3"
+   },
+   {
+    "kind": "protein",
+    "chain": "K",
+    "name": "Proteasome subunit beta type-2"
+   },
+   {
+    "kind": "protein",
+    "chain": "L",
+    "name": "Proteasome subunit beta type-5"
+   },
+   {
+    "kind": "protein",
+    "chain": "M",
+    "name": "Proteasome subunit beta type-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "N",
+    "name": "Proteasome subunit beta type-4"
+   },
+   {
+    "kind": "protein",
+    "chain": "O",
+    "name": "Proteasome subunit alpha type-6"
+   },
+   {
+    "kind": "protein",
+    "chain": "P",
+    "name": "Proteasome subunit alpha type-2"
+   },
+   {
+    "kind": "protein",
+    "chain": "Q",
+    "name": "Proteasome subunit alpha type-4"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "Proteasome subunit alpha type-7"
+   },
+   {
+    "kind": "protein",
+    "chain": "S",
+    "name": "Proteasome subunit alpha type-5"
+   },
+   {
+    "kind": "protein",
+    "chain": "T",
+    "name": "Proteasome subunit alpha type-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "U",
+    "name": "Proteasome subunit alpha type-3"
+   },
+   {
+    "kind": "protein",
+    "chain": "V",
+    "name": "Proteasome subunit beta type-6"
+   },
+   {
+    "kind": "protein",
+    "chain": "W",
+    "name": "Proteasome subunit beta type-7"
+   },
+   {
+    "kind": "protein",
+    "chain": "X",
+    "name": "Proteasome subunit beta type-3"
+   },
+   {
+    "kind": "protein",
+    "chain": "Y",
+    "name": "Proteasome subunit beta type-2"
+   },
+   {
+    "kind": "protein",
+    "chain": "Z",
+    "name": "Proteasome subunit beta type-5"
+   },
+   {
+    "kind": "protein",
+    "chain": "1",
+    "name": "Proteasome subunit beta type-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "2",
+    "name": "Proteasome subunit beta type-4"
+   }
+  ]
+ },
+ "calmodulin": {
+  "pdb": "1CLL",
+  "beads": [
+   144,
+   7,
+   3
+  ],
+  "radius": 3.84,
+  "min": [
+   -2.61,
+   -3.53,
+   -2.33
+  ],
+  "max": [
+   2.31,
+   2.89,
+   2.14
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "CALMODULIN"
+   }
+  ]
+ },
+ "gfp": {
+  "pdb": "1EMA",
+  "beads": [
+   225,
+   11,
+   3
+  ],
+  "radius": 3.04,
+  "min": [
+   -2.04,
+   -2.51,
+   -2.93
+  ],
+  "max": [
+   2.15,
+   2.88,
+   2.72
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "GREEN FLUORESCENT PROTEIN"
+   }
+  ]
+ },
+ "ubiquitin": {
+  "pdb": "1UBQ",
+  "beads": [
+   76,
+   6,
+   3
+  ],
+  "radius": 2.81,
+  "min": [
+   -1.62,
+   -1.62,
+   -1.64
+  ],
+  "max": [
+   1.58,
+   1.86,
+   2.33
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "UBIQUITIN"
+   }
+  ]
+ },
+ "actin": {
+  "pdb": "1J6Z",
+  "beads": [
+   368,
+   18,
+   3
+  ],
+  "radius": 4.03,
+  "min": [
+   -3.64,
+   -2.74,
+   -2.81
+  ],
+  "max": [
+   3.98,
+   2.46,
+   3.33
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "ACTIN ALPHA 1"
+   }
+  ]
+ },
+ "hexokinase": {
+  "pdb": "1HKB",
+  "beads": [
+   1798,
+   89,
+   5
+  ],
+  "radius": 7.31,
+  "min": [
+   -5.31,
+   -4.93,
+   -6.06
+  ],
+  "max": [
+   5.31,
+   4.95,
+   6.79
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "D-GLUCOSE 6-PHOSPHOTRANSFERASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "D-GLUCOSE 6-PHOSPHOTRANSFERASE"
+   }
+  ]
+ },
+ "ferritin": {
+  "pdb": "1FHA",
+  "beads": [
+   172,
+   8,
+   3
+  ],
+  "radius": 3.72,
+  "min": [
+   -2.69,
+   -2.64,
+   -2.84
+  ],
+  "max": [
+   2.3,
+   2.8,
+   2.99
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "FERRITIN"
+   }
+  ]
+ },
+ "citratesynthase": {
+  "pdb": "1CTS",
+  "beads": [
+   437,
+   21,
+   3
+  ],
+  "radius": 4.82,
+  "min": [
+   -4.57,
+   -3.01,
+   -4.06
+  ],
+  "max": [
+   3.21,
+   2.8,
+   3.61
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "CITRATE SYNTHASE"
+   }
+  ]
+ },
+ "albumin": {
+  "pdb": "1AO6",
+  "beads": [
+   1156,
+   57,
+   3
+  ],
+  "radius": 6.49,
+  "min": [
+   -4.54,
+   -5.65,
+   -4.22
+  ],
+  "max": [
+   4.2,
+   5.45,
+   3.95
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "SERUM ALBUMIN"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "SERUM ALBUMIN"
+   }
+  ]
+ },
+ "antibody": {
+  "pdb": "1IGT",
+  "beads": [
+   1316,
+   65,
+   4
+  ],
+  "radius": 8.97,
+  "min": [
+   -5.56,
+   -7.45,
+   -6.84
+  ],
+  "max": [
+   5.3,
+   7.5,
+   6.65
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "IGG2A INTACT ANTIBODY - MAB231"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "IGG2A INTACT ANTIBODY - MAB231"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "IGG2A INTACT ANTIBODY - MAB231"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "IGG2A INTACT ANTIBODY - MAB231"
+   }
+  ]
+ },
+ "cytc": {
+  "pdb": "1HRC",
+  "beads": [
+   104,
+   6,
+   3
+  ],
+  "radius": 2.22,
+  "min": [
+   -1.96,
+   -1.64,
+   -1.95
+  ],
+  "max": [
+   1.93,
+   1.63,
+   1.76
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "CYTOCHROME C"
+   }
+  ]
+ },
+ "gpcr": {
+  "pdb": "3SN6",
+  "beads": [
+   1318,
+   65,
+   4
+  ],
+  "radius": 9.44,
+  "min": [
+   -5.33,
+   -9.36,
+   -4.78
+  ],
+  "max": [
+   5.76,
+   6.09,
+   4.38
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "Guanine nucleotide-binding protein G(s) subunit alpha isoforms short"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "Guanine nucleotide-binding protein G(I)/G(S)/G(T) subunit beta-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "Guanine nucleotide-binding protein G(I)/G(S)/G(O) subunit gamma-2"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "Endolysin,Beta-2 adrenergic receptor"
+   },
+   {
+    "kind": "protein",
+    "chain": "N",
+    "name": "Camelid antibody VHH fragment"
+   }
+  ]
+ },
+ "nakatpase": {
+  "pdb": "4HYT",
+  "beads": [
+   2630,
+   131,
+   8
+  ],
+  "radius": 10.4,
+  "min": [
+   -5.95,
+   -9.79,
+   -5.43
+  ],
+  "max": [
+   7.54,
+   9.55,
+   6.13
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "Sodium/potassium-transporting ATPase subunit alpha-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "Sodium/potassium-transporting ATPase subunit beta-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "Na+/K+ ATPase gamma subunit transcript variant a"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "Sodium/potassium-transporting ATPase subunit alpha-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "Sodium/potassium-transporting ATPase subunit beta-1"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "Na+/K+ ATPase gamma subunit transcript variant a"
+   }
+  ]
+ },
+ "glut1": {
+  "pdb": "4PYP",
+  "beads": [
+   447,
+   22,
+   3
+  ],
+  "radius": 4.41,
+  "min": [
+   -3.11,
+   -4.18,
+   -2.77
+  ],
+  "max": [
+   2.96,
+   3.79,
+   3.23
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "Solute carrier family 2, facilitated glucose transporter member 1"
+   }
+  ]
+ },
+ "vdac": {
+  "pdb": "3EMN",
+  "beads": [
+   283,
+   14,
+   3
+  ],
+  "radius": 5.34,
+  "min": [
+   -2.61,
+   -5.29,
+   -3.15
+  ],
+  "max": [
+   3.05,
+   1.47,
+   3.16
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "X",
+    "name": "Voltage-dependent anion-selective channel protein 1"
+   }
+  ]
+ },
+ "complex1": {
+  "pdb": "5LDW",
+  "beads": [
+   5866,
+   293,
+   19
+  ],
+  "radius": 17.36,
+  "min": [
+   -11.79,
+   -14.79,
+   -6.79
+  ],
+  "max": [
+   12.25,
+   5.99,
+   9.23
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "NADH-ubiquinone oxidoreductase chain 3"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 7, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 3, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 2, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "NADH dehydrogenase [ubiquinone] flavoprotein 2, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "NADH dehydrogenase [ubiquinone] flavoprotein 1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "NADH-ubiquinone oxidoreductase 75 kDa subunit, mitochondrial,NADH-ubiquinone oxidoreductase 75 kDa subunit, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "NADH-ubiquinone oxidoreductase chain 1"
+   },
+   {
+    "kind": "protein",
+    "chain": "I",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 8, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "J",
+    "name": "NADH-ubiquinone oxidoreductase chain 6"
+   },
+   {
+    "kind": "protein",
+    "chain": "K",
+    "name": "NADH-ubiquinone oxidoreductase chain 4L"
+   },
+   {
+    "kind": "protein",
+    "chain": "L",
+    "name": "NADH-ubiquinone oxidoreductase chain 5"
+   },
+   {
+    "kind": "protein",
+    "chain": "M",
+    "name": "NADH-ubiquinone oxidoreductase chain 4"
+   },
+   {
+    "kind": "protein",
+    "chain": "N",
+    "name": "NADH-ubiquinone oxidoreductase chain 2"
+   },
+   {
+    "kind": "protein",
+    "chain": "O",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 10, NDUFA10,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 10, NDUFA10,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 10, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 6, NDUFS6,NADH dehydrogenase [ubiquinone] iron-sulfur protein 6, mitochondrial,NADH dehydrogenase [ubiquinone] iron-sulfur protein 6, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "S",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 2"
+   },
+   {
+    "kind": "protein",
+    "chain": "T",
+    "name": "Acyl carrier protein, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "U",
+    "name": "Acyl carrier protein, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "V",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 5"
+   },
+   {
+    "kind": "protein",
+    "chain": "W",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 6"
+   },
+   {
+    "kind": "protein",
+    "chain": "X",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 8,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 8,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 8, NDUFA8"
+   },
+   {
+    "kind": "protein",
+    "chain": "Y",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 11"
+   },
+   {
+    "kind": "protein",
+    "chain": "Z",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13, NDUFA13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13, NDUFA13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13, NDUFA13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 13, NDUFA13"
+   },
+   {
+    "kind": "protein",
+    "chain": "a",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 1"
+   },
+   {
+    "kind": "protein",
+    "chain": "b",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 3,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 3,NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 3, NDUFA3"
+   },
+   {
+    "kind": "protein",
+    "chain": "c",
+    "name": "NADH dehydrogenase [ubiquinone] 1 subunit C1, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "d",
+    "name": "NADH dehydrogenase [ubiquinone] 1 subunit C2, NDUFC2,NADH dehydrogenase [ubiquinone] 1 subunit C2,NADH dehydrogenase [ubiquinone] 1 subunit C2, NDUFC2,NADH dehydrogenase [ubiquinone] 1 subunit C2,NADH dehydrogenase [ubiquinone] 1 subunit C2, NDUFC2,NADH dehydrogenase [ubiquinone] 1 subunit C2,NADH dehydrogenase [ubiquinone] 1 subunit C2, NDUFC2"
+   },
+   {
+    "kind": "protein",
+    "chain": "e",
+    "name": "NADH dehydrogenase [ubiquinone] iron-sulfur protein 5"
+   },
+   {
+    "kind": "protein",
+    "chain": "f",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 1"
+   },
+   {
+    "kind": "protein",
+    "chain": "g",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 11, mitochondrial"
+   },
+   {
+    "kind": "protein",
+    "chain": "h",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 5, mitochondrial,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 5, mitochondrial,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 5, NDUFB5"
+   },
+   {
+    "kind": "protein",
+    "chain": "i",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 6,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 6,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 6, NDUFB6"
+   },
+   {
+    "kind": "protein",
+    "chain": "m",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 4, NDUFB4,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 4, NDUFB4,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 4"
+   },
+   {
+    "kind": "protein",
+    "chain": "n",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 9,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 9,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 9, NDUFB9"
+   },
+   {
+    "kind": "protein",
+    "chain": "o",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 7"
+   },
+   {
+    "kind": "protein",
+    "chain": "p",
+    "name": "NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10, NDUFB10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10, NDUFB10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10, NDUFB10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10,NADH dehydrogenase [ubiquinone] 1 beta subcomplex subunit 10, NDUFB10"
+   },
+   {
+    "kind": "protein",
+    "chain": "q",
+    "name": "NADH dehydrogenase [ubiquinone] 1 alpha subcomplex subunit 12"
+   }
+  ]
+ },
+ "complex4": {
+  "pdb": "1OCC",
+  "beads": [
+   3560,
+   178,
+   11
+  ],
+  "radius": 9.19,
+  "min": [
+   -6.44,
+   -6.09,
+   -7.67
+  ],
+  "max": [
+   6.25,
+   6.5,
+   7.74
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "D",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "E",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "F",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "G",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "H",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "I",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "J",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "K",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "L",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "M",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "N",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "O",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "P",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "Q",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "R",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "S",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "T",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "U",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "V",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "W",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "X",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "Y",
+    "name": "CYTOCHROME C OXIDASE"
+   },
+   {
+    "kind": "protein",
+    "chain": "Z",
+    "name": "CYTOCHROME C OXIDASE"
+   }
+  ]
+ },
+ "spike": {
+  "pdb": "6VXX",
+  "beads": [
+   2916,
+   145,
+   9
+  ],
+  "radius": 9.35,
+  "min": [
+   -4.74,
+   -6.63,
+   -9.31
+  ],
+  "max": [
+   7.28,
+   6.49,
+   7.04
+  ],
+  "groups": [
+   {
+    "kind": "protein",
+    "chain": "A",
+    "name": "Spike glycoprotein"
+   },
+   {
+    "kind": "protein",
+    "chain": "B",
+    "name": "Spike glycoprotein"
+   },
+   {
+    "kind": "protein",
+    "chain": "C",
+    "name": "Spike glycoprotein"
+   }
+  ]
+ }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+film/
+deploy/
+logs/
+scratch/
+pipeline/pdb/
+pipeline/__pycache__/
+.vercel/
+*.log

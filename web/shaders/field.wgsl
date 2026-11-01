@@ -1,0 +1,312 @@
+// The molecular field, made fresh every frame on the GPU round the point the camera looks at. Space is cut into
+// chunks at a ladder of sizes (c0·2^L); each chunk holds K candidate molecules at hashed spots. The finest level in
+// play follows the zoom, and coarser levels' molecules stay as finer ones arrive — so a molecule seen from a micron
+// away is the same one you find at ten nanometres, and the crowd thickens as you zoom until it's as dense as a real
+// cytoplasm. Each candidate asks the world where it is (world.wgsl placeOf): inside which organelle, how near which
+// membrane. Near a membrane it becomes one of that membrane's proteins, set into the surface; elsewhere one of its
+// compartment's soluble molecules, by weight. Filaments are decorated by `lattice` (tubulin in 13 protofilaments on a
+// 3-start helix, actin's double helix, nucleosomes on chromatin with linker DNA between), and the app's animated
+// actors (kinesins, vesicles) come in through `actors`. Each instance gets a level of detail from its size on screen
+// and is appended to its (type, level) list; `finish` turns the counts into indirect draw arguments.
+#include "world.wgsl"
+#include "molecules.wgsl"
+
+struct Field {
+  focus: vec3f, radius: f32,
+  camPos: vec3f, clear: f32,
+  level: f32, c0: f32, perChunk: u32, maxInst: u32,
+  lv0: vec4i, lv1: vec4i, lv2: vec4i, lv3: vec4i,     // per generated level: origin chunk, chunks per side
+  lf: vec4f,                                          // per generated level: its absolute level number
+  starts: vec4u,                                      // first thread of each level
+  total: u32, segCount: u32, actorCount: u32, seed: u32,
+  pxAngle: f32, lod0: f32, lod1: f32, cull: f32,
+  p0: vec4f, p1: vec4f, p2: vec4f, p3: vec4f, p4: vec4f, p5: vec4f,   // frustum planes
+  latticeOn: f32, wobble: f32, pad0: f32, pad1: f32,
+}
+struct CompEntry { mtype: u32, cum: f32 }
+struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32, len: f32 }
+
+@group(2) @binding(1) var<storage, read_write> insts: array<Inst>;
+@group(2) @binding(2) var<storage, read_write> lists: array<u32>;
+@group(2) @binding(3) var<storage, read_write> counts: array<atomic<u32>>;
+@group(2) @binding(4) var<storage, read_write> args: array<u32>;
+@group(2) @binding(5) var<uniform> F: Field;
+@group(2) @binding(6) var<storage, read> comps: array<CompEntry>;       // 32 rows of 12: compartments, then membranes by kind
+@group(2) @binding(7) var<storage, read> compMeta: array<vec4f>;        // per row: density, entries, offset, -
+@group(2) @binding(8) var<storage, read> segs: array<Seg>;
+@group(2) @binding(9) var<storage, read> segList: array<u32>;
+@group(2) @binding(10) var<storage, read> actorIn: array<Inst>;
+
+const ROW: u32 = 12u;
+const MEMBRANE_ROW: u32 = 16u;     // membranes start at row 16 + organelle kind
+
+// ---------------------------------------------------------------- appending
+fn planeOut(p: vec3f, r: f32) -> bool {
+  return dot(F.p0.xyz, p) + F.p0.w < -r || dot(F.p1.xyz, p) + F.p1.w < -r || dot(F.p2.xyz, p) + F.p2.w < -r ||
+         dot(F.p3.xyz, p) + F.p3.w < -r || dot(F.p4.xyz, p) + F.p4.w < -r || dot(F.p5.xyz, p) + F.p5.w < -r;
+}
+fn emit(inst0: Inst) {
+  var inst = inst0;
+  let T = types[inst.mtype];
+  let r = T.radius * inst.scale;
+  if (r <= 0.0) { return; }
+  let dc = length(inst.pos - F.camPos);
+  let px = r / max(dc * F.pxAngle, 1e-9);
+  if (px < F.cull) { return; }
+  if (planeOut(inst.pos, r)) { return; }
+  var lod = 2u;
+  if (px > F.lod0) { lod = 0u; } else if (px > F.lod1) { lod = 1u; }
+  inst.lod = lod;
+  let i = atomicAdd(&counts[NLISTS], 1u);
+  if (i >= F.maxInst) { return; }
+  insts[i] = inst;
+  let li = inst.mtype * 3u + lod;
+  let slot = atomicAdd(&counts[li], 1u);
+  if (slot < CAP) { lists[li * CAP + slot] = i; }
+}
+
+@compute @workgroup_size(64) fn clear(@builtin(global_invocation_id) g: vec3u) {
+  if (g.x <= NLISTS) { atomicStore(&counts[g.x], 0u); }
+}
+
+@compute @workgroup_size(64) fn finish(@builtin(global_invocation_id) g: vec3u) {
+  let li = g.x;
+  if (li >= NLISTS) { return; }
+  let T = types[li / 3u];
+  let lod = li % 3u;
+  let n = min(atomicLoad(&counts[li]), CAP);
+  args[li * 4u + 0u] = T.lodCount[lod] * 6u;
+  args[li * 4u + 1u] = n;
+  args[li * 4u + 2u] = T.lodStart[lod] * 6u;
+  args[li * 4u + 3u] = li * CAP;
+}
+
+// ---------------------------------------------------------------- the crowd
+fn compartmentRow(inside: i32) -> u32 {
+  if (inside < 0) { return 0u; }
+  switch organelles[inside].kind {
+    case 0u: { return 1u; }     // cytosol
+    case 1u: { return 2u; }     // nucleoplasm
+    case 2u: { return 3u; }     // nucleolus
+    case 3u: { return 4u; }     // mitochondrial matrix
+    case 5u: { return 5u; }     // ER lumen
+    case 6u: { return 6u; }     // Golgi lumen
+    case 7u: { return 7u; }     // lysosome
+    case 8u: { return 8u; }     // peroxisome
+    case 9u, 10u: { return 9u; }
+    case 4u: { return 10u; }    // inside a crista
+    case 11u: { return 11u; }
+    default: { return 12u; }    // a neighbouring cell
+  }
+}
+fn pick(row: u32, u: f32) -> i32 {
+  let n = u32(compMeta[row].y);
+  if (n == 0u) { return -1; }
+  for (var k = 0u; k < n; k++) {
+    let e = comps[row * ROW + k];
+    if (u <= e.cum) { return i32(e.mtype); }
+  }
+  return i32(comps[row * ROW + n - 1u].mtype);
+}
+
+// a gentle tumble and drift (Brownian, but small: real diffusion would carry everything out of view)
+fn wobble(h: vec3f, r: f32) -> vec3f {
+  let t = G.bioTime * 40.0 + h * 100.0;
+  return (vec3f(vnoise(vec3f(t.x, h.y * 9.0, 0.0)), vnoise(vec3f(h.z * 9.0, t.y, 1.0)), vnoise(vec3f(2.0, h.x * 9.0, t.z)))) * r * F.wobble;
+}
+
+@compute @workgroup_size(64) fn crowd(@builtin(global_invocation_id) g: vec3u) {
+  let t = g.x;
+  if (t >= F.total) { return; }
+  // which level, which chunk, which slot
+  var L = 0u;
+  if (t >= F.starts.y) { L = 1u; }
+  if (t >= F.starts.z) { L = 2u; }
+  if (t >= F.starts.w) { L = 3u; }
+  var lv = F.lv0; var start = F.starts.x;
+  if (L == 1u) { lv = F.lv1; start = F.starts.y; }
+  if (L == 2u) { lv = F.lv2; start = F.starts.z; }
+  if (L == 3u) { lv = F.lv3; start = F.starts.w; }
+  let absL = F.lf[L];
+  let cL = F.c0 * exp2(absL);
+  let local = t - start;
+  let K = F.perChunk;
+  let k = local % K;
+  let lin = local / K;
+  let n = u32(lv.w);
+  let ci = lv.xyz + vec3i(i32(lin % n), i32((lin / n) % n), i32(lin / (n * n)));
+  let hu = pcg3(bitcast<vec3u>(ci) + vec3u(k * 0x9E3779B1u, u32(absL) * 0x85EBCA6Bu, F.seed));
+  let h = vec3f(hu) * (1.0 / 4294967296.0);
+  let h2 = hash3u(hu ^ vec3u(0x27d4eb2fu));
+  var p = (vec3f(ci) + h) * cL;
+
+  let d = length(p - F.focus);
+  if (d > F.radius) { return; }
+  let wD = 1.0 - smoothstep(0.7 * F.radius, F.radius, d);
+  let wL = clamp((absL + 1.0 - F.level) / 0.6, 0.0, 1.0);
+  let dc = length(p - F.camPos);
+  let wC = smoothstep(F.clear * 0.6, F.clear, dc);
+  var w = wD * wL * wC;
+  if (w <= 0.01) { return; }
+  if (isCut(p)) { return; }
+
+  let pl = placeOf(p);
+  var inst: Inst;
+  inst.tint = hu.x;
+  inst.id = 0x80000000u | (hu.y & 0xffffu);
+  let band = cL * 0.32;
+  if (pl.nearest >= 0 && pl.dist < band) {
+    // a membrane protein, set into the nearest surface
+    let o = organelles[pl.nearest];
+    let row = MEMBRANE_ROW + o.kind;
+    let mm = compMeta[row];
+    // (the band is a fixed share of the chunk, so finer levels would put ever more proteins per area: their
+    // acceptance falls with the chunk's area below 120 nm)
+    let areaK = min(1.0, (cL / 120.0) * (cL / 120.0));
+    if (mm.y < 0.5 || h2.z > mm.x * areaK) { return; }
+    let mt = pick(row, h2.x);
+    if (mt < 0) { return; }
+    let sd = sdOrganelle(o, p);
+    let nrm = organelleNormal(o, p, max(0.4, o.r * 1e-4));
+    p = p - nrm * sd + nrm * mm.z;
+    if (isCut(p)) { return; }
+    inst.pos = p;
+    inst.rot = qmul(qfromY(nrm), qaxis(vec3f(0.0, 1.0, 0.0), h2.y * 6.2831853));
+    inst.mtype = u32(mt);
+  } else {
+    let row = compartmentRow(pl.inside);
+    if (h2.z > compMeta[row].x) { return; }
+    let mt = pick(row, h2.x);
+    if (mt < 0) { return; }
+    let r = types[u32(mt)].radius;
+    if (pl.dist < r * 0.9) { return; }
+    inst.pos = p + wobble(h, r);
+    inst.rot = randQuat(hash3u(hu ^ vec3u(0x165667b1u)));
+    inst.mtype = u32(mt);
+  }
+  inst.scale = w;
+  emit(inst);
+}
+
+// ---------------------------------------------------------------- filament lattices
+fn basis(x: vec3f, y: vec3f) -> vec4f {
+  // the rotation whose columns are x, y, x×y (orthonormalised), as a quaternion
+  let X = normalize(x - y * dot(x, y));
+  let Y = y;
+  let Z = cross(X, Y);
+  let tr = X.x + Y.y + Z.z;
+  var q: vec4f;
+  if (tr > 0.0) {
+    let s = sqrt(tr + 1.0) * 2.0;
+    q = vec4f((Y.z - Z.y) / s, (Z.x - X.z) / s, (X.y - Y.x) / s, 0.25 * s);
+  } else if (X.x > Y.y && X.x > Z.z) {
+    let s = sqrt(1.0 + X.x - Y.y - Z.z) * 2.0;
+    q = vec4f(0.25 * s, (Y.x + X.y) / s, (Z.x + X.z) / s, (Y.z - Z.y) / s);
+  } else if (Y.y > Z.z) {
+    let s = sqrt(1.0 + Y.y - X.x - Z.z) * 2.0;
+    q = vec4f((Y.x + X.y) / s, 0.25 * s, (Z.y + Y.z) / s, (Z.x - X.z) / s);
+  } else {
+    let s = sqrt(1.0 + Z.z - X.x - Y.y) * 2.0;
+    q = vec4f((Z.x + X.z) / s, (Z.y + Y.z) / s, 0.25 * s, (X.y - Y.x) / s);
+  }
+  return normalize(q);
+}
+fn fade(p: vec3f) -> f32 {
+  let d = length(p - F.focus);
+  let dc = length(p - F.camPos);
+  return (1.0 - smoothstep(0.7 * F.radius, F.radius, d)) * smoothstep(F.clear * 0.6, F.clear, dc);
+}
+
+@compute @workgroup_size(64) fn lattice(@builtin(global_invocation_id) g: vec3u) {
+  if (g.x >= F.segCount) { return; }
+  let s = segs[segList[g.x]];
+  let ax = s.b - s.a;
+  let T = normalize(ax);
+  let R0 = normalize(cross(T, vec3f(0.31, 1.0, 0.17)));
+  let R1 = cross(T, R0);
+  if (s.kind == 0u) {
+    // microtubule: αβ dimers 8 nm long on 13 protofilaments, each protofilament 0.92 nm higher (the 3-start helix)
+    for (var k = 0u; k < 13u; k++) {
+      let th = f32(k) * 6.2831853 / 13.0;
+      let rad = R0 * cos(th) + R1 * sin(th);
+      let off = f32(k) * 0.923;
+      let j0 = i32(ceil((s.s0 - off) / 8.0));
+      let j1 = i32(floor((s.s0 + s.len - off) / 8.0 - 1e-4));
+      for (var j = j0; j <= j1; j++) {
+        let z = f32(j) * 8.0 + off;
+        let p = s.a + ax * ((z - s.s0) / s.len) + rad * 11.2;
+        let w = fade(p) * F.latticeOn;
+        if (w <= 0.01 || isCut(p)) { continue; }
+        var inst: Inst;
+        inst.pos = p; inst.scale = w; inst.rot = basis(rad, T); inst.mtype = T_TUBULIN;
+        inst.tint = u32(j) * 13u + k; inst.id = 0x80000000u | ((u32(j) * 13u + k) & 0xffffu);
+        emit(inst);
+      }
+    }
+  } else if (s.kind == 1u) {
+    // actin: subunits every 2.75 nm, each turned -166.6° from the last (two long-pitch strands)
+    let j0 = i32(ceil(s.s0 / 2.75));
+    let j1 = i32(floor((s.s0 + s.len) / 2.75 - 1e-4));
+    for (var j = j0; j <= j1; j++) {
+      let z = f32(j) * 2.75;
+      let th = f32(j) * -2.9077;
+      let rad = R0 * cos(th) + R1 * sin(th);
+      let p = s.a + ax * ((z - s.s0) / s.len) + rad * 2.4;
+      let w = fade(p) * F.latticeOn;
+      if (w <= 0.01 || isCut(p)) { continue; }
+      var inst: Inst;
+      inst.pos = p; inst.scale = w; inst.rot = basis(rad, T); inst.mtype = T_ACTIN;
+      inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
+      emit(inst);
+    }
+  } else if (s.kind == 3u) {
+    // chromatin: a nucleosome every 11 nm in a zig-zag round the fibre, linker DNA between them
+    let j0 = i32(ceil(s.s0 / 11.0));
+    let j1 = i32(floor((s.s0 + s.len) / 11.0 - 1e-4));
+    for (var j = j0; j <= j1; j++) {
+      let z = f32(j) * 11.0;
+      let hj = hash3i(vec3i(j, i32(s.fil), 7));
+      let th = f32(j) * 3.5 + hj.x * 0.6;
+      let rad = R0 * cos(th) + R1 * sin(th);
+      let c = s.a + ax * ((z - s.s0) / s.len) + rad * 8.5;
+      let w = fade(c) * F.latticeOn;
+      if (w <= 0.01 || isCut(c)) { continue; }
+      var inst: Inst;
+      inst.pos = c; inst.scale = w;
+      inst.rot = qmul(basis(rad, T), qaxis(vec3f(1.0, 0.0, 0.0), hj.y * 1.2 - 0.6));
+      inst.mtype = T_NUCLEOSOME; inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
+      emit(inst);
+      // the linker to the next nucleosome: base pairs every 0.34 nm, 36° apart, leaving the cores (5.5 nm round each)
+      let thn = f32(j + 1) * 3.5 + hash3i(vec3i(j + 1, i32(s.fil), 7)).x * 0.6;
+      let cn = c + T * 11.0 + (R0 * cos(thn) + R1 * sin(thn) - rad) * 8.5;
+      let lk = cn - c;
+      let L = length(lk);
+      let dir = lk / L;
+      let ref0 = normalize(cross(dir, vec3f(0.17, 0.31, 1.0)));
+      // (only near the focus: further off, a linker's base pairs are a dust of dots)
+      let nbp = select(0, i32(L / 0.34), length(c - F.focus) < F.radius * 0.45);
+      for (var b = 0; b < nbp; b++) {
+        let along = f32(b) * 0.34;
+        if (along < 5.0 || along > L - 5.0) { continue; }
+        let pb = c + dir * along;
+        let wb = fade(pb) * F.latticeOn;
+        if (wb <= 0.01) { continue; }
+        var bp: Inst;
+        let tw = f32(b) * 0.62832 + f32(j) * 1.7;
+        bp.pos = pb; bp.scale = wb; bp.rot = qmul(basis(ref0, dir), qaxis(vec3f(0.0, 1.0, 0.0), tw));
+        bp.mtype = T_DNABP;
+        bp.tint = pcg3(vec3u(u32(b), u32(j), s.fil)).x;
+        bp.id = 0x80000000u | (u32(j) & 0xffffu);
+        emit(bp);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- actors (the app's own: walkers, cargo, the game)
+@compute @workgroup_size(64) fn actors(@builtin(global_invocation_id) g: vec3u) {
+  if (g.x >= F.actorCount) { return; }
+  let a = actorIn[g.x];
+  if (isCut(a.pos)) { return; }
+  emit(a);
+}
