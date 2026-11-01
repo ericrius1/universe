@@ -61,6 +61,12 @@ export interface SkinH {
   plate: number;
   pore: number;
 }
+export interface Hair {
+  t: number;
+  along: number;
+  cover: number;
+  fair: number;
+}
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; SkinH: SkinH }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; SkinH: SkinH; Hair: Hair }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

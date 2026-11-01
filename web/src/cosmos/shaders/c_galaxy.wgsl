@@ -45,20 +45,24 @@ fn galaxy(p: vec3f) -> Gal {
 }
 
 // the Milky Way as the Sun sees it: a band along the galactic plane, broad and warm toward the centre (in
-// Sagittarius, along −x), knotted into star clouds, split by dark lanes of dust (the Great Rift)
+// Sagittarius, along −x, where it swells round the bulge), knotted into star clouds, split by dark lanes of dust (the
+// Great Rift), its edges fading softly into the sky
 fn milkyWay(rd: vec3f) -> vec3f {
   let b = asin(clamp(rd.y, -1.0, 1.0));
   let l = atan2(rd.z, -rd.x);                       // 0 toward the centre
   let toC = 0.5 + 0.5 * cos(l);                     // 1 toward the centre, 0 away
   let width = 0.07 + 0.09 * toC * toC;
-  let band = exp(-pow(abs(b) / width, 1.4));
-  let bulge = exp(-(l * l + b * b * 4.0) / 0.09) * 1.6;
+  // a bright core across the plane, and wide soft wings fading off it (no edge to it)
+  let band = exp(-pow(abs(b) / width, 1.4)) * 0.75 + exp(-pow(abs(b) / (width + 0.22), 1.2)) * 0.25 * (0.6 + 0.4 * toC);
+  // the bulge round Sagittarius: brighter, and a broad glow round it
+  let bulge = exp(-(l * l + b * b * 4.0) / 0.12) * 2.2 + exp(-(l * l + b * b * 5.0) / 0.5) * 0.25;
   let dir = vec3f(cos(l), sin(l), b * 3.0);
-  let clouds = 0.55 + 0.9 * max(fbm(dir * 6.0, 5), -0.3) + 0.5 * max(fbm(dir * 22.0 + 3.0, 4), -0.2);
+  // (the star clouds knot the core; the wings stay smooth)
+  let clouds = 0.55 + (0.9 * max(fbm(dir * 6.0, 5), -0.3) + 0.5 * max(fbm(dir * 22.0 + 3.0, 4), -0.2)) * ss(2.6, 0.8, abs(b) / width);
   // the dust: thin dark lanes hugging the plane, strongest toward the centre
   let lane = exp(-pow((b - 0.012 * sin(l * 3.0) - 0.02 * fbm(dir * 9.0, 3)) / (0.018 + 0.03 * toC), 2.0));
   let rift = clamp(lane * (0.5 + 0.8 * max(fbm(dir * 14.0 + 7.0, 4) + 0.3, 0.0)) * (0.35 + 0.65 * toC), 0.0, 0.95);
-  let c = mix(vec3f(0.7, 0.75, 0.95), vec3f(1.0, 0.82, 0.62), toC * 0.8 + bulge * 0.2);
+  let c = mix(vec3f(0.7, 0.75, 0.95), vec3f(1.0, 0.82, 0.62), min(toC * 0.8 + bulge * 0.2, 1.0));
   return c * (band * clouds + bulge) * (1.0 - rift) + vec3f(0.02, 0.022, 0.03) * band;
 }
 
