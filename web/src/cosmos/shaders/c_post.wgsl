@@ -55,6 +55,11 @@ fn agx(c0: vec3f) -> vec3f {
   return clamp(mi * c, vec3f(0.0), vec3f(1.0));
 }
 
+fn toe(x: vec3f) -> vec3f {
+  let k = 0.012;
+  return select(k * log(1.0 + exp(x / k)), x, x > vec3f(8.0 * k));
+}
+
 @fragment fn fs_final(in: FullscreenOut) -> @location(0) vec4f {
   if (P.disc > 0.5 && length(in.uv - 0.5) > 0.5) { return vec4f(0.0, 0.0, 0.0, P.alpha); }
   var c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;
@@ -63,7 +68,10 @@ fn agx(c0: vec3f) -> vec3f {
   var g = agx(c);
   let l = dot(g, vec3f(0.2126, 0.7152, 0.0722));
   g = mix(vec3f(l), g, P.saturation);
-  g = clamp((g - 0.5) * P.contrast + 0.5, vec3f(0.0), vec3f(1.0));
+  // the contrast round mid-grey, with a soft toe rather than a clamp at black: what the curve pushes below black
+  // fades out instead of ending at an edge (the Milky Way's, a glow's), and pure black stays black
+  let b0 = (-0.00232 - 0.5) * P.contrast + 0.5;
+  g = clamp(toe((g - 0.5) * P.contrast + 0.5) - toe(vec3f(b0)), vec3f(0.0), vec3f(1.0));
   let dc = in.uv - 0.5;
   g *= 1.0 - P.vignette * smoothstep(0.25, 0.95, length(dc * vec2f(frame.aspect, 1.0)) / max(frame.aspect, 1.0) * 1.5);
   g += (hash3u(vec3u(vec2u(in.pos.xy), frame.frame)).x - 0.5) * P.grain;

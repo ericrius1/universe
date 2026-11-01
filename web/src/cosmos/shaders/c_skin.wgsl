@@ -1,5 +1,5 @@
 // The back of the hand, close (millimetres; y out of the skin): the diamond net of creases at two sizes, sweat pores,
-// a few fine hairs leaning out of their follicles, and — at a tenth of a millimetre — the flattened dead cells of the
+// a few fine hairs curving out of their follicles' pits, and — at a tenth of a millimetre — the flattened dead cells of the
 // stratum corneum, plates 30 µm across with lifting edges, where the cell takes over. Marched as a height field.
 // L.a: exposure, sun intensity, detail.
 #include "cosmos.wgsl"
@@ -37,6 +37,13 @@ fn skinH(p: vec2f, fine: f32) -> SkinH {
   let pore = exp(-pc.y * pc.y / 0.0009) * step(0.6, pc.z);
   h -= 0.03 * pore;
   o.pore = pore;
+  // the hairs' follicles: a small pit round each
+  let fb = follicle(floor(p / HAIR_CELL));
+  if (fb.w > 0.0) {
+    let fd = length(p - fb.xz);
+    h -= 0.035 * exp(-fd * fd / 0.0016);
+    o.pore = max(o.pore, exp(-fd * fd / 0.0025) * 0.8);
+  }
   // the stratum corneum: overlapping plates ~30 µm, edges lifted
   if (fine > 0.0) {
     let c = cell2(p + vec2f(fbm(vec3f(p * 12.0, 1.0), 2) * 0.006), 0.032, 17.0);
@@ -49,35 +56,60 @@ fn skinH(p: vec2f, fine: f32) -> SkinH {
   return o;
 }
 
-// hairs: from follicles on a 2.4 mm lattice, leaning out at ~25°
-fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
-  var best = 1e9; var shade = 0.0;
-  let cs = 2.4;
-  let c0 = floor((ro.xz + rd.xz * max(-ro.y / min(rd.y, -1e-3), 0.0)) / cs);
+// hairs: a few from follicles on a 3 mm lattice, each a fine tapered strand rising out of its pit and curving over to
+// lie along the skin, all combed roughly one way (toward the wrist), some dark and some fine and fair
+const HAIR_CELL = 3.0;
+// the follicle in a lattice cell: (x, -, z, 1) or w 0 for none
+fn follicle(g: vec2f) -> vec4f {
+  let h = hash3i(vec3i(i32(g.x), i32(g.y), 41));
+  if (h.z > 0.2) { return vec4f(0.0); }
+  return vec4f((g.x + 0.15 + h.x * 0.7) * HAIR_CELL, 0.0, (g.y + 0.15 + h.y * 0.7) * HAIR_CELL, 1.0);
+}
+// the ray's nearest approach to a segment a..b: (t along the ray, s along the segment, distance)
+fn rayToSeg(ro: vec3f, rd: vec3f, a: vec3f, b: vec3f) -> vec3f {
+  let ba = b - a; let oa = ro - a;
+  let bb = dot(ba, ba); let br = dot(ba, rd); let bo = dot(ba, oa); let ro_ = dot(rd, oa);
+  let den = max(bb - br * br, 1e-9);
+  let s = clamp((bo - br * ro_) / den, 0.0, 1.0);
+  let q = a + ba * s;
+  let t = dot(q - ro, rd);
+  return vec3f(t, s, length(ro + rd * t - q));
+}
+struct Hair { t: f32, along: f32, cover: f32, fair: f32 }
+fn hairs(ro: vec3f, rd: vec3f, px: f32) -> Hair {
+  var o: Hair; o.t = 1e9; o.cover = 0.0;
+  let c0 = floor((ro.xz + rd.xz * max(-ro.y / min(rd.y, -1e-3), 0.0)) / HAIR_CELL);
   for (var j = -2; j <= 2; j++) {
     for (var i = -2; i <= 2; i++) {
       let g = c0 + vec2f(f32(i), f32(j));
-      let h = hash3i(vec3i(i32(g.x), i32(g.y), 41));
-      if (h.z > 0.22) { continue; }
-      let base = vec3f((g.x + h.x) * cs, -0.02, (g.y + h.y) * cs);
-      let dir = normalize(vec3f(-0.9 + h.y * 0.3, 0.45, 0.25 - h.x * 0.5));
-      let tip = base + dir * (2.5 + h.z * 4.0);
-      // ray–capsule, approximately: the closest approach of the ray to the segment
-      let r = 0.026;
-      let ba = tip - base; let oa = ro - base;
-      let baba = dot(ba, ba); let bard = dot(ba, rd); let baoa = dot(ba, oa); let rdoa = dot(rd, oa); let oaoa = dot(oa, oa);
-      let a = baba - bard * bard;
-      let b = baba * rdoa - baoa * bard;
-      let c = baba * oaoa - baoa * baoa - r * r * baba;
-      let hh = b * b - a * c;
-      if (hh >= 0.0) {
-        let t = (-b - sqrt(hh)) / a;
-        let y = baoa + t * bard;
-        if (y > 0.0 && y < baba && t > 0.0 && t < best) { best = t; shade = y / baba; }
+      let f = follicle(g);
+      if (f.w == 0.0) { continue; }
+      let h = hash3i(vec3i(i32(g.x), i32(g.y), 43));
+      let len = 2.2 + h.x * 3.8;
+      let fair = step(0.55, h.y);
+      // combed toward -x, give or take 30°, rising steeply from the pit then lying over
+      let az = -1.9 + (h.z - 0.5) * 1.0;
+      let curl = (h.y - 0.5) * 0.5;
+      var a = vec3f(f.x, -0.03, f.z);
+      for (var k = 0; k < 3; k++) {
+        let fk = f32(k);
+        let el = mix(0.75, 0.0, fk / 2.0) - h.x * 0.15;
+        let azk = az + curl * fk;
+        let b = a + vec3f(cos(azk) * cos(el), sin(el), sin(azk) * cos(el)) * (len / 3.0);
+        let r = rayToSeg(ro, rd, a, b);
+        // tapering from the follicle to a fine point
+        let u = (fk + r.y) / 3.0;
+        let rad = mix(select(0.042, 0.026, fair > 0.5), 0.006, u * u);
+        // (no thinner than most of a pixel, fainter instead, so a far hair stays a line and doesn't break up)
+        let w = max(r.x * px, 1e-5);
+        let re = max(rad, w * 0.7);
+        let cov = ss(re + w * 0.5, max(re - w * 0.5, 0.0), r.z) * sqrt(rad / re);
+        if (cov > 0.01 && r.x > 0.0 && r.x < o.t) { o.t = r.x; o.along = u; o.cover = cov; o.fair = fair; }
+        a = b;
       }
     }
   }
-  return vec2f(best, shade);
+  return o;
 }
 
 // beneath the dead plates, the living epidermis: rounded cells ~25 µm, packed, each with its purple nucleus — the
@@ -103,6 +135,16 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
     if (T < 0.02) { break; }
   }
   return vec4f(col, 1.0 - T);
+}
+
+// a hair over what's behind it, by how much of the pixel it covers: dark brown or fair, glossy along its length
+fn hairOver(c: vec3f, hr: Hair, behind: f32, rd: vec3f, sun: vec3f, sunI: f32) -> vec3f {
+  if (hr.cover <= 0.0 || hr.t > behind) { return c; }
+  // (into the haze with the skin behind them)
+  let fog = 1.0 - exp(-max(hr.t - L.scale, 0.0) / (L.scale * 2.5));
+  let base = mix(vec3f(0.07, 0.045, 0.03), vec3f(0.36, 0.25, 0.16), hr.fair) * (0.5 + 0.5 * hr.along);
+  let hc = base * sunI * 0.45 + vec3f(1.0, 0.95, 0.9) * sunI * 0.08 * pow(1.0 - abs(dot(rd, sun)), 8.0);
+  return mix(c, hc, hr.cover * (1.0 - fog));
 }
 
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
@@ -131,16 +173,10 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
     t += max(dy * 0.75, t * px * 1.5);
     if (p.y < -0.2) { hitT = t; break; }
   }
-  let hr = hairs(ro, rd);
-  if (hr.x < 1e8 && (hitT < 0.0 || hr.x < hitT)) {
-    // a hair: dark, glossy along its length
-    let c = vec3f(0.11, 0.07, 0.045) * (0.4 + 0.6 * hr.y);
-    col = c * sunI * 0.35 + vec3f(1.0, 0.95, 0.9) * sunI * 0.08 * pow(1.0 - abs(dot(rd, sun)), 8.0);
-    return vec4f(col * L.a.x * L.weight, L.weight);
-  }
+  let hr = hairs(ro, rd, px);
   // the far skin fades into a warm haze (no edge of the world below a millimetre)
   let fogC = vec3f(0.42, 0.25, 0.21) * sunI * 0.45;
-  if (hitT < 0.0) { return vec4f(fogC * L.a.x * L.weight, L.weight); }
+  if (hitT < 0.0) { return vec4f(hairOver(fogC, hr, 1e9, rd, sun, sunI) * L.a.x * L.weight, L.weight); }
   let p = ro + rd * hitT;
   let fog = 1.0 - exp(-max(hitT - L.scale, 0.0) / (L.scale * 5.0));
   let e = max(0.0008, hitT * px * 1.5);
@@ -167,5 +203,6 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
     col = mix(col, e.rgb * lit * 0.2 + col * 0.06 * (1.0 - e.a), reveal);
   }
   col = mix(col, fogC, fog);
+  col = hairOver(col, hr, hitT, rd, sun, sunI);
   return vec4f(col * L.a.x * L.weight, L.weight);
 }

@@ -88,6 +88,25 @@ fn handNormal(p: vec3f) -> vec3f {
   return normalize(vec3f(hand(p + e.xyy) - hand(p - e.xyy), hand(p + e.yxy) - hand(p - e.yxy), hand(p + e.yyx) - hand(p - e.yyx)));
 }
 
+// the hand's footprint on the grass (x, z): its distance, roughly (the palm, the fingers together, the thumb, the
+// forearm), cheap enough for every blade near it to ask
+fn sd2Box(p: vec2f, c: vec2f, b: vec2f, r: f32) -> f32 {
+  let q = abs(p - c) - b;
+  return length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - r;
+}
+fn sd2Seg(p: vec2f, a: vec2f, b: vec2f, ra: f32, rb: f32) -> f32 {
+  let pa = p - a; let ba = b - a;
+  let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - mix(ra, rb, h);
+}
+fn handPrint(p: vec2f) -> f32 {
+  var d = sd2Box(p, vec2f(0.0, 0.0), vec2f(0.036, 0.032), 0.012);
+  d = min(d, sd2Box(p, vec2f(-0.087, 0.0), vec2f(0.04, 0.034), 0.007));
+  d = min(d, sd2Seg(p, vec2f(0.014, -0.038), vec2f(-0.042, -0.078), 0.009, 0.007));
+  d = min(d, sd2Seg(p, vec2f(0.05, 0.004), vec2f(0.34, 0.075), 0.018, 0.03));
+  return d;
+}
+
 // ---------------------------------------------------------------- grass
 const GH = 0.11;
 // a blade near (x, z) at height y: distance to it, and its tint
@@ -102,7 +121,7 @@ fn blade(p: vec3f) -> vec2f {
       // (flattened under the hand and round its edge)
       let bp = vec3f((g.x + 0.5) * cs, 0.0, (g.y + 0.5) * cs);
       var press = 1.0;
-      if (abs(bp.x - 0.1) < 0.3 && abs(bp.z) < 0.15) { press = ss(0.0, 0.03, hand(vec3f(bp.x, 0.02, bp.z))); }
+      if (abs(bp.x - 0.1) < 0.3 && abs(bp.z) < 0.15) { press = ss(0.0, 0.03, handPrint(bp.xz)); }
       let hgt = GH * (0.45 + 0.55 * h.z) * mix(0.15, 1.0, press);
       let u = p.y / hgt;
       if (u > 1.0) { continue; }
@@ -250,10 +269,10 @@ struct Hit { t: f32, kind: i32, tint: f32 }
       let hs = sphereHit(p, sun, vec3f(0.1, 0.03, 0.0), 0.3);
       if (hs.y > 0.0) {
         t = max(hs.x, 0.002);
-        for (var i = 0; i < 32; i++) {
+        for (var i = 0; i < 20; i++) {
           let d = hand(p + sun * t);
           sh = min(sh, 12.0 * d / t);
-          t += max(d, 0.002);
+          t += max(d, 0.003);
           if (sh < 0.01 || t > hs.y) { break; }
         }
       }
