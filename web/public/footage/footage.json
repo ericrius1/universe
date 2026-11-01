@@ -1,0 +1,17 @@
+[
+ {
+  "id": "the-journey",
+  "title": "The journey",
+  "sub": "From a hand lying in the grass at Chautauqua in Boulder out past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down into one of the hand's cells to the DNA wound on its nucleosomes, and out again: thirty-five powers of ten in one take.",
+  "date": "2026-11-01",
+  "created": "2026-11-01T06:53-07:00",
+  "seconds": 116,
+  "width": 1920,
+  "height": 1080,
+  "mb": 198.2,
+  "video": "https://footage.ericrius1.workers.dev/universe/379df3451f218bac/universe-journey-1080p.mp4",
+  "small": "https://footage.ericrius1.workers.dev/universe/00467b689b933996/universe-journey-720p.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/universe/92e43f43a4190ebf/the-journey-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/universe/71b13f64e12618a7/the-journey-card.jpg"
+ }
+]
