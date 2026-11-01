@@ -13,8 +13,8 @@ export class Surface {
   night = 0;
 
   constructor(R: CosmosRenderer, private ladder: Ladder) {
-    this.ground = R.level('ground', ladder.ground, [5.3, 4.6, -1.15, -1.55]);
-    this.skin = R.level('skin', ladder.skin, [-0.95, -1.4, -99, -100]);
+    this.ground = R.level('ground', ladder.ground, [5.3, 4.6, -1.2, -1.45]);
+    this.skin = R.level('skin', ladder.skin, [-1.15, -1.4, -99, -100]);
     R.scene.fullscreen(ground, { label: 'ground', fragment: 'fs', bind: { L: this.ground.L }, blend: 'premultiplied', enabled: this.ground.on });
     R.scene.fullscreen(skin, { label: 'skin', fragment: 'fs', bind: { L: this.skin.L }, blend: 'premultiplied', enabled: this.skin.on });
   }

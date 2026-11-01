@@ -17,7 +17,8 @@ fn terrain(x: f32, z: f32, lod: f32) -> f32 {
   // the plains: a gentle swell, rising westward; flat round the meadow where the hand lies
   let r0 = length(vec2f(x, z));
   var h = (fbm(q / 260.0, max(oc - 2, 2)) * 3.0 + fbm(q / 3200.0 + 4.0, 3) * 18.0 - x * 0.012) * ss(25.0, 400.0, r0);
-  // the foothills and the Flatirons
+  // the foothills and the Flatirons (only west of where they begin)
+  if (x > -1800.0) { return h - (x * x + z * z) / (2.0 * EARTH_M); }
   let x0 = -2600.0 + 380.0 * sin(z / 2100.0) + 120.0 * fbm(q / 900.0, 2);
   let m = ss(x0, x0 - 2600.0, x);
   let hills = m * (480.0 + 380.0 * ridged(q / 1700.0, oc)) ;
@@ -26,14 +27,16 @@ fn terrain(x: f32, z: f32, lod: f32) -> f32 {
   let dz = z - k * 900.0 - 160.0 * sin(k * 1.7);
   let w = 330.0 + 140.0 * fract(sin(k * 12.9) * 43758.5);
   // (a fin's top is jagged, its flanks weathered)
-  let tri = pow(max(0.0, 1.0 - abs(dz) / w), 0.6) * (0.85 + 0.15 * fbm(q / 90.0, 3));
+  let tri = pow(max(0.0, 1.0 - abs(dz) / w), 0.6) * (0.85 + 0.15 * fbm(q / 90.0, max(oc - 4, 1)));
   let rise = clamp((x0 + 150.0 - x) * 1.15, 0.0, 380.0 + 220.0 * fract(sin(k * 7.3) * 921.7));
   let back = ss(x0 - 1100.0, x0 - 700.0, x);
   let fin = rise * tri * back;
   h += max(hills, fin + m * 220.0);
   // the high peaks, 20–30 km west
-  let far = ss(-11000.0, -26000.0, x);
-  h += far * (1300.0 + 1100.0 * ridged(q / 5200.0 + 2.0, max(oc - 1, 2)));
+  if (x < -11000.0) {
+    let far = ss(-11000.0, -26000.0, x);
+    h += far * (1300.0 + 1100.0 * ridged(q / 5200.0 + 2.0, max(oc - 1, 2)));
+  }
   // the Earth curves away
   return h - (x * x + z * z) / (2.0 * EARTH_M);
 }
@@ -189,7 +192,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
   var tHand = 1e9;
   if (hb.y > 0.0) {
     var t = max(hb.x, 0.0);
-    for (var i = 0; i < 96; i++) {
+    for (var i = 0; i < 64; i++) {
       let d = hand(ro + rd * t);
       if (d < max(0.00004, t * 0.0004)) { tHand = t; break; }
       t += d;
@@ -204,7 +207,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     let t0 = max(tTop, 0.0);
     let t1 = min(tBot, min(t0 + 3.0, tHand));
     if (t1 > t0 && t0 < 12.0) {
-      let n = 40;
+      let n = 26;
       let dt = (t1 - t0) / f32(n);
       let jit = hash3u(vec3u(vec2u(in.pos.xy), frame.frame % 32u)).x;
       for (var i = 0; i < n; i++) {
@@ -220,13 +223,13 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     var t = 0.0;
     let tTop = select(1e9, (4500.0 - ro.y) / rd.y, rd.y < 0.0 && ro.y > 4500.0);
     if (tTop < 1e9) { t = tTop; }
-    for (var i = 0; i < 220; i++) {
+    for (var i = 0; i < 160; i++) {
       let p = ro + rd * t;
       let lod = log2(max(t, 1.0) / 400.0);
       let h = terrain(p.x, p.z, lod);
       let dy = p.y - h;
       if (dy < max(0.002, t * 0.0008)) { tLand = t; break; }
-      t += max(dy * 0.45, 0.01 + t * 0.002);
+      t += max(dy * 0.5, 0.01 + t * 0.006);
       if (t > tMax || (rd.y > 0.0 && p.y > 5000.0)) { break; }
     }
   }
@@ -234,8 +237,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
   var alpha = 1.0;
   let tSurf = min(tHand, min(tGrass, tLand));
   let sunCol = sunlightAt(vec3f(0.0, RP + max(ro.y, 0.0) * 0.001 + 0.05, 0.0), vec3f(0.0), sun) * sunI;
-  let sky = air(eyeKm, rd, 1e9, center, sun, sunI, 12);
-  let ambient = sky.light * 0.0 + vec3f(0.35, 0.45, 0.6) * 0.12 * sunI * max(sun.y + 0.15, 0.02);
+  let ambient = vec3f(0.35, 0.45, 0.6) * 0.12 * sunI * max(sun.y + 0.15, 0.02);
   if (tSurf < 1e8) {
     let p = ro + rd * tSurf;
     var n: vec3f; var alb: vec3f; var sss = 0.0;
@@ -285,10 +287,14 @@ struct Hit { t: f32, kind: i32, tint: f32 }
       let h = normalize(sun - rd);
       col += sunCol * pow(max(dot(n, h), 0.0), 40.0) * 0.06 * diff;
     }
-    // the haze between
-    let a = air(eyeKm, rd, tSurf * 0.001, center, sun, sunI, 8);
-    col = col * a.trans + a.light;
+    // the haze between (none to speak of within a couple of hundred metres)
+    if (tSurf > 150.0) {
+      let a = air(eyeKm, rd, tSurf * 0.001, center, sun, sunI, 6);
+      col = col * a.trans + a.light;
+    }
   } else {
+    // (the sky only where it's seen)
+    let sky = air(eyeKm, rd, 1e9, center, sun, sunI, 10);
     col = sky.light;
     // the Sun's disc
     let mu = dot(rd, sun);

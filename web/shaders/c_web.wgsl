@@ -42,6 +42,8 @@ fn cmb(n: vec3f) -> f32 {
 fn webDensity(p: vec3f) -> vec2f {
   let a = cellular(p / 130.0, 0.95);
   let wall = exp(-(a.d2 - a.d1) * 30.0);
+  // (deep in a void there's nothing to find at the finer size: skip it)
+  if (wall < 0.04) { return vec2f(0.0); }
   let b = cellular(p / 38.0 + 7.3, 0.95);
   let fine = exp(-(b.d2 - b.d1) * 26.0);
   // clusters where the fine web's walls meet the coarse one's

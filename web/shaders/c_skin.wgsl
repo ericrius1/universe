@@ -85,7 +85,7 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
 fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
   var col = vec3f(0.0);
   var T = 1.0;
-  let n = 56;
+  let n = 34;
   let dt = 0.06 / f32(n);
   for (var i = 0; i < n; i++) {
     let q = p0 + rd * ((f32(i) + jit) * dt);
@@ -121,12 +121,12 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
   var hitT = -1.0;
   var sh: SkinH;
   let px = L.pxAngle;
-  for (var i = 0; i < 90; i++) {
+  for (var i = 0; i < 60; i++) {
     let p = ro + rd * t;
     sh = skinH(p.xz, fine);
     let dy = p.y - sh.h;
     if (dy < max(0.00003, t * px * 0.5)) { hitT = t; break; }
-    t += max(dy * 0.6, t * px);
+    t += max(dy * 0.75, t * px * 1.5);
     if (p.y < -0.2) { hitT = t; break; }
   }
   let hr = hairs(ro, rd);

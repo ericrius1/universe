@@ -1,5 +1,32 @@
-# Cell
+# Universe
 
+From the edge of the observable universe to a single molecule, in one continuous zoom on WebGPU: the cosmic web and
+the cosmic microwave background, the Milky Way, the Sun's neighbours, the solar system on its real orbits, the Earth,
+a meadow below the Flatirons outside Boulder with a hand lying in the grass, the skin of that hand down to its dead and
+living cells, and then into a living human cell and its molecules (the Cell project, which this grew from). About 35
+powers of ten.
+
+## How it holds together across 35 orders of magnitude
+
+- **A ladder of frames** (`web/src/cosmos/frames.ts`): megaparsecs, kiloparsecs, parsecs, AU, kilometres, metres,
+  millimetres, and the cell's nanometres. Each frame sits in its parent at a position and a rotation, worked out in
+  doubles; nothing ever holds a number much bigger than a few thousand of its own units.
+- **Floating origins everywhere.** The GPU never does arithmetic on a big number: each level draws relative to the
+  zoom's target in its own frame, rounded to float32, and every shader rebases an absolute position the moment it loads
+  it; motion is added after (`web/src/engine/origin.ts`). The cell's molecules used to shake at nanometre zoom from
+  exactly this (`?noorigin` brings the old maths back for comparison).
+- **One nested target** (Powers of Ten): the dive always ends on the back of the hand; at each body's own scale the
+  camera eases onto it (the galaxy's centre, the Sun, the Earth's centre) and back off as it passes.
+- **Levels cross-fade by zoom** (`web/src/cosmos/renderer.ts`), coarsest first, each laying its light over what's behind
+  with its coverage: a daytime sky hides the stars, a night one doesn't.
+- **The hand-over to the cell**: zooming in past ~150 µm gives the camera to the cell's world (and out past it, back);
+  the skin's living layer and the tissue's haze are matched so the two dissolve into each other.
+
+URL: `?s=<log10 metres>` starts at a zoom (27 is the whole observable universe, -3.7 the skin's cells) · `?utc=<hours>`
+the time of day (default mid-morning in Boulder) · `?now` the real moment · `?place=<cell place>` starts in the cell ·
+`?noorigin` the old float32 maths.
+
+## The cell (from Cell)
 A human cell from the outside in, in real time on WebGPU: from a sheet of tissue down through the nucleus, the
 mitochondria and the membranes to single molecules — DNA wound on nucleosomes, ribosomes, ATP synthase spinning,
 kinesin walking a microtubule — in one continuous world measured in nanometres, eight orders of magnitude deep.
@@ -34,7 +61,7 @@ film/       rendered films (not in git)
 ## Run
 
 ```bash
-cd web && npm install && npm run dev          # http://127.0.0.1:5740
+cd web && npm install && npm run dev          # http://127.0.0.1:5750
 python -I pipeline/beads.py                   # (re)build the molecules from the PDB
 node web/tools/keepchrome.mjs                 # a headless GPU Chrome for the tools (CDP 9740)
 node web/tools/shoot.mjs out.png "place=dna"  # a frame (UI=1 adds the interface)
