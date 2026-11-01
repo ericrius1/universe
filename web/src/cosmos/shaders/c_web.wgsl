@@ -68,7 +68,7 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
   let a = cell3(p / 130.0);
   let wall = exp(-(a.y - a.x) * 40.0 / soft);
   // (deep in a void there's nothing to find at the finer size: skip it)
-  if (wall < 0.03) { return vec2f(0.0); }
+  if (wall < 0.05) { return vec2f(0.0); }
   // the great filaments along the big cells' edges; finer ones over their walls; clusters where they cross
   let big = exp(-(a.z - a.x) * 95.0 / soft);
   let b = cell3(p / 38.0 + 7.3);
@@ -90,6 +90,8 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
   let jit = ign(in.pos.xy);
   var col = vec3f(0.0);
   var tPrev = t0;
+  // (a slow drift of the filaments' hue across the sky)
+  let fil = mix(vec3f(0.42, 0.55, 1.0), vec3f(0.62, 0.5, 0.95), vnoise((ro + rd * L.scale) / 900.0) * 0.5 + 0.5);
   for (var i = 0; i < steps; i++) {
     let u = (f32(i) + jit) / f32(steps);
     let t = t0 + (t1 - t0) * u * u;
@@ -98,9 +100,7 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
     let p = ro + rd * t;
     let d = webDensity(p, clamp(dt / 6.0, 1.0, 3.0));
     if (d.x <= 0.0) { continue; }
-    // filaments cool blue-violet, clusters hot gold; a slow drift of hue across the sky
-    let tint = vnoise(p / 900.0) * 0.5 + 0.5;
-    let fil = mix(vec3f(0.42, 0.55, 1.0), vec3f(0.62, 0.5, 0.95), tint);
+    // filaments cool blue-violet, clusters hot gold
     let c = mix(fil, vec3f(1.0, 0.62, 0.28) * 1.4, d.y);
     // (what's about the view's distance away counts most: from inside, the walls round you, not all 14 Gpc at once)
     let q = t / (1.3 * L.scale);

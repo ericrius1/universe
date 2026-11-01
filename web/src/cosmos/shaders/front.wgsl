@@ -8,11 +8,17 @@ const EARTH_M = 6371000.0;
 
 fn ridged(p: vec3f, o: i32) -> f32 { return 1.0 - abs(fbm(p, o) * 2.0); }
 
+// a smooth 1D value noise (-1..1), cheap enough to ask at every step of a march
+fn vnoise1(x: f32, seed: i32) -> f32 {
+  let i = floor(x); let f = x - i;
+  let a = hash3i(vec3i(i32(i), seed, 7)).x; let b = hash3i(vec3i(i32(i) + 1, seed, 7)).x;
+  return mix(a, b, f * f * (3.0 - 2.0 * f)) * 2.0 - 1.0;
+}
+
 // where the foothills begin (x) along the front: wandering a little here, and a few kilometres over a hundred
 fn frontX(z: f32) -> f32 {
-  return -2600.0 + 380.0 * sin(z / 2100.0) + 120.0 * vnoise(vec3f(0.0, 0.0, z / 900.0))
-    + 7000.0 * (vnoise(vec3f(0.0, 5.0, z / 32000.0)) - vnoise(vec3f(0.0, 5.0, 0.0)))
-    + 60000.0 * (vnoise(vec3f(0.0, 8.0, z / 300000.0)) - vnoise(vec3f(0.0, 8.0, 0.0)));
+  return -2600.0 + 380.0 * sin(z / 2100.0) + 120.0 * vnoise1(z / 900.0, 1)
+    + 7000.0 * (vnoise1(z / 32000.0, 2) - vnoise1(0.0, 2)) + 60000.0 * (vnoise1(z / 300000.0, 3) - vnoise1(0.0, 3));
 }
 
 // the Flatirons: z centre, half-width at the toe, toe west of the front, length up the dip (m)
@@ -60,11 +66,13 @@ fn flatirons(x: f32, z: f32, x0: f32, oc: i32) -> vec2f {
 fn front(x: f32, z: f32, lod: f32) -> vec2f {
   let q = vec3f(x, 0.0, z);
   let oc = i32(clamp(7.0 - lod, 2.0, 7.0));
+  let curve = (x * x + z * z) / (2.0 * EARTH_M);
   // the plains: a gentle swell, rising westward to the hills; flat round the meadow where the hand lies
   let r0 = length(vec2f(x, z));
+  if (r0 < 25.0) { return vec2f(-curve, 0.0); }
   var h = (fbm(q / 260.0, max(oc - 2, 2)) * 3.0 + fbm(q / 3200.0 + 4.0, 3) * 18.0 - max(x, -12000.0) * 0.012) * ss(25.0, 400.0, r0);
-  let curve = (x * x + z * z) / (2.0 * EARTH_M);
-  // the foothills and the Flatirons (only west of where they begin)
+  // the foothills and the Flatirons (only west of where they begin: near the meadow, at least 1.2 km off)
+  if (x > -1200.0 && r0 < 3000.0) { return vec2f(h - curve, 0.0); }
   let x0 = frontX(z);
   if (x > x0 + 100.0) { return vec2f(h - curve, 0.0); }
   let m = ss(x0 + 100.0, x0 - 2600.0, x);
@@ -142,25 +150,39 @@ fn landColor(p: vec3f, n: vec3f, dist: f32, px: f32) -> vec3f {
   // tangent plane), the same however finely the land's drawn
   let fr = front(p.x, p.z, 5.0);
   let hy = fr.x + (p.x * p.x + p.z * p.z) / (2.0 * EARTH_M);
-  // the meadow round the hand and at the foot of the hills, parcels beyond
+  // the meadow round the hand and at the foot of the hills, parcels beyond (each only where it shows)
   let x0 = frontX(p.z);
-  var c = mix(meadow(p, dist), plains(p, dist, px), ss(220.0, 600.0, length(p.xz)) * ss(x0 + 600.0, x0 + 1400.0, p.x));
+  let mp = ss(220.0, 600.0, length(p.xz)) * ss(x0 + 600.0, x0 + 1400.0, p.x);
+  var c = vec3f(0.0);
+  if (mp < 1.0) { c = meadow(p, dist); }
+  if (mp > 0.0) { c = mix(c, plains(p, dist, px), mp); }
   // ponderosa and spruce on the foothills (dark conifer green, thinning to grassy clearings) up to the treeline,
   // tundra and scree above it, snow on the highest and in the north-facing hollows
-  let tree = ss(2150.0, 1850.0, hy + 180.0 * fbm(p / 900.0, 3));
-  let forest = ss(65.0, 245.0, hy) * ss(0.8, 0.4, slope) * tree;
-  c = mix(c, vec3f(0.15, 0.135, 0.1) * (0.8 + 0.4 * fbm(p / 150.0, 3)), ss(1850.0, 2150.0, hy) * (1.0 - tree));
-  let clear = ss(0.15, 0.45, fbm(p / 300.0 + 11.0, 3)) * ss(2600.0, 1900.0, hy) * 0.6;
-  var trees = vec3f(0.03, 0.048, 0.016) * (0.7 + 0.6 * vnoise(p / 25.0));
-  trees = mix(trees, vec3f(0.13, 0.12, 0.06), clear * ss(30.0, 300.0, px) * 0.5 + clear * 0.4);
-  c = mix(c, trees, forest);
+  if (hy > 65.0) {
+    let tree = ss(2150.0, 1850.0, hy + 180.0 * fbm(p / 900.0, 3));
+    let forest = ss(65.0, 245.0, hy) * ss(0.8, 0.4, slope) * tree;
+    if (tree < 1.0) { c = mix(c, vec3f(0.15, 0.135, 0.1) * (0.8 + 0.4 * fbm(p / 150.0, 3)), ss(1850.0, 2150.0, hy) * (1.0 - tree)); }
+    let clear = ss(0.15, 0.45, fbm(p / 300.0 + 11.0, 3)) * ss(2600.0, 1900.0, hy) * 0.6;
+    var trees = vec3f(0.03, 0.048, 0.016) * (0.7 + 0.6 * vnoise(p / 25.0));
+    trees = mix(trees, vec3f(0.13, 0.12, 0.06), clear * ss(30.0, 300.0, px) * 0.5 + clear * 0.4);
+    c = mix(c, trees, forest);
+  }
   // (the trees reach up the slabs' toes and ragged edges)
-  let fl = ss(0.5, 0.8, fr.y + 0.25 * fbm(p / 35.0, 3));
+  var fl = 0.0;
+  if (fr.y > 0.0) { fl = ss(0.5, 0.8, fr.y + 0.25 * fbm(p / 35.0, 3)); }
   let rock = max(ss(0.42, 0.7, slope), fl);
-  // the sandstone: rust red, darker in its grooves and streaked with lichen
-  let sand = mix(vec3f(0.25, 0.125, 0.075), vec3f(0.14, 0.125, 0.1), ss(0.1, 0.5, fbm(vec3f(p.x / 60.0, p.y / 20.0, p.z / 9.0), 3)))
-    * (0.75 + 0.35 * fbm(vec3f(p.x / 30.0, p.y / 8.0, p.z / 14.0), 3));
-  c = mix(c, mix(vec3f(0.17, 0.15, 0.12), sand, fl), rock);
-  c = mix(c, vec3f(0.9, 0.92, 0.95), ss(2350.0, 2600.0, hy + 250.0 * fbm(p / 400.0, 3) - 300.0 * n.z) * ss(0.7, 0.4, slope));
+  if (rock > 0.0) {
+    var r = vec3f(0.17, 0.15, 0.12);
+    if (fl > 0.0) {
+      // the sandstone: rust red, darker in its grooves and streaked with lichen
+      let sand = mix(vec3f(0.25, 0.125, 0.075), vec3f(0.14, 0.125, 0.1), ss(0.1, 0.5, fbm(vec3f(p.x / 60.0, p.y / 20.0, p.z / 9.0), 3)))
+        * (0.75 + 0.35 * fbm(vec3f(p.x / 30.0, p.y / 8.0, p.z / 14.0), 3));
+      r = mix(r, sand, fl);
+    }
+    c = mix(c, r, rock);
+  }
+  if (hy > 1900.0) {
+    c = mix(c, vec3f(0.9, 0.92, 0.95), ss(2350.0, 2600.0, hy + 250.0 * fbm(p / 400.0, 3) - 300.0 * n.z) * ss(0.7, 0.4, slope));
+  }
   return c;
 }

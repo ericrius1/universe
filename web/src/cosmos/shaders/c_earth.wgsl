@@ -68,51 +68,56 @@ fn clouds(n: vec3f, t: f32, clear: f32) -> f32 {
 // meadow's own land shows (gw), px a pixel's size there (km)
 fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32, g: vec3f, gw: f32, t: f32, E: vec3f, S: vec3f) -> vec3f {
   let px = t * L.pxAngle;
-  let el = elevation(n, near);
-  let e = el.x;
+  var el = vec2f(0.0, 0.0);
+  var e = 1.0;
   let lat = abs(n.y);
-  var alb: vec3f;
+  var alb = vec3f(0.0);
   var spec = 0.0;
-  // relief: ridges and valleys, shading the land as its slopes face the Sun (as many octaves as the pixels hold)
   var nn = n;
-  if (e > 0.0) {
-    let oct = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 160.0) + 1.0, 1.0, 6.0));
-    let amp = (0.25 + 2.2 * el.y) * near / 6371.0;
-    if (amp > 0.0) {
-      let eps = max(px, 0.4) / 6371.0;
-      let r0 = ridged(n * 160.0, oct);
-      let rx = ridged((n + E * eps) * 160.0, oct);
-      let rz = ridged((n + S * eps) * 160.0, oct);
-      nn = normalize(n - (E * (rx - r0) + S * (rz - r0)) * (amp / eps) * ss(0.0, 0.02, e));
+  // (where the meadow's own land covers it all, none of the Earth's own is needed)
+  if (gw < 0.999) {
+    el = elevation(n, near);
+    e = el.x;
+    // relief: ridges and valleys, shading the land as its slopes face the Sun (as many octaves as the pixels hold)
+    if (e > 0.0) {
+      let oct = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 160.0) + 1.0, 1.0, 6.0));
+      let amp = (0.25 + 2.2 * el.y) * near / 6371.0;
+      if (amp > 0.0) {
+        let eps = max(px, 0.4) / 6371.0;
+        let r0 = ridged(n * 160.0, oct);
+        let rx = ridged((n + E * eps) * 160.0, oct);
+        let rz = ridged((n + S * eps) * 160.0, oct);
+        nn = normalize(n - (E * (rx - r0) + S * (rz - r0)) * (amp / eps) * ss(0.0, 0.02, e));
+      }
     }
+    if (e < 0.0) {
+      alb = mix(vec3f(0.004, 0.02, 0.06), vec3f(0.015, 0.075, 0.11), ss(-0.12, 0.0, e));
+      spec = 1.0;
+    } else {
+      // wet forest and grassland, dry steppe and desert in the subtropics, tundra, ice
+      let wet = fbm(n * 5.0 + 9.0, 5) * 0.5 + 0.5;
+      let dryBelt = ss(0.2, 0.0, abs(lat - 0.4)) * 0.8;
+      // (and the high plains in the Rockies' rain shadow)
+      let lon = degrees(atan2(-n.z, n.x));
+      let shadow = exp(-pow((lon + 99.0) / 6.0, 2.0)) * ss(0.42, 0.55, n.y) * ss(0.82, 0.72, n.y);
+      let dry = clamp(dryBelt + shadow * 0.7 + (0.45 - wet) * 1.2, 0.0, 1.0);
+      alb = mix(vec3f(0.045, 0.075, 0.028), vec3f(0.11, 0.12, 0.05), ss(0.35, 0.7, wet));
+      alb = mix(alb, vec3f(0.22, 0.17, 0.095), ss(0.3, 0.6, dry));
+      alb = mix(alb, vec3f(0.42, 0.32, 0.2), ss(0.6, 0.9, dry));
+      // fields, forest and scrub down to what the pixels hold
+      let fo = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 700.0) + 1.0, 0.0, 5.0));
+      var fine = fbm(n * 90.0, 4) * 0.3;
+      if (fo > 0) { fine += fbm(n * 700.0 + 5.0, fo) * 0.45; }
+      alb *= 0.85 + fine * near;
+      // the mountains: conifers on their flanks, bare rock on the ridges, snow on the highest
+      let crest = ss(0.0, 0.35, el.y * (0.6 + 0.4 * ridged(n * 900.0, 3)));
+      alb = mix(alb, vec3f(0.035, 0.055, 0.025), ss(0.15, 0.4, el.y) * (1.0 - dry * 0.6));
+      alb = mix(alb, vec3f(0.17, 0.15, 0.13), ss(0.55, 0.85, crest) * ss(0.4, 0.7, el.y));
+      alb = mix(alb, vec3f(0.8, 0.82, 0.86), ss(0.85, 1.05, el.y + lat * 0.25));
+      alb = mix(alb, vec3f(0.12, 0.11, 0.08), ss(0.72, 0.8, lat));
+    }
+    alb = mix(alb, vec3f(0.85, 0.88, 0.92), ss(0.9, 0.95, lat) + ss(-0.86, -0.9, n.y));
   }
-  if (e < 0.0) {
-    alb = mix(vec3f(0.004, 0.02, 0.06), vec3f(0.015, 0.075, 0.11), ss(-0.12, 0.0, e));
-    spec = 1.0;
-  } else {
-    // wet forest and grassland, dry steppe and desert in the subtropics, tundra, ice
-    let wet = fbm(n * 5.0 + 9.0, 5) * 0.5 + 0.5;
-    let dryBelt = ss(0.2, 0.0, abs(lat - 0.4)) * 0.8;
-    // (and the high plains in the Rockies' rain shadow)
-    let lon = degrees(atan2(-n.z, n.x));
-    let shadow = exp(-pow((lon + 99.0) / 6.0, 2.0)) * ss(0.42, 0.55, n.y) * ss(0.82, 0.72, n.y);
-    let dry = clamp(dryBelt + shadow * 0.7 + (0.45 - wet) * 1.2, 0.0, 1.0);
-    alb = mix(vec3f(0.045, 0.075, 0.028), vec3f(0.11, 0.12, 0.05), ss(0.35, 0.7, wet));
-    alb = mix(alb, vec3f(0.22, 0.17, 0.095), ss(0.3, 0.6, dry));
-    alb = mix(alb, vec3f(0.42, 0.32, 0.2), ss(0.6, 0.9, dry));
-    // fields, forest and scrub down to what the pixels hold
-    let fo = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 700.0) + 1.0, 0.0, 5.0));
-    var fine = fbm(n * 90.0, 4) * 0.3;
-    if (fo > 0) { fine += fbm(n * 700.0 + 5.0, fo) * 0.45; }
-    alb *= 0.85 + fine * near;
-    // the mountains: conifers on their flanks, bare rock on the ridges, snow on the highest
-    let crest = ss(0.0, 0.35, el.y * (0.6 + 0.4 * ridged(n * 900.0, 3)));
-    alb = mix(alb, vec3f(0.035, 0.055, 0.025), ss(0.15, 0.4, el.y) * (1.0 - dry * 0.6));
-    alb = mix(alb, vec3f(0.17, 0.15, 0.13), ss(0.55, 0.85, crest) * ss(0.4, 0.7, el.y));
-    alb = mix(alb, vec3f(0.8, 0.82, 0.86), ss(0.85, 1.05, el.y + lat * 0.25));
-    alb = mix(alb, vec3f(0.12, 0.11, 0.08), ss(0.72, 0.8, lat));
-  }
-  alb = mix(alb, vec3f(0.85, 0.88, 0.92), ss(0.9, 0.95, lat) + ss(-0.86, -0.9, n.y));
   // round Boulder: the meadow's own land, its own relief
   if (gw > 0.0) {
     // (as the meadow's level would draw it from here)

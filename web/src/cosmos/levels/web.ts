@@ -115,6 +115,6 @@ export class Web {
     // (the web's brighter seen whole, where the voids between near filaments take up more of the view)
     // (and gone by the time the whole of it is seen, from outside the microwave background's shell: too fine to march)
     const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0))) * (1 - Math.max(0, Math.min(1, (l - 26.3) / 0.5)));
-    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [gain, Smpc > 6000 ? 32 : 44, 0, 0] });
+    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [gain, Smpc > 6000 ? 28 : 36, 0, 0] });
   }
 }

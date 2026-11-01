@@ -12,7 +12,8 @@ export class Earth {
   private readonly qi = quat.create();
 
   constructor(R: CosmosRenderer, private ladder: Ladder) {
-    this.lv = R.level('earth', ladder.earth, [10.4, 9.7, 4.7, 4.1]);
+    // (gone once the meadow's level, opaque, has taken over: its sky and land cover all of it by 4.6)
+    this.lv = R.level('earth', ladder.earth, [10.4, 9.7, 4.75, 4.45]);
     R.scene.fullscreen(earthShader, { label: 'earth', fragment: 'fs', bind: { L: this.lv.L }, blend: 'premultiplied', enabled: this.lv.on });
   }
 
