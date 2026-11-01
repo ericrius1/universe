@@ -225,15 +225,18 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     if (tTop < 1e9) { t = tTop; }
     // (no further than a blade or the hand already found nearer)
     let tStop = min(tMax, min(tGrass, tHand));
+    var ran = true;
     for (var i = 0; i < 160; i++) {
       let p = ro + rd * t;
       let lod = log2(max(t, 1.0) / 400.0);
       let h = terrain(p.x, p.z, lod);
       let dy = p.y - h;
-      if (dy < max(0.002, t * 0.0008)) { tLand = t; break; }
-      t += max(dy * 0.5, 0.02 + t * 0.01);
-      if (t > tStop || (rd.y > 0.0 && p.y > 5000.0)) { break; }
+      if (dy < max(0.002, t * 0.0008)) { tLand = t; ran = false; break; }
+      t += max(dy * 0.5, 0.02 + t * 0.012);
+      if (t > tStop || (rd.y > 0.0 && p.y > 5000.0)) { ran = false; break; }
     }
+    // (a ray that grazed the land all the way, out of steps still just above it, has met it: not the sky)
+    if (ran && rd.y < 0.02) { tLand = t; }
   }
   var col = vec3f(0.0);
   var alpha = 1.0;
