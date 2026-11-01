@@ -1,39 +1,13 @@
 #!/usr/bin/env bash
-# Put Cell on the web: ericlevin.dev/cell/ is served by the homepage itself (the PortfolioII repo, Vercel project
-# portfolio-ii) from its public/cell/, so this builds Cell for /cell/ (the molecules and the art go in with it) into
-# deploy/site/cell and, given a PortfolioII checkout, puts the build in place of its public/cell/. Committing that and
-# pushing PortfolioII's main deploys it. The film isn't part of it: /cell/film/* redirects (PortfolioII's vercel.json)
-# to the homepage's own copy, public/assets/worlds/cell/film.mp4.
-#   bash web/tools/deploy.sh                  build into deploy/site/cell (copy it over public/cell/ by hand)
-#   bash web/tools/deploy.sh ../PortfolioII   build, and stage it in that checkout (best a clean one, on origin/main)
+# Put Universe on the web: its own Vercel project (universe), built for /universe/ (web/vercel.json: the app, the
+# molecules, the ground round the spot, the art and the footage page under /universe/, the root redirected there), so
+# that ericlevin.dev/universe can later be one rewrite in the homepage's vercel.json to it, as /havens and /aether are.
+# The films aren't part of it: they're on the footage storage (~/codeprojects/footage), listed by public/footage/footage.json.
+#   bash web/tools/deploy.sh            a preview deployment
+#   bash web/tools/deploy.sh --prod     production
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="$ROOT/deploy/site/cell"
-SITE="${1:-}"
-if [[ -n "$SITE" ]] && ! grep -qs '"/cell/film/:file"' "$SITE/vercel.json"; then
-  echo "deploy: $SITE isn't a PortfolioII checkout (no /cell/ routes in its vercel.json)" >&2
-  exit 1
-fi
-cd "$ROOT/web"
+cd "$(dirname "$0")/.."
 npx tsc --noEmit
-# (no Git Bash path translation on the PC: it would turn /cell/ into C:/Program Files/Git/cell/)
-OUTDIR="$OUT"
-command -v cygpath >/dev/null && OUTDIR="$(cygpath -m "$OUT")"
-MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" npx vite build --base /cell/ --outDir "$OUTDIR" --emptyOutDir | tail -3
-du -sh "$OUT"
-REV="$(git -C "$ROOT" log -1 --format='%h %s')"
-git -C "$ROOT" diff --quiet HEAD -- web || echo "note: Cell has uncommitted changes in web/, and this build has them too"
-if [[ -z "$SITE" ]]; then
-  echo "built $OUT ($REV): put it in place of PortfolioII's public/cell/, then commit and push its main"
-  exit 0
-fi
-rm -rf "$SITE/public/cell"
-cp -R "$OUT" "$SITE/public/cell"
-git -C "$SITE" add -A public/cell
-if git -C "$SITE" diff --cached --quiet -- public/cell; then
-  echo "public/cell/ in $SITE already has this build ($REV): nothing to deploy"
-  exit 0
-fi
-git -C "$SITE" status --short -- public/cell
-echo "staged in $SITE ($REV). To deploy:"
-echo "  git -C \"$SITE\" commit -m \"Cell: <what changed> (ericrius1/Cell ${REV%% *})\" -- public/cell && git -C \"$SITE\" push origin HEAD:main"
+git -C .. diff --quiet HEAD -- web || echo "note: Universe has uncommitted changes in web/, and this deployment has them too"
+[[ -f .vercel/project.json ]] || vercel link --yes --project universe
+vercel deploy "$@"

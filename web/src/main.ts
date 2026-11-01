@@ -23,6 +23,7 @@ import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
+import { Journey } from './journey';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
@@ -84,8 +85,11 @@ async function boot() {
     // films step their own frames: no live loop, no visitor at the controls
     kit.manual = true;
     controls.driven = true;
-    const film = new Film(app, capture, params.get('film') || 'trailer');
-    app.director = (dt) => film.direct(dt);
+    // (the journey flies both cameras, the cosmos's and the cell's: it goes first, before either)
+    const name = params.get('film') || 'trailer';
+    const film = name === 'journey' ? new Journey(app, capture) : new Film(app, capture, name);
+    if (film instanceof Journey) app.journey = (dt) => film.direct(dt);
+    else app.director = (dt) => film.direct(dt);
     $('loading').classList.add('gone');
     void film.run();
   }
@@ -134,6 +138,8 @@ export class App {
   readonly score = new Score();
   /** a film's camera, run before the camera updates */
   director: ((dt: number) => void) | null = null;
+  /** the journey's camera (both realms'), run before either */
+  journey: ((dt: number) => void) | null = null;
   private lastHoverTitle = '';
   private haze: Haze = [[...HAZE.outside[0]] as Vec3, [...HAZE.outside[1]] as Vec3];
   private probing = false;
@@ -200,7 +206,7 @@ export class App {
     if (now) this.mix = realm === 'cosmos' ? 1 : 0;
   }
   /** from the skin into the tissue: the cell's camera where the cosmos's was */
-  private enterCell() {
+  enterCell() {
     if (this.realm === 'cell') return;
     const cc = this.cosmos.controls, t = this.places.get('tissue')!;
     this.setFly(false);
@@ -210,7 +216,7 @@ export class App {
     this.sound('arrive');
   }
   /** out of the tissue: the cosmos's camera where the cell's was, a little wider */
-  private leaveCell() {
+  leaveCell() {
     if (this.realm === 'cosmos' || this.game) return;
     const c = this.controls;
     this.setFly(false);
@@ -437,6 +443,7 @@ export class App {
   }
 
   frame(dt: number) {
+    this.journey?.(dt);
     // the cross-fade between the cosmos and the cell: each draws while it shows
     const want = this.realm === 'cosmos' ? 1 : 0;
     this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));

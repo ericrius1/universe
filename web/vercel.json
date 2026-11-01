@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npx tsc --noEmit && npx vite build --base /universe/ --outDir dist/universe --emptyOutDir",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/", "destination": "/universe/", "permanent": false },
+    { "source": "/universe", "destination": "/universe/", "permanent": false },
+    { "source": "/universe/footage", "destination": "/universe/footage/", "permanent": false }
+  ],
+  "headers": [
+    { "source": "/universe/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/universe/(data|art)/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] }
+  ]
+}

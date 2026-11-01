@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
 
 const [name = 'trailer', w = '1920', h = '1080'] = process.argv.slice(2);
 const width = Number(w), height = Number(h);
-const FFMPEG = process.env.FFMPEG ?? 'C:/Users/ericr/codeprojects/tools/ffmpeg/bin/ffmpeg.exe';
+const FFMPEG = process.env.FFMPEG ?? (process.platform === 'win32' ? 'C:/Users/ericr/codeprojects/tools/ffmpeg/bin/ffmpeg.exe' : 'ffmpeg');
 const dir = resolve('..', 'film', name);
 rmSync(resolve(dir, 'frames'), { recursive: true, force: true });
 rmSync(resolve(dir, 'audio.wav'), { force: true });
@@ -38,7 +38,7 @@ await browser.disconnect().catch(() => {});
 
 const frames = existsSync(resolve(dir, 'frames')) ? readdirSync(resolve(dir, 'frames')).filter((f) => f.endsWith('.jpg')).length : 0;
 if (!frames) process.exit(1);
-const out = resolve(dir, `cell-${name}.mp4`);
+const out = resolve(dir, `universe-${name}.mp4`);
 const args = ['-y', '-framerate', '30', '-i', resolve(dir, 'frames', 'f%05d.jpg')];
 const audio = resolve(dir, 'audio.wav');
 if (existsSync(audio)) args.push('-i', audio, '-c:a', 'aac', '-b:a', '256k', '-shortest');
