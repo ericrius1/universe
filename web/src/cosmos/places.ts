@@ -9,7 +9,7 @@ const place = (id: string, name: string, logS: number, pitch: number, line: stri
 
 const SHORT: Record<string, string> = {
   'u:universe': 'Universe', 'u:web': 'Cosmic web', 'u:milkyway': 'Milky Way', 'u:neighbourhood': 'Neighbours', 'u:solar': 'Solar system',
-  'u:earth': 'Earth', 'u:boulder': 'Boulder', 'u:hand': 'Hand', 'u:skin': 'Skin',
+  'u:earth': 'Earth', 'u:boulder': 'Boulder', 'u:person': 'In the grass', 'u:eye': 'An eye',
 };
 
 export const COSMOS_PLACES: CosmosPlace[] = [
@@ -46,15 +46,16 @@ export const COSMOS_PLACES: CosmosPlace[] = [
   place('u:boulder', 'Boulder, Colorado', 3.5, -0.42, 'A meadow on the plains below the Flatirons.', '3 km', [
     ['Look', 'The Flatirons: slabs of red sandstone tilted up against the foothills.'],
     ['Look', 'The light is the Sun where it is over Boulder now.'],
-    ['Next', 'Someone lying in the grass', 'place:u:hand'],
+    ['Next', 'Someone lying in the grass', 'place:u:person'],
   ]),
-  place('u:hand', 'A hand in the grass', -0.35, -0.75, 'Resting in the meadow, in the sun.', '50 cm', [
-    ['Try', 'Scroll toward the back of the hand.'],
-    ['Next', 'The skin, close', 'place:u:skin'],
+  place('u:person', 'Lying in the grass', 0.35, -0.95, 'Someone on their back in the meadow below the Flatirons, looking up at the sky.', '2 m', [
+    ['Look', 'From up here, they could be looking at you, or past you at everything else.'],
+    ['Try', 'Scroll in toward their eye.'],
+    ['Next', 'Their eye, close', 'place:u:eye'],
   ]),
-  place('u:skin', 'Skin', -2.4, -0.95, 'Creases, pores, a hair, and the flat dead cells that cover us.', '5 mm', [
-    ['Look', 'The diamond net of creases lets skin stretch.'],
-    ['Look', 'Closer, the surface breaks into plates 30 µm across: cells that have died to protect the living ones below.'],
-    ['Next', 'The living cells beneath', 'place:tissue'],
+  place('u:eye', 'An eye', -1.75, -1.1, 'The iris through the clear cornea, the pupil, the lashes, the sky in the wet surface.', '2 cm', [
+    ['Look', 'The iris\u2019s fibres and crypts are as unique as a fingerprint.'],
+    ['Look', 'Closer, the cornea\u2019s own surface: a few layers of flat living cells over the iris.'],
+    ['Next', 'Into one of those cells', 'place:tissue'],
   ]),
 ];

@@ -5,6 +5,7 @@
 // into its own (`update` then `run`).
 import type { Kit } from '@ericrius1/weft';
 import { Ladder } from './frames';
+import { WHO } from './figure/figure';
 import { CosmosControls } from './controls';
 import { CosmosRenderer, type DomeOptions } from './renderer';
 import { Web } from './levels/web';
@@ -32,6 +33,8 @@ export interface CosmosOptions {
   /** where the real ground round the spot is: a folder's URL (earth.json and its files; default ./data/earth/), or a
    *  file's name to its URL (a host whose files live elsewhere: Boulder's asset()) */
   data?: string | ((file: string) => string);
+  /** the mesh of whoever lies in the meadow, Boulder's DNC1 file (default ./data/figure/<theirs>, figure/cast.ts) */
+  figure?: string;
 }
 export type { DomeOptions };
 
@@ -62,7 +65,7 @@ export class Cosmos {
     this.data = new EarthData(kit, typeof data === 'string' ? (f) => data + f : data);
     this.air = new Air(kit, this.r, this.ladder);
     this.earth = new Earth(kit, this.r, this.ladder, this.air, this.data);
-    this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data);
+    this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data, o.figure ?? new URL(`data/figure/${WHO.file}`, document.baseURI).href);
   }
 
   /** where the view is, coarsest first */
@@ -81,7 +84,7 @@ export class Cosmos {
     if (l > 4.6) return c;
     c.push('Boulder');
     if (l > -1.1) return c;
-    c.push('Skin');
+    c.push('An eye');
     return c;
   }
 
@@ -104,10 +107,10 @@ export class Cosmos {
     c.update(dt);
     this.r.update(c, this.time);
     const S = c.S;
-    // the stars behind the levels below: hidden by a daytime sky over the meadow, and by the skin filling the view
+    // the stars behind the levels below: hidden by a daytime sky over the meadow
     const sf = this.surface;
     sf.update(S);
-    const sky = (1 - sf.ground.weight * (1 - sf.night)) * (1 - sf.skin.weight);
+    const sky = 1 - sf.ground.weight * (1 - sf.night);
     this.galaxy.sky = sky;
     this.local.sky = sky;
     this.web.update(S);
@@ -116,6 +119,8 @@ export class Cosmos {
     this.solar.update(S);
     // (the ground round the spot, fetched once the dive comes within reach of it)
     if (!this.loading && c.logS < 12) { this.loading = true; void this.data.load().catch((e) => console.warn('cosmos: the ground failed to load', e)); }
+    // (and whoever lies in the meadow, once it comes within a few kilometres)
+    if (c.logS < 4) void sf.figure.load().catch((e) => console.warn('cosmos: the figure failed to load', e));
     this.earth.update(S);
     this.air.on = this.earth.lv.weight > 0.002 || sf.ground.weight > 0.002;
     if (this.air.on) this.air.update(this.earth.lv, this.earth.sun);

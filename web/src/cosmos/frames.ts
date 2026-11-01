@@ -1,17 +1,18 @@
-// The ladder of frames from the observable universe down to a patch of skin: each frame has its own unit (megaparsecs
+// The ladder of frames from the observable universe down to the surface of an eye: each frame has its own unit (megaparsecs
 // at the top, millimetres at the bottom) and sits in its parent at a position and a rotation, so no frame ever holds a
-// number much bigger than a few thousand of its units. Below the skin is the cell's own world (nanometres, y up, the
-// same axes as the skin's).
+// number much bigger than a few thousand of its units. Below the eye is the cell's own world (nanometres, y up, the
+// same axes as the eye's).
 //
-// Zooming follows one nested chain, as in Powers of Ten: the target is a point on the back of a hand lying in a meadow
-// outside Boulder, Colorado, on the Earth, in the solar system, in the Orion Arm of the Milky Way, in the cosmic web.
+// Zooming follows one nested chain, as in Powers of Ten: the target is a point on the eye of someone lying on their
+// back in a meadow in Boulder, looking up (over the iris, a few millimetres from the pupil), Colorado, on the Earth, in the solar system, in the Orion Arm of the Milky Way, in the cosmic web.
 // `target` in each frame is that point in the frame's units (doubles); each frame's GPU work happens relative to it
 // rounded to float32 (its own floating origin, as in ../engine/origin.ts).
 //
 // Axes: every frame is y-up in its own terms: the galaxy's y is the galactic pole, the solar system's the ecliptic
-// pole, the Earth's its spin axis, the ground's and the skin's the local vertical. The camera's reference orientation
+// pole, the Earth's its spin axis, the ground's and the eye's the local vertical. The camera's reference orientation
 // glides between frames as you zoom (frames.ts reference()), so each one is seen square-on at its own scale.
 import { quat, vec3, type Quat, type Vec3 } from 'math';
+import { FIGURE_EYE } from './figure/pose';
 
 export const MPC = 3.0857e22, KPC = 3.0857e19, PC = 3.0857e16, LY = 9.4607e15, AU = 1.495978707e11, KM = 1e3, M = 1, MM = 1e-3, NM = 1e-9;
 const DEG = Math.PI / 180;
@@ -43,8 +44,9 @@ const axis = (x: number, y: number, z: number, a: number) => quat.setAxisAngle(q
 export const PLACE = { lat: 39.99652, lon: -105.28596, name: 'Boulder, Colorado' };
 /** the Earth's radius at the spot (km): the air's sea-level sphere (air.wgsl R_BOTTOM) and the meadow's 1759 m */
 export const EARTH_R = 6360 + 1.759;
-/** the back of the hand, in the ground frame (m) */
-export const HAND: Vec3 = [0, 0.046, 0];
+/** the target on Eli's drawn right eye, in the ground frame (m): in the iris, on the skin it's drawn on
+ *  (figure/pose.ts) */
+export const EYE: Vec3 = [FIGURE_EYE[0], FIGURE_EYE[1], FIGURE_EYE[2]];
 
 /** days since J2000.0 (2000-01-01 12:00 TT) */
 export const daysJ2000 = (ms: number) => (ms - Date.UTC(2000, 0, 1, 12)) / 86400000;
@@ -110,13 +112,14 @@ export class Ladder {
   /** the Earth, its axis tilted and turning */
   readonly earth = frame('earth', 'The Earth', KM, this.solar, 7.3);
   readonly ground = frame('ground', PLACE.name, M, this.earth, 2.0);
-  readonly skin = frame('skin', 'Skin', MM, this.ground, -2.2, [HAND[0], HAND[1], HAND[2]]);
-  readonly all: Frame[] = [this.cosmos, this.galaxy, this.local, this.solar, this.earth, this.ground, this.skin];
+  /** the eye, close: y the way it looks (straight up), the target at its origin */
+  readonly eye = frame('eye', 'An eye', MM, this.ground, -2.2, [EYE[0], EYE[1], EYE[2]]);
+  readonly all: Frame[] = [this.cosmos, this.galaxy, this.local, this.solar, this.earth, this.ground, this.eye];
   /** days since J2000 */
   day = 0;
   /** the Earth's spin (rad, Greenwich from the equinox) */
   gmst = 0;
-  /** the Sun's direction in the ground frame (the light for the Earth, the meadow and the skin) */
+  /** the Sun's direction in the ground frame (the light for the Earth, the meadow and the eye) */
   readonly sunGround: Vec3 = [0, 1, 0];
 
   constructor(ms = Date.now()) { this.setTime(ms); }
@@ -150,8 +153,8 @@ export class Ladder {
       else quat.copy(f.q, f.rot);
       quat.normalize(f.q, f.q);
     }
-    // the target: the skin's origin, carried up the ladder
-    vec3.set(this.skin.target, 0, 0, 0);
+    // the target: the eye frame's origin, carried up the ladder
+    vec3.set(this.eye.target, 0, 0, 0);
     for (let i = this.all.length - 1; i > 0; i--) {
       const f = this.all[i], p = f.parent!;
       vec3.transformQuat(p.target, f.target, f.rot);

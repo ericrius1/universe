@@ -1,6 +1,7 @@
-// The journey (?film=journey): one take under two minutes, out and in and out again — from a hand lying in the grass at Chautauqua out
-// past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down through the
-// hand's skin into one of its cells to the DNA wound on its nucleosomes, and all the way out again. Rendered as the
+// The journey (?film=journey): one take under two minutes, out and in and out again — from someone lying in the grass at
+// Chautauqua out past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down
+// into their eye, through its iris and the cornea's living cells into one of them, to the DNA wound on its
+// nucleosomes, and all the way out again. Rendered as the
 // films are (film.ts): each frame stepped by hand, read back, captioned, posted to the dev server, the score rendered
 // offline along the same cues; tools/film.mjs drives it and encodes it.
 //
@@ -20,33 +21,33 @@ type Shot = Up | In;
 
 const up = (l0: number, l1: number, p0: number, p1: number, dur: number, caption?: string, title?: string): Up => ({ kind: 'up', l0, l1, p0, p1, dur, caption, title });
 // (the places above the cell: zoom, pitch)
-const HAND = [-0.35, -0.75], BOULDER = [3.5, -0.42], EARTH = [7.3, -0.15], SOLAR = [13.0, -0.62], STARS = [17.6, -0.3];
-const GALAXY = [21.3, -0.75], WEB = [24.3, -0.4], EDGE = [26.95, -0.25], SKIN = [-2.4, -0.95], CELLS = [-3.62, -1.05], DOOR = [-3.84, -1.05];
+const LYING = [0.35, -0.95], BOULDER = [3.5, -0.42], EARTH = [7.3, -0.15], SOLAR = [13.0, -0.62], STARS = [17.6, -0.3];
+const GALAXY = [21.3, -0.75], WEB = [24.3, -0.4], EDGE = [26.95, -0.25], FACE = [-0.75, -1.2], EYE = [-1.75, -1.1], IRIS = [-2.45, -1.1], CELLS = [-3.62, -1.05], DOOR = [-3.84, -1.05];
 const go = (a: number[], b: number[], dur: number) => up(a[0], b[0], a[1], b[1], dur);
 const hold = (a: number[], dur: number, caption?: string, title?: string) => up(a[0], a[0] - dur * 0.015, a[1], a[1], dur, caption, title);
 
 const SHOTS: Shot[] = [
   // out (under two minutes, all of it: the places held a breath, the empty decades crossed quickly)
-  hold(HAND, 3.5, 'from a hand lying in the grass, to the edge of everything, and back', 'Universe'),
-  go(HAND, BOULDER, 4.5), hold(BOULDER, 1.0, 'Boulder, Colorado · the Flatirons'),
+  hold(LYING, 3.5, 'from someone lying in the grass, to the edge of everything, and back', 'Universe'),
+  go(LYING, BOULDER, 4.5), hold(BOULDER, 1.0, 'Boulder, Colorado · the Flatirons'),
   go(BOULDER, EARTH, 4.5), hold(EARTH, 1.2, 'the Earth'),
   go(EARTH, SOLAR, 4), hold(SOLAR, 1.2, 'the solar system, where its planets are today'),
   go(SOLAR, STARS, 3.2), hold(STARS, 0.8, 'the Sun\u2019s neighbours'),
   go(STARS, GALAXY, 3.2), hold(GALAXY, 1.4, 'the Milky Way · 100,000 light-years'),
   go(GALAXY, WEB, 3), hold(WEB, 0.8, 'the cosmic web'),
-  go(WEB, EDGE, 3), hold(EDGE, 2.5, 'the observable universe · 93 billion light-years'),
+  go(WEB, EDGE, 3), hold(EDGE, 2.2, 'the observable universe · 93 billion light-years'),
   // and all the way in
   go(EDGE, WEB, 2.5), go(WEB, GALAXY, 2.8), go(GALAXY, STARS, 2.8), go(STARS, SOLAR, 2.8), go(SOLAR, EARTH, 3.2),
-  go(EARTH, BOULDER, 3.5), go(BOULDER, HAND, 3), hold(HAND, 0.6, 'the back of a hand'),
-  go(HAND, SKIN, 2.8), hold(SKIN, 0.8, 'skin · its creases, a hair, the plates of dead cells'),
-  go(SKIN, CELLS, 2.5), hold(CELLS, 0.6, 'the living cells beneath'), go(CELLS, DOOR, 1.0),
+  go(EARTH, BOULDER, 3.5), go(BOULDER, LYING, 3), hold(LYING, 0.4), go(LYING, FACE, 1.6), hold(FACE, 0.6, 'looking up into the sky'),
+  go(FACE, EYE, 1.8), hold(EYE, 0.6, 'an eye'), go(EYE, IRIS, 1.8), hold(IRIS, 0.8, 'the iris · its fibres and crypts'),
+  go(IRIS, CELLS, 2.4), hold(CELLS, 0.6, 'the cornea\u2019s living cells'), go(CELLS, DOOR, 1.0),
   { kind: 'in', place: 'cell', fly: 4, hold: 1.0, caption: 'one human cell, cut open · 20 µm', compartment: 'outside' },
   { kind: 'in', place: 'nucleus', fly: 3.8, hold: 0.8, caption: 'its nucleus · 7 µm', compartment: 'cytosol' },
   { kind: 'in', place: 'dna', fly: 4.5, hold: 4.5, zoom: -0.05, caption: 'DNA wound on nucleosomes · 10 nm', compartment: 'nucleus' },
   // and all the way out
   { kind: 'in', out: true, fly: 6, hold: 0, compartment: 'outside' },
-  go(DOOR, SKIN, 2.2), go(SKIN, HAND, 2.5), go(HAND, BOULDER, 3), go(BOULDER, EARTH, 3), go(EARTH, SOLAR, 3),
-  go(SOLAR, GALAXY, 3.5), go(GALAXY, EDGE, 3.5), hold(EDGE, 4, 'ericlevin.dev/universe', 'Universe'),
+  go(DOOR, IRIS, 2.0), go(IRIS, FACE, 2.2), go(FACE, LYING, 1.2), go(LYING, BOULDER, 2.8), go(BOULDER, EARTH, 3), go(EARTH, SOLAR, 3),
+  go(SOLAR, GALAXY, 3.5), go(GALAXY, EDGE, 3.5), hold(EDGE, 3.5, 'ericlevin.dev/universe', 'Universe'),
 ];
 
 const smoother = (u: number) => u * u * u * (u * (u * 6 - 15) + 10);

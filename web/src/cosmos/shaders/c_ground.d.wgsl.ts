@@ -85,5 +85,5 @@ export interface Hit {
   tint: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; AirView: AirView; Medium: Medium; Scat: Scat; FullscreenOut: FullscreenOut; GroundU: GroundU; Hit: Hit }, 'frame' | 'L' | 'AV' | 'G' | 'tLut' | 'msLut' | 'svLut' | 'nearH' | 'nearC' | 'farH' | 'farC' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; AirView: AirView; Medium: Medium; Scat: Scat; FullscreenOut: FullscreenOut; GroundU: GroundU; Hit: Hit }, 'frame' | 'L' | 'AV' | 'G' | 'tLut' | 'msLut' | 'svLut' | 'nearH' | 'nearC' | 'farH' | 'farC' | 'figCol' | 'figDist' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
