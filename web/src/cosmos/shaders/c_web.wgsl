@@ -13,27 +13,33 @@ fn cmb(n: vec3f) -> f32 {
   let rd = rayDir(in.uv);
   let ro = L.eye + L.origin;
   let R = L.b.x;
+  // a shell of light (thin: a few per cent of its radius): each side glows by the length of it the ray crosses, so it
+  // is faint face-on and bright round its rim, and the far side shows through the near one
+  let Ri = R * 0.975;
+  let b = dot(ro, rd);
+  let imp2 = max(dot(ro, ro) - b * b, 0.0);
+  let side = (sqrt(max(R * R - imp2, 0.0)) - sqrt(max(Ri * Ri - imp2, 0.0))) / (R - Ri);
+  // (and a soft halo just outside it)
+  let halo = exp(-max(sqrt(imp2) - R, 0.0) / (R * 0.025)) * select(0.0, 0.5, imp2 > R * R && b < 0.0);
   let h = sphereHit(ro, rd, vec3f(0.0), R);
-  if (h.y < 0.0) { return vec4f(0.0); }
-  // the front and the back of the shell (from inside, only the back)
   var c = vec3f(0.0);
-  var a = 0.0;
-  for (var k = 0; k < 2; k++) {
-    let t = select(h.x, h.y, k == 1);
-    if (t < 0.0) { continue; }
-    let n = normalize(ro + rd * t);
-    let v = cmb(n);
-    let warm = vec3f(1.0, 0.42, 0.12);
-    let cool = vec3f(0.12, 0.35, 1.0);
-    // a thin shell: brighter edge-on
-    let edge = 1.0 / max(abs(dot(n, rd)), 0.25);
-    let col = mix(cool, warm, ss(-0.3, 0.3, v)) * (0.25 + 0.75 * abs(v) * 2.0) * edge;
-    let w = select(0.3, 0.55, k == 0);
-    c += col * w;
+  let warm = vec3f(1.0, 0.42, 0.12);
+  let cool = vec3f(0.12, 0.35, 1.0);
+  if (h.y > 0.0) {
+    // the front and the back of the shell (from inside, only the back)
+    for (var k = 0; k < 2; k++) {
+      let t = select(h.x, h.y, k == 1);
+      if (t < 0.0) { continue; }
+      let n = normalize(ro + rd * t);
+      let v = cmb(n);
+      let col = mix(cool, warm, ss(-0.3, 0.3, v)) * (0.35 + 1.3 * abs(v));
+      c += col * side * select(0.4, 0.6, k == 0);
+    }
   }
+  c += mix(cool, warm, 0.45) * halo * 2.0;
   // from far outside it, a little brighter; as the view comes inside, it fades to a faint wall
   let fade = ss(R * 0.02, R * 0.6, L.scale);
-  return vec4f(c * 0.05 * fade * L.weight, a * fade * L.weight);
+  return vec4f(c * 0.016 * fade * L.weight, 0.0);
 }
 
 // The web seen whole: filaments of galaxies where the walls between the cells of a cellular noise at two sizes (130
