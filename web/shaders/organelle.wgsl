@@ -28,9 +28,9 @@ fn isShellOrg(o: Organelle) -> bool { return o.shape != S_DISC && o.thick > 0.0;
 
 fn vsCommon(vi: u32, inner: bool) -> VOut {
   let v = verts[vi];
-  var p = vec3f(v.px, v.py, v.pz);
+  var p = vec3f(v.px, v.py, v.pz) - G.origin;
   let n = vec3f(v.nx, v.ny, v.nz);
-  let o = organelles[v.org];
+  let o = orgAt(v.org);
   if (inner) { p -= n * shellThick(o); }
   var out: VOut;
   out.world = p;
@@ -50,12 +50,12 @@ fn reachesCut(o: Organelle) -> bool {
 }
 @vertex fn vs_cap(@builtin(vertex_index) vi: u32) -> VOut {
   var out = vsCommon(vi, false);
-  if (!reachesCut(organelles[out.org])) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+  if (!reachesCut(orgAt(out.org))) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   return out;
 }
 @vertex fn vs_cap_inner(@builtin(vertex_index) vi: u32) -> VOut {
   var out = vsCommon(vi, true);
-  if (!reachesCut(organelles[out.org])) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+  if (!reachesCut(orgAt(out.org))) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   return out;
 }
 
@@ -109,12 +109,13 @@ fn detail(o: Organelle, p: vec3f, n0: vec3f) -> Detail {
   let t = fract(lf);
   let facing = abs(dot(n0, normalize(frame.camPos - p)));
   let amp = 0.2 * smoothstep(0.05, 0.4, facing);
-  let na = wrinkle(p + o.seed, n0, fa, amp);
-  let nb = wrinkle(p + o.seed * 1.7, n0, fa * 2.0, amp);
+  let pa = absP(p);
+  let na = wrinkle(pa + o.seed, n0, fa, amp);
+  let nb = wrinkle(pa + o.seed * 1.7, n0, fa * 2.0, amp);
   d.n = normalize(mix(na, nb, t));
-  let mott = mix(snoise(p * (fa * 0.35) + o.seed), snoise(p * (fa * 0.7) + o.seed), t);
+  let mott = mix(snoise(pa * (fa * 0.35) + o.seed), snoise(pa * (fa * 0.7) + o.seed), t);
   d.tint = vec3f(0.9 + 0.1 * mott);
-  let lp = lipids(p, d.n, fp);
+  let lp = lipids(pa, d.n, fp);
   d.n = mix(d.n, lp.n, lp.vis);
   d.tint *= lp.tint;
   d.ao = lp.ao;
@@ -134,7 +135,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 
 @fragment fn fs_outer(in: VOut) -> GOut {
   if (isCut(in.world)) { discard; }
-  let o = organelles[in.org];
+  let o = orgAt(in.org);
   // membranes are solid only up close (cross-fading by dither with the glass)
   if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
   var out: GOut;
@@ -146,7 +147,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 @fragment fn fs_inner(in: VOut) -> GOut {
   if (isCut(in.world)) { discard; }
   if (bayer(in.pos.xy) > G.shellSolid) { discard; }
-  let o = organelles[in.org];
+  let o = orgAt(in.org);
   var out: GOut;
   out.color = vec4f(shade(o, in.world, -normalize(in.n), true), 1.0);
   out.nrm = viewNormal(-in.n);
@@ -158,7 +159,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 // dense and bright; both faces drawn, the far one from inside
 @fragment fn fs_glass(in: VOut, @builtin(front_facing) ff: bool) -> OitOut {
   if (isCut(in.world)) { discard; }
-  let o = organelles[in.org];
+  let o = orgAt(in.org);
   let m = material(o.kind, false);
   var n = normalize(in.n);
   if (!ff) { n = -n; }
@@ -220,8 +221,8 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
   let heads = srgb(vec3f(1.0, 0.92, 0.80));
   let tails = m.albedo * 0.5 + srgb(vec3f(0.30, 0.24, 0.12));
   if (o.kind == K_NUCLEOLUS || o.kind == K_DROPLET) {
-    let g = snoise(p * (1.0 / 40.0)) * 0.5 + 0.5;
-    let gr = cellular(p / 25.0, 1.0);
+    let g = snoise(absP(p) * (1.0 / 40.0)) * 0.5 + 0.5;
+    let gr = cellular(absP(p) / 25.0, 1.0);
     return material(o.kind, false).albedo * (0.55 + 0.45 * g) * (0.7 + 0.3 * smoothstep(0.0, 0.5, gr.d1));
   }
   if (o.shape == S_DISC) {
@@ -245,7 +246,7 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
 @fragment fn fs_cap(in: VOut) -> GOutD {
   let h = cutFace(in.world);
   if (!h.ok) { discard; }
-  let o = organelles[in.org];
+  let o = orgAt(in.org);
   let sd = sdOrganelle(o, h.p);
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
   // the cut point must be inside this organelle's material (a shell: within its thickness)

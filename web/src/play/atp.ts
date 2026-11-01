@@ -15,6 +15,7 @@ import { MOL } from '../world/molecules';
 import { Kind } from '../world/layout';
 import { buildPlaces } from '../ui/places';
 import { Rng } from '../world/noise';
+import { rel } from '../engine/origin';
 
 const GOAL = 30;
 const LIMIT = 45;
@@ -354,7 +355,7 @@ class AtpGame implements Game {
   private add(type: number, p: Vec3, q: Quat, scale: number, tint: number, id = 0) {
     const f = this.ctx.field;
     if (f.actorCount >= f.actors.count) return;
-    f.actors.set(f.actorCount++, { pos: p, scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | id });
+    f.actors.set(f.actorCount++, { pos: rel(p), scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | id });
   }
 
   private nucleotide(p: Vec3, q: Quat, kind: number, k: number) {

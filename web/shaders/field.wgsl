@@ -35,7 +35,9 @@ struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32,
 @group(2) @binding(7) var<storage, read> compMeta: array<vec4f>;        // per row: density, entries, offset, -
 @group(2) @binding(8) var<storage, read> segs: array<Seg>;
 @group(2) @binding(9) var<storage, read> segList: array<u32>;
-@group(2) @binding(10) var<storage, read> actorIn: array<Inst>;
+@group(2) @binding(10) var<storage, read> actorIn: array<Inst>;     // (positions already relative to the origin)
+
+fn segAt(i: u32) -> Seg { var s = segs[i]; s.a -= G.origin; s.b -= G.origin; return s; }
 
 const ROW: u32 = 12u;
 const MEMBRANE_ROW: u32 = 16u;     // membranes start at row 16 + organelle kind
@@ -84,7 +86,7 @@ fn emit(inst0: Inst) {
 // ---------------------------------------------------------------- the crowd
 fn compartmentRow(inside: i32) -> u32 {
   if (inside < 0) { return 0u; }
-  switch organelles[inside].kind {
+  switch organelles[u32(inside)].kind {
     case 0u: { return 1u; }     // cytosol
     case 1u: { return 2u; }     // nucleoplasm
     case 2u: { return 3u; }     // nucleolus
@@ -138,7 +140,8 @@ fn wobble(h: vec3f, r: f32) -> vec3f {
   let hu = pcg3(bitcast<vec3u>(ci) + vec3u(k * 0x9E3779B1u, u32(absL) * 0x85EBCA6Bu, F.seed));
   let h = vec3f(hu) * (1.0 / 4294967296.0);
   let h2 = hash3u(hu ^ vec3u(0x27d4eb2fu));
-  var p = (vec3f(ci) + h) * cL;
+  // (the chunk's spot rounds the same every frame; rebased before anything moves it)
+  var p = (vec3f(ci) + h) * cL - G.origin;
 
   let d = length(p - F.focus);
   if (d > F.radius) { return; }
@@ -157,7 +160,7 @@ fn wobble(h: vec3f, r: f32) -> vec3f {
   let band = cL * 0.32;
   if (pl.nearest >= 0 && pl.dist < band) {
     // a membrane protein, set into the nearest surface
-    let o = organelles[pl.nearest];
+    let o = orgAt(u32(pl.nearest));
     let row = MEMBRANE_ROW + o.kind;
     let mm = compMeta[row];
     // (the band is a fixed share of the chunk, so finer levels would put ever more proteins per area: their
@@ -219,7 +222,7 @@ fn fade(p: vec3f) -> f32 {
 
 @compute @workgroup_size(64) fn lattice(@builtin(global_invocation_id) g: vec3u) {
   if (g.x >= F.segCount) { return; }
-  let s = segs[segList[g.x]];
+  let s = segAt(segList[g.x]);
   let ax = s.b - s.a;
   let T = normalize(ax);
   let R0 = normalize(cross(T, vec3f(0.31, 1.0, 0.17)));

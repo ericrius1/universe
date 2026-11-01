@@ -9,6 +9,7 @@ import type { FilamentSet } from './filaments';
 import { type World, FilKind } from './layout';
 import { MOL } from './molecules';
 import { Rng } from './noise';
+import { rel } from '../engine/origin';
 
 export interface Track { seg0: number; seg1: number; cum: Float32Array; length: number }
 interface Convoy { track: number; s0: number; speed: number; vr: number; pf: number; tint: number }
@@ -63,7 +64,7 @@ export function emitKinesin(field: Field, fil: FilamentSet, tr: Track, s: number
   const A = field.actors;
   const add = (type: number, p: Vec3, q: Quat, scale: number) => {
     if (field.actorCount >= A.count) return;
-    A.set(field.actorCount++, { pos: p, scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | (tint & 0xffff) });
+    A.set(field.actorCount++, { pos: rel(p), scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | (tint & 0xffff) });
   };
   const step = Math.floor(s / 8), ph = s / 8 - step;
   // mostly a dwell (waiting for ATP), then a quick swing: the motion happens in the last 30% of each step

@@ -12,6 +12,7 @@ import type { Renderer } from '../engine/renderer';
 import { COMPARTMENTS, COMPOSITION, DENSITY, MEMBRANE, MOL, MOLS, type Molecules } from './molecules';
 import type { FilamentSet } from './filaments';
 import { FilKind } from './layout';
+import { rel } from '../engine/origin';
 
 const CAP = 16384;
 const NLISTS = MOLS.length * 3;
@@ -98,7 +99,8 @@ export class Field {
     return { comps: this.kit.storage({ label: 'mol.comps', data: new Uint8Array(comps) }), meta: this.kit.storage({ label: 'mol.compMeta', data: meta }) };
   }
 
-  /** set up this frame's generation round the focus at the camera's scale */
+  /** set up this frame's generation round the focus at the camera's scale (absolute positions: the chunks are found
+   *  by them, the GPU gets them relative to the origin) */
   update(focus: Vec3, eye: Vec3, scale: number, pxAngle: number) {
     const R = scale * 2.6;
     const level = Math.max(0, Math.log2((0.65 * scale) / C0));
@@ -141,7 +143,7 @@ export class Field {
     const P = this.kit.camera.planes;
     const pl = (i: number) => [P[i * 4], P[i * 4 + 1], P[i * 4 + 2], P[i * 4 + 3]];
     this.F.set({
-      focus, radius: R, camPos: eye, clear: scale * 0.42, level, c0: C0, perChunk: K, maxInst: this.maxInst,
+      focus: rel(focus), radius: R, camPos: rel(eye), clear: scale * 0.42, level, c0: C0, perChunk: K, maxInst: this.maxInst,
       lv0: lv[0], lv1: lv[1], lv2: lv[2], lv3: lv[3], lf, starts, total, segCount: this.segCount, actorCount: this.actorCount,
       seed: 7, pxAngle, lod0: 34, lod1: 9, cull: 0.45,
       p0: pl(0), p1: pl(1), p2: pl(2), p3: pl(3), p4: pl(4), p5: pl(5), latticeOn, wobble: 0.18,

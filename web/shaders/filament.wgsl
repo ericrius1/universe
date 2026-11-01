@@ -7,6 +7,7 @@
 
 struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32, len: f32 }
 @group(2) @binding(0) var<storage, read> segs: array<Seg>;
+fn segAt(i: u32) -> Seg { var s = segs[i]; s.a -= G.origin; s.b -= G.origin; return s; }
 
 struct VOut {
   @builtin(position) pos: vec4f,
@@ -54,8 +55,8 @@ fn quad(vi: u32, s: Seg, thin: bool) -> VOut {
   if (isCut(mid)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   return out;
 }
-@vertex fn vs_tube(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segs[vi / 6u], false); }
-@vertex fn vs_thin(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segs[vi / 6u], true); }
+@vertex fn vs_tube(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segAt(vi / 6u), false); }
+@vertex fn vs_thin(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segAt(vi / 6u), true); }
 
 // ray–capsule (Quilez)
 fn capsule(ro: vec3f, rd: vec3f, pa: vec3f, pb: vec3f, r: f32) -> f32 {
@@ -92,7 +93,7 @@ fn look(kind: u32) -> Look {
 }
 
 @fragment fn fs_tube(in: VOut) -> GOutD {
-  let s = segs[in.seg];
+  let s = segAt(in.seg);
   let ro = frame.camPos;
   let rd = normalize(in.world - ro);
   let r = segRadius(s);
@@ -126,7 +127,7 @@ fn look(kind: u32) -> Look {
 }
 
 @fragment fn fs_thin(in: VOut) -> OitOut {
-  let s = segs[in.seg];
+  let s = segAt(in.seg);
   if (isCut(in.world)) { discard; }
   let l = look(s.kind);
   // a soft line: brightest along its middle, its opacity the coverage it really has

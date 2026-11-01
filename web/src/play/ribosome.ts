@@ -14,6 +14,7 @@ import { registerGame, type GameCtx } from './game';
 import { MOL } from '../world/molecules';
 import { frameQuat } from '../world/walkers';
 import { Kind, type World } from '../world/layout';
+import { rel } from '../engine/origin';
 
 // ------------------------------------------------------------------ the gene and the code
 /** Aequorea victoria GFP, the wild-type coding sequence (gfp10 cDNA, 238 codons + TAA); it translates exactly to
@@ -72,7 +73,7 @@ export class Emit {
   mol(type: number, pos: Vec3, rot: Quat, scale = 1, t = 0, id = 0) {
     const f = this.ctx.field;
     if (f.actorCount >= f.actors.count || scale <= 0.001) return;
-    f.actors.set(f.actorCount++, { pos, scale, rot, mtype: type, lod: 0, tint: t >>> 0, id: (id || (0x80000000 | (type << 16))) >>> 0 });
+    f.actors.set(f.actorCount++, { pos: rel(pos), scale, rot, mtype: type, lod: 0, tint: t >>> 0, id: (id || (0x80000000 | (type << 16))) >>> 0 });
   }
   ball(pos: Vec3, r: number, t: number) { this.mol(MOL.ball, pos, IDQ, r, t); }
 }
@@ -111,9 +112,12 @@ export function fitScale(ctx: GameCtx, scale: number) {
   return aspect < 1 ? scale * Math.pow(1 / aspect, 0.65) : scale;
 }
 
+const _proj_p: Vec3 = [0, 0, 0];
 /** a world point to css pixels on the canvas (null behind the eye) */
 export function project(ctx: GameCtx, p: Vec3, out: [number, number]): [number, number] | null {
   const m = ctx.kit.camera.viewProj;
+  // (the camera sits relative to the floating origin)
+  p = rel(p, _proj_p);
   const x = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12];
   const y = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13];
   const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];

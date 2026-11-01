@@ -23,11 +23,13 @@ import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
+import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 
 const $ = (id: string) => document.getElementById(id)!;
 const status = (msg: string, f: number) => { $('ld-msg').textContent = msg; ($('ld-bar') as HTMLElement).style.width = `${Math.round(f * 100)}%`; };
 const params = new URLSearchParams(location.search);
 const BASE = import.meta.env.BASE_URL;
+const NO_ORIGIN = params.has('noorigin');
 const frame = () => new Promise((res) => requestAnimationFrame(res));
 
 async function boot() {
@@ -355,10 +357,14 @@ export class App {
 
   frame(dt: number) {
     const c = this.controls, kit = this.kit;
+    // the floating origin for this frame: where the camera looked last (everything the GPU gets is relative to it;
+    // ?noorigin keeps it at the world's origin, the old float32 trouble, for comparison)
+    if (!NO_ORIGIN) setOrigin(c.pivot);
     this.tour.update(dt);
     this.director?.(dt);
     if (this.game) this.game.update(dt);
     c.update(dt, kit.camera);
+    rel(c.position, kit.camera.position as Vec3);
     const S = c.scale;
     // biology slows as you zoom in: real time at the scale of the cell, a hundredth of it among the molecules
     this.timeScale = Math.min(1, Math.max(0.01, S / 10000));
@@ -387,13 +393,13 @@ export class App {
     const fogK = outside ? 6 : 1.4 + 1.6 * Math.min(1, Math.max(0, Math.log10(S / 100) / 2));
     const solid = Math.min(1, Math.max(0, (900 - S) / 600));
     this.r.globals.set({
-      focus: c.pivot, scale: S, keyDir: key, level: Math.log2(Math.max(S, 1) / 30),
-      cutCenter: WEDGE.center, cut: this.cut > 0.01 ? this.cut : 0, cutN1: n1, cutN2: n2, cutRadius: WEDGE.radius,
-      bioTime: this.bioTime, timeScale: this.timeScale, fluo: this.fluo,
+      focus: rel(c.pivot), scale: S, keyDir: key, level: Math.log2(Math.max(S, 1) / 30),
+      cutCenter: rel(WEDGE.center), cut: this.cut > 0.01 ? this.cut : 0, cutN1: n1, cutN2: n2, cutRadius: WEDGE.radius,
+      bioTime: gpuTime(this.bioTime), timeScale: this.timeScale, fluo: this.fluo,
       fogColor: this.haze[0].map((x) => x * (1 - this.fluo)) as Vec3, bgColor: this.haze[1].map((x) => x * (1 - this.fluo)) as Vec3,
       fogDist: S * fogK, exposure: 0.85, clearRadius: S * 0.42, pxAngle,
       organelleCount: this.world.organelles.length, hover: this.hover, selected: this.selected, highlight: 1,
-      quality: 1, flags: 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof,
+      quality: 1, flags: 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin,
     });
     // the molecular field: the motors walking (games add their own actors first), then generation round the focus
     if (!this.game) this.field.actorCount = 0;
@@ -424,6 +430,8 @@ export class App {
     const rect = kit.canvas.getBoundingClientRect();
     const px = ((mx - rect.left) / rect.width) * kit.size.render[0], py = ((my - rect.top) / rect.height) * kit.size.render[1];
     const inv = kit.camera.invViewProj.slice();
+    // (unprojected relative to this frame's origin)
+    const o: Vec3 = [origin[0], origin[1], origin[2]];
     this.probing = true;
     Promise.all([this.r.depth.readTexel(px, py), this.r.ids.readTexel(px, py)]).then(([d, id]) => {
       this.probing = false;
@@ -433,7 +441,7 @@ export class App {
       if (z <= 0) { this.lastPick = null; return; }
       const x = (px / kit.size.render[0]) * 2 - 1, y = 1 - (py / kit.size.render[1]) * 2;
       const w = inv[3] * x + inv[7] * y + inv[11] * z + inv[15];
-      const world: Vec3 = [(inv[0] * x + inv[4] * y + inv[8] * z + inv[12]) / w, (inv[1] * x + inv[5] * y + inv[9] * z + inv[13]) / w, (inv[2] * x + inv[6] * y + inv[10] * z + inv[14]) / w];
+      const world: Vec3 = [(inv[0] * x + inv[4] * y + inv[8] * z + inv[12]) / w + o[0], (inv[1] * x + inv[5] * y + inv[9] * z + inv[13]) / w + o[1], (inv[2] * x + inv[6] * y + inv[10] * z + inv[14]) / w + o[2]];
       this.lastPick = { world, id: ident, depth: z, x: mx, y: my };
     }, () => { this.probing = false; });
   }

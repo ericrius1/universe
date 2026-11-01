@@ -13,6 +13,7 @@ import { registerGame, type Game, type GameCtx } from './game';
 import { tracksOf, onTrack, frameQuat, type Track } from '../world/walkers';
 import { MOL } from '../world/molecules';
 import { Rng } from '../world/noise';
+import { rel } from '../engine/origin';
 
 const STEPS = 80;
 const LIMIT = 60;
@@ -395,7 +396,7 @@ class KinesinGame implements Game {
   private add(type: number, p: Vec3, q: Quat, scale: number, tint: number, id = 0) {
     const f = this.ctx.field;
     if (f.actorCount >= f.actors.count) return;
-    f.actors.set(f.actorCount++, { pos: p, scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | (id & 0x7fff) });
+    f.actors.set(f.actorCount++, { pos: rel(p), scale, rot: q, mtype: type, lod: 0, tint, id: 0x80000000 | (type << 16) | (id & 0x7fff) });
   }
 
   /** an ATP (or ADP: four balls; a lone phosphate: one) at p, turned by q, k times life size */

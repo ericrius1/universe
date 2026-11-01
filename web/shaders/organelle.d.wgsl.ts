@@ -58,6 +58,8 @@ export interface Globals {
   shellSolid: number;
   highlight: number;
   dof: number;
+  origin: Vec3;
+  pad0: number;
 }
 export interface Organelle {
   a: Vec3;

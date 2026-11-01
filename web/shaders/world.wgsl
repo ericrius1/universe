@@ -14,6 +14,7 @@ struct Globals {
   clearRadius: f32, pxAngle: f32, cutRadius: f32, organelleCount: u32,   // pxAngle: radians per pixel
   hover: u32, selected: u32, quality: u32, flags: u32,
   timeScale: f32, shellSolid: f32, highlight: f32, dof: f32,    // shellSolid: membranes opaque (1) or glass (0)
+  origin: vec3f, pad0: f32,         // the floating origin (nm): every position the GPU computes with is relative to it
 }
 @group(0) @binding(1) var<uniform> G: Globals;
 
@@ -25,6 +26,16 @@ struct Organelle {
   center: vec3f, bound: f32,
 }
 @group(1) @binding(0) var<storage, read> organelles: array<Organelle>;
+
+// (the GPU computes relative to G.origin, src/engine/origin.ts: absolute positions are rebased the moment they're
+// loaded, and only noise is sampled at the absolute point)
+fn absP(p: vec3f) -> vec3f { return p + G.origin; }
+fn orgAt(i: u32) -> Organelle {
+  var o = organelles[i];
+  o.a -= G.origin; o.center -= G.origin;
+  if (o.shape == S_CAPSULE) { o.b -= G.origin; }
+  return o;
+}
 
 // kinds (layout.ts Kind)
 const K_CELL = 0u; const K_NUCLEUS = 1u; const K_NUCLEOLUS = 2u; const K_MITO = 3u; const K_CRISTA = 4u; const K_ER = 5u;
@@ -64,7 +75,7 @@ fn sdOrganelle(o: Organelle, p: vec3f) -> f32 {
     let q = p - s;
     let d = length(q);
     if (d < 1e-3) { return -o.r; }
-    return d - capsuleRadius(o, s + q * (o.r / d));
+    return d - capsuleRadius(o, absP(s + q * (o.r / d)));
   }
   let n = o.b;
   let sc = o.a + n * o.bend;
@@ -95,7 +106,7 @@ fn placeOf(p: vec3f) -> Place {
   var pl: Place; pl.inside = -1; pl.nearest = -1; pl.dist = 1e9; pl.insideDepth = 0u;
   let n = G.organelleCount;
   for (var i = 0u; i < n; i++) {
-    let o = organelles[i];
+    let o = orgAt(i);
     let far = length(p - o.center) - o.bound;
     if (far > pl.dist) { continue; }
     let d = sdOrganelle(o, p);
@@ -109,7 +120,7 @@ fn insideOf(p: vec3f) -> i32 {
   var best = -1; var depth = 0u;
   let n = G.organelleCount;
   for (var i = 0u; i < n; i++) {
-    let o = organelles[i];
+    let o = orgAt(i);
     if (length(p - o.center) > o.bound) { continue; }
     if (sdOrganelle(o, p) < 0.0 && o.depth + 1u > depth) { best = i32(i); depth = o.depth + 1u; }
   }
