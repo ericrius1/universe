@@ -112,6 +112,8 @@ export class Web {
     // (fading in as the web's volume fades out)
     const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.0) / 0.9)));
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.004, 0.02), 1], b: [EDGE, 0, 0, 0] });
-    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [0.16, Smpc > 6000 ? 32 : 44, 0, 0] });
+    // (the web's brighter seen whole, where the voids between near filaments take up more of the view)
+    const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0)));
+    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [gain, Smpc > 6000 ? 32 : 44, 0, 0] });
   }
 }

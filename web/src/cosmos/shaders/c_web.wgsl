@@ -36,20 +36,39 @@ fn cmb(n: vec3f) -> f32 {
   return vec4f(c * 0.05 * fade * L.weight, a * fade * L.weight);
 }
 
-// The web seen whole: walls and filaments of galaxies round empty voids, as the faces between the cells of a cellular
-// noise at two sizes (130 and 38 Mpc), marched through the sphere of the observable universe. Near enough to tell
-// galaxies apart, the points take over (Web.ts). L.c: gain, steps.
-fn webDensity(p: vec3f) -> vec2f {
-  let a = cellular(p / 130.0, 0.95);
-  let wall = exp(-(a.d2 - a.d1) * 30.0);
+// The web seen whole: filaments of galaxies where the walls between the cells of a cellular noise at two sizes (130
+// and 38 Mpc) cross, knotted into clusters where they meet, round black voids; marched through the sphere of the
+// observable universe. Near enough to tell galaxies apart, the points take over (Web.ts). L.c: gain, steps.
+// distances to the nearest three jittered points of a cellular noise: a Voronoi cell's face where the first two are
+// nearly equal, its edge where all three are
+fn cell3(p: vec3f) -> vec3f {
+  let i = vec3i(floor(p));
+  var d = vec3f(9.0);
+  for (var z = -1; z <= 1; z++) {
+    for (var y = -1; y <= 1; y++) {
+      for (var x = -1; x <= 1; x++) {
+        let g = i + vec3i(x, y, z);
+        let e = length(p - (vec3f(g) + 0.5 + (hash3i(g) - 0.5) * 0.95));
+        if (e < d.x) { d = vec3f(e, d.x, d.y); } else if (e < d.y) { d = vec3f(d.x, e, d.y); } else if (e < d.z) { d.z = e; }
+      }
+    }
+  }
+  return d;
+}
+
+// (x: how much, y: how much of it is a cluster's hot gold rather than a filament's blue; `soft` >= 1 widens it, as
+// dimly, where the march's steps are too long to find something so thin)
+fn webDensity(p: vec3f, soft: f32) -> vec2f {
+  let a = cell3(p / 130.0);
+  let wall = exp(-(a.y - a.x) * 40.0 / soft);
   // (deep in a void there's nothing to find at the finer size: skip it)
-  if (wall < 0.04) { return vec2f(0.0); }
-  let b = cellular(p / 38.0 + 7.3, 0.95);
-  let fine = exp(-(b.d2 - b.d1) * 26.0);
-  // clusters where the fine web's walls meet the coarse one's
-  let knot = wall * fine;
-  // (voids empty: below a floor, nothing)
-  return vec2f(max(wall * (0.35 + 0.65 * fine) + knot * 2.5 - 0.22, 0.0), knot);
+  if (wall < 0.03) { return vec2f(0.0); }
+  // the great filaments along the big cells' edges; finer ones over their walls; clusters where they cross
+  let big = exp(-(a.z - a.x) * 95.0 / soft);
+  let b = cell3(p / 38.0 + 7.3);
+  let fine = exp(-(b.z - b.x) * 70.0 / soft) * wall;
+  let knot = big * exp(-(b.z - b.x) * 25.0 / soft);
+  return vec2f(max(big * 2.0 + fine * 1.1 + knot * 14.0 + wall * 0.01 - 0.03, 0.0) / pow(soft, 1.5), ss(0.06, 0.3, knot));
 }
 
 @fragment fn fs_vol(in: FullscreenOut) -> @location(0) vec4f {
@@ -60,7 +79,7 @@ fn webDensity(p: vec3f) -> vec2f {
   if (h.y < 0.0) { return vec4f(0.0); }
   let t0 = max(h.x, 0.0);
   // (no further than a few view distances: beyond, every ray averages to the same grey)
-  let t1 = min(h.y, t0 + 6.0 * L.scale);
+  let t1 = min(h.y, t0 + 3.0 * L.scale);
   let steps = i32(L.c.y);
   let jit = ign(in.pos.xy);
   var col = vec3f(0.0);
@@ -71,13 +90,19 @@ fn webDensity(p: vec3f) -> vec2f {
     let dt = t - tPrev;
     tPrev = t;
     let p = ro + rd * t;
-    let d = webDensity(p);
-    let c = mix(vec3f(0.55, 0.68, 1.0), vec3f(1.0, 0.78, 0.5), clamp(d.y * 3.0, 0.0, 1.0));
+    let d = webDensity(p, clamp(dt / 6.0, 1.0, 3.0));
+    if (d.x <= 0.0) { continue; }
+    // filaments cool blue-violet, clusters hot gold; a slow drift of hue across the sky
+    let tint = vnoise(p / 900.0) * 0.5 + 0.5;
+    let fil = mix(vec3f(0.42, 0.55, 1.0), vec3f(0.62, 0.5, 0.95), tint);
+    let c = mix(fil, vec3f(1.0, 0.62, 0.28) * 1.4, d.y);
     // (what's about the view's distance away counts most: from inside, the walls round you, not all 14 Gpc at once)
-    let q = t / (2.5 * L.scale);
-    col += c * d.x * dt / (1.0 + q * q);
+    let q = t / (1.3 * L.scale);
+    col += c * d.x * dt / (1.0 + q * q * q * q);
   }
-  col /= L.scale;
+  col *= L.c.x / L.scale;
+  // (the faint sum of everything far behind kept down, so the voids stay black and the filaments stand out)
+  col = col * col / (col + vec3f(0.05));
   // (a hollow round us: our own neighbourhood is drawn as galaxies)
-  return vec4f(col * L.c.x * L.weight, 0.0);
+  return vec4f(col * L.weight, 0.0);
 }
