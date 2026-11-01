@@ -17,7 +17,7 @@ export class EarthData {
   /** everything's in */
   ready = false;
 
-  constructor(private kit: Kit, private base: string) {
+  constructor(private kit: Kit, private url: (file: string) => string) {
     const blank = (label: string, format: GPUTextureFormat) => kit.texture({ label, format, size: [1, 1], usage: ['sample', 'copy-dst'] });
     this.nearH = blank('earth.near.h', 'r32float');
     this.farH = blank('earth.far.h', 'r32float');
@@ -26,7 +26,7 @@ export class EarthData {
   }
 
   async load() {
-    const get = async (f: string) => { const r = await fetch(this.base + f); if (!r.ok) throw new Error(`earth data: ${f} ${r.status}`); return r; };
+    const get = async (f: string) => { const r = await fetch(this.url(f)); if (!r.ok) throw new Error(`earth data: ${f} ${r.status}`); return r; };
     const m = (await (await get('earth.json')).json()) as EarthManifest;
     const heights = async (w: EarthWindow, label: string) => {
       const q = new Uint16Array(await (await get(w.heights)).arrayBuffer());

@@ -29,8 +29,9 @@ export interface CosmosOptions {
   input?: boolean;
   /** the moment (ms) the Earth, its Sun and the planets are placed for */
   time?: number;
-  /** where the real ground round the spot is (a folder's URL: earth.json and its files; default ./data/earth/) */
-  data?: string;
+  /** where the real ground round the spot is: a folder's URL (earth.json and its files; default ./data/earth/), or a
+   *  file's name to its URL (a host whose files live elsewhere: Boulder's asset()) */
+  data?: string | ((file: string) => string);
 }
 export type { DomeOptions };
 
@@ -57,7 +58,8 @@ export class Cosmos {
     this.galaxy = new Galaxy(kit, this.r, this.ladder);
     this.local = new Local(kit, this.r, this.ladder);
     this.solar = new Solar(kit, this.r, this.ladder);
-    this.data = new EarthData(kit, o.data ?? new URL('data/earth/', document.baseURI).href);
+    const data = o.data ?? new URL('data/earth/', document.baseURI).href;
+    this.data = new EarthData(kit, typeof data === 'string' ? (f) => data + f : data);
     this.air = new Air(kit, this.r, this.ladder);
     this.earth = new Earth(kit, this.r, this.ladder, this.air, this.data);
     this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data);
