@@ -100,9 +100,9 @@ export class Web {
     const Smpc = S / this.lv.frame.unit;
     // exposure that follows the zoom: what's at the view's distance always reads
     const l = Math.log10(S);
-    this.ptsOn = l < 25.6 ? 1 : 0;
+    this.ptsOn = l < 25.0 ? 1 : 0;
     // (fading in as the web's volume fades out)
-    const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.4) / 1.2)));
+    const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.0) / 0.9)));
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.004, 0.02), 1], b: [EDGE, 0, 0, 0] });
     this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [0.09, Smpc > 6000 ? 40 : 64, 0, 0] });
   }

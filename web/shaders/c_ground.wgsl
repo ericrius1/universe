@@ -80,7 +80,11 @@ fn blade(p: vec3f) -> vec2f {
     for (var i = -1; i <= 1; i++) {
       let g = c + vec2f(f32(i), f32(j));
       let h = hash3i(vec3i(i32(g.x), i32(g.y), 31));
-      let hgt = GH * (0.45 + 0.55 * h.z);
+      // (flattened under the hand and round its edge)
+      let bp = vec3f((g.x + 0.5) * cs, 0.0, (g.y + 0.5) * cs);
+      var press = 1.0;
+      if (abs(bp.x - 0.1) < 0.3 && abs(bp.z) < 0.15) { press = ss(0.0, 0.03, hand(vec3f(bp.x, 0.02, bp.z))); }
+      let hgt = GH * (0.45 + 0.55 * h.z) * mix(0.15, 1.0, press);
       let u = p.y / hgt;
       if (u > 1.0) { continue; }
       // bent by its lean and the wind, more toward the tip

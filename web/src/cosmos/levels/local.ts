@@ -51,7 +51,7 @@ export class Local {
   sky = 1;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
-    this.lv = R.level('local', ladder.local, [20.2, 19.2, -99, -100]);
+    this.lv = R.level('local', ladder.local, [20.6, 19.6, -99, -100]);
     const P = this.pts;
     for (const [, l, b, d, t, lum] of NAMED) {
       const v = galDir(l, b), c = tempColor(t);
@@ -59,14 +59,16 @@ export class Local {
     }
     // the crowd: mostly red dwarfs, some orange and yellow, a few white (a rough luminosity function)
     const r = rng(9);
-    for (let i = 0; i < 26000; i++) {
-      const rad = 1.2 + 38.8 * Math.cbrt(r.next());
+    for (let i = 0; i < 30000; i++) {
+      // (uniform in radius: dense near the Sun, thinning out to 250 pc, where only the bright are seen)
+      const rad = 1.2 + 248.8 * Math.pow(r.next(), 1.15);
+      const far = Math.max(1, rad / 25);
       const th = Math.acos(2 * r.next() - 1), ph = r.next() * Math.PI * 2;
       const u = r.next();
       const [t, lum] = u < 0.72 ? [2800 + r.next() * 1000, 0.0005 + Math.pow(r.next(), 3) * 0.05]
         : u < 0.9 ? [3900 + r.next() * 1300, 0.08 + r.next() * 0.4] : u < 0.97 ? [5200 + r.next() * 900, 0.6 + r.next() * 1.4] : [6200 + r.next() * 4000, 2 + Math.pow(r.next(), 2) * 30];
       const c = tempColor(t);
-      P.push(rad * Math.sin(th) * Math.cos(ph), rad * Math.cos(th), rad * Math.sin(th) * Math.sin(ph), 0, c[0], c[1], c[2], lum);
+      P.push(rad * Math.sin(th) * Math.cos(ph), rad * Math.cos(th) * 0.55, rad * Math.sin(th) * Math.sin(ph), 0, c[0], c[1], c[2], lum * far * far);
     }
     drawPoints(kit, R, this.lv, this.pts, 'local', () => this.lv.on() && this.sky > 0.01);
   }
@@ -75,6 +77,6 @@ export class Local {
     const Spc = S / this.lv.frame.unit;
     this.lv.weight *= this.sky;
     // (from inside the solar system the sky stays as bright as it is from a few parsecs)
-    this.lv.L.set({ weight: this.lv.weight, a: [0.012 * Math.max(Spc, 3) ** 2, 0, Math.max(Spc * 0.01, 0.05), 1] });
+    this.lv.L.set({ weight: this.lv.weight, a: [0.05 * Math.max(Spc, 2) * Math.min(Math.max(Spc, 2), 3.5), 0, Math.max(Spc * 0.01, 0.05), 1] });
   }
 }

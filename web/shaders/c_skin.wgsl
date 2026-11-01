@@ -80,6 +80,30 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
   return vec2f(best, shade);
 }
 
+// beneath the dead plates, the living epidermis: rounded cells ~25 µm, packed, each with its purple nucleus — the
+// tissue the cell's world opens on. Marched a little way down from the surface.
+fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
+  var col = vec3f(0.0);
+  var T = 1.0;
+  let n = 28;
+  let dt = 0.11 / f32(n);
+  for (var i = 0; i < n; i++) {
+    let q = p0 + rd * ((f32(i) + jit) * dt);
+    let c = cellular(q / 0.026 + vec3f(3.1, 0.0, 1.7), 0.8);
+    // membranes between the cells, the cytoplasm clear and pale, the nucleus dense and purple
+    let wall = exp(-(c.d2 - c.d1) * (c.d2 - c.d1) / 0.003);
+    let nuc = 1.0 - ss(0.2, 0.27, c.d1);
+    let sCyt = 14.0; let sWall = 260.0 * wall; let sNuc = 340.0 * nuc;
+    let sig = sCyt + sWall + sNuc;
+    let cc = (vec3f(1.0, 0.78, 0.7) * sCyt + vec3f(1.1, 0.88, 0.82) * sWall + vec3f(0.32, 0.2, 0.68) * sNuc) / sig;
+    let a = 1.0 - exp(-sig * dt);
+    col += T * a * cc;
+    T *= 1.0 - a;
+    if (T < 0.02) { break; }
+  }
+  return vec4f(col, 1.0 - T);
+}
+
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
   let rd = rayDir(in.uv);
   let ro = L.eye + L.origin;
@@ -117,7 +141,7 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
   let h0 = skinH(p.xz, fine).h;
   let n = normalize(vec3f(h0 - skinH(p.xz + vec2f(e, 0.0), fine).h, e, h0 - skinH(p.xz + vec2f(0.0, e), fine).h));
   // skin: warm, translucent; the creases deeper and redder, the plates' edges whiter
-  var alb = vec3f(0.64, 0.43, 0.34);
+  var alb = vec3f(0.56, 0.35, 0.27);
   alb = mix(alb, vec3f(0.5, 0.27, 0.22), ss(-0.02, -0.07, sh.h));
   alb *= 1.0 - sh.pore * 0.35;
   alb = mix(alb, alb * (0.9 + 0.25 * sh.plate), fine);
@@ -128,5 +152,13 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
   let h = normalize(sun - rd);
   let spec = pow(max(dot(n, h), 0.0), 60.0) * 0.12 + pow(max(dot(n, h), 0.0), 8.0) * 0.03;
   col = alb * sunI * (diff * 0.8 + sss) + vec3f(spec) * sunI + alb * vec3f(0.35, 0.45, 0.6) * sunI * 0.12;
+  // diving in: the plates turn to glass over the living cells below
+  let reveal = L.a.w;
+  if (reveal > 0.0) {
+    let jit = hash3u(vec3u(vec2u(in.pos.xy), frame.frame % 16u)).x;
+    let e = epidermis(p + rd * 0.004, rd, jit);
+    let lit = sunI * (0.55 + 0.45 * max(-rd.y, 0.0));
+    col = mix(col, e.rgb * lit * 0.8 + col * 0.15 * (1.0 - e.a), reveal);
+  }
   return vec4f(col * L.a.x * L.weight, L.weight);
 }

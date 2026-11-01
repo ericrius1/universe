@@ -82,7 +82,7 @@ export class Cosmos {
     this.galaxy.update(S);
     this.local.update(S);
     this.solar.update(S);
-    this.earth.update();
+    this.earth.update(S);
     this.r.over = alpha < 1;
     this.r.P.set({ alpha });
     this.r.frame();

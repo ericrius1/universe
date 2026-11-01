@@ -26,6 +26,7 @@ import { Film } from './film';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos } from './cosmos';
 import { NM } from './cosmos/frames';
+import { COSMOS_PLACES, type CosmosPlace } from './cosmos/places';
 
 const $ = (id: string) => document.getElementById(id)!;
 const status = (msg: string, f: number) => { $('ld-msg').textContent = msg; ($('ld-bar') as HTMLElement).style.width = `${Math.round(f * 100)}%`; };
@@ -94,7 +95,8 @@ async function boot() {
 // the haze inside each compartment: (colour, background)
 type Haze = [Vec3, Vec3];
 const HAZE: Record<string, Haze> = {
-  outside: [[0.0012, 0.0026, 0.007], [0.0006, 0.0012, 0.0035]],
+  // (the tissue under the skin: a warm dim rose, as the skin's living layer looks from above)
+  outside: [[0.011, 0.0055, 0.006], [0.006, 0.003, 0.0034]],
   cytosol: [[0.006, 0.016, 0.026], [0.0025, 0.007, 0.012]],
   nucleus: [[0.008, 0.007, 0.03], [0.004, 0.0035, 0.015]],
   mito: [[0.016, 0.006, 0.006], [0.007, 0.0025, 0.003]],
@@ -157,7 +159,7 @@ export class App {
     if (params.has('nocut')) this.cutTarget = this.cut = 0;
 
     const ui = $('ui');
-    this.hud = new Hud(ui, placeList, BASE);
+    this.hud = new Hud(ui, [...COSMOS_PLACES, ...placeList], BASE);
     // the interface's toggle, top right (and / anywhere), as in every project on the site: it shows unless folded away
     interfaceToggle({ name: 'cell', label: 'the interface', phone: true, onChange: (open) => document.body.classList.toggle('ui-off', !open) });
     this.gamePanel = document.createElement('div');
@@ -178,7 +180,7 @@ export class App {
     addEventListener('pointerdown', wake, { once: true });
     addEventListener('keydown', wake, { once: true });
     if (params.has('notitle') || params.has('film')) this.hud.setChrome(false);
-    else setTimeout(() => { if (!controls.fly) this.hud.toast('Scroll or pinch to dive in — all the way down to the molecules', 6000); }, 2200);
+    else setTimeout(() => { if (!controls.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall from the edge of the universe to a single molecule' : 'Scroll or pinch to dive in — all the way down to the molecules', 6000); }, 2200);
   }
 
   /** hand the camera to the cosmos or the cell (`now`: without the crossfade) */
@@ -297,8 +299,16 @@ export class App {
   }
 
   goTo(id: string) {
+    if (id.startsWith('u:')) { this.goToCosmos(id); return; }
     const p = this.places.get(id);
     if (!p) return;
+    // (from above the cell: down to the skin, then on into it)
+    if (this.realm === 'cosmos') {
+      this.intro.show(p);
+      this.cosmos.controls.flyTo(this.cosmos.controls.min, { done: () => { this.enterCell(); this.goTo(id); } });
+      this.sound('fly');
+      return;
+    }
     this.setFly(false);
     this.tour.stop();
     this.hud.showCard(null);
@@ -306,6 +316,19 @@ export class App {
     this.controls.flyTo(p.at, this.fit(p.scale), { yaw: p.yaw, pitch: p.pitch, done: () => this.sound('arrive') });
     this.hud.setCaption('');
     this.at = p;
+    this.intro.show(p);
+    this.sound('fly');
+  }
+
+  /** fly the cosmos's camera to one of its places (out of the cell first, if need be) */
+  private cosmosAt: CosmosPlace | null = null;
+  goToCosmos(id: string) {
+    const p = COSMOS_PLACES.find((q) => q.id === id);
+    if (!p) return;
+    if (this.realm === 'cell') this.leaveCell();
+    this.hud.showCard(null);
+    this.cosmos.controls.flyTo(p.logS, { pitch: p.pitch, done: () => this.sound('arrive') });
+    this.cosmosAt = p;
     this.intro.show(p);
     this.sound('fly');
   }
@@ -412,16 +435,19 @@ export class App {
     if (this.mix < 1) this.cellFrame(dt);
     if (this.mix > 0) {
       this.cosmos.frame(dt, this.mix);
-      if (this.realm === 'cosmos') this.cosmosHud();
+      if (this.realm === 'cosmos') this.cosmosHud(dt);
     }
   }
 
-  private cosmosHud() {
+  private cosmosHud(dt: number) {
     const cc = this.cosmos.controls, kit = this.kit;
     const S = this.cosmos.S / NM;
     const fovW = 2 * S * Math.tan(kit.camera.fovY / 2) * (kit.size.css[0] / kit.size.css[1]);
     this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.cosmos.crumbs(), hover: null, mouse: cc.mouse });
-    this.hud.setHere(null);
+    // (still at the place flown to: about as close)
+    if (this.cosmosAt && !cc.flying && Math.abs(cc.logS - this.cosmosAt.logS) > 0.8) this.cosmosAt = null;
+    this.hud.setHere(this.cosmosAt?.id ?? null);
+    this.intro.update(dt, cc.flying, !!this.cosmosAt);
   }
 
   private cellFrame(dt: number) {

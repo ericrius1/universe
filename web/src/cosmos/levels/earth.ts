@@ -16,7 +16,7 @@ export class Earth {
     R.scene.fullscreen(earthShader, { label: 'earth', fragment: 'fs', bind: { L: this.lv.L }, blend: 'premultiplied', enabled: this.lv.on });
   }
 
-  update() {
+  update(S: number) {
     const lad = this.ladder, o = this.lv.origin;
     // the Sun: from the Earth toward the solar system's centre, in the Earth's axes
     lad.dirInto(lad.solar, lad.earth, vec3.negate(this.sun, lad.earth.at), this.sun);
@@ -26,7 +26,7 @@ export class Earth {
     quat.invert(this.qi, lad.earth.rot);
     vec3.transformQuat(this.moon, this.moon, this.qi);
     this.lv.L.set({
-      sun: this.sun, a: [0.3, 6.0, 0, 0], b: [-o[0], -o[1], -o[2], 0],
+      sun: this.sun, a: [0.2, 6.0, Math.max(0, Math.min(1, (7.4 - Math.log10(S)) / 1.4)), 0], b: [-o[0], -o[1], -o[2], 0],
       c: [this.moon[0] - o[0], this.moon[1] - o[1], this.moon[2] - o[2], 0],
     });
   }

@@ -64,7 +64,7 @@ struct POut {
   // its radius on screen, the rings' reach for Saturn
   let reach = select(1.0, 2.35, p.kind > 1.5 && p.kind < 2.5);
   let rpx = p.r * reach / (d * L.pxAngle);
-  let quad = max(rpx * 1.15, 6.0);
+  let quad = max(rpx * 1.15, 12.0);
   let k = CORNERS[vi % 6u];
   out.pos = quadCorner(c, k, quad);
   out.idx = ii;
@@ -84,7 +84,8 @@ fn jupiterBands(n: vec3f, s: f32) -> f32 {
   // too small to see as a disc: a soft dot of its colour, lit by its phase
   if (px < 1.5) {
     let r = length(in.uv);
-    let i = exp(-r * r / 4.0) * 1.2 + exp(-r * r / 30.0) * 0.15;
+    if (r > 12.0) { discard; }
+    let i = exp(-r * r / 3.0) * 1.2 + exp(-r * r / 14.0) * 0.12 * (1.0 - r / 12.0);
     let toEye = normalize(L.eye - p.pos);
     let phase = 0.5 + 0.5 * dot(toEye, sunDir);
     return vec4f(p.color * i * (0.3 + 0.7 * phase) * L.a.y * L.weight, 0.0);

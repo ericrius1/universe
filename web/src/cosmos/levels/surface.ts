@@ -28,8 +28,10 @@ export class Surface {
     this.ground.L.set({ sun, a: [0.055, 20, this.night, grass] });
     // the plates of the stratum corneum from a millimetre down
     const fine = Math.max(0, Math.min(1, (-2.3 - l) / 0.6));
+    // the living cells under the plates, as the cell's world comes near
+    const reveal = Math.max(0, Math.min(1, (-3.1 - l) / 0.6));
     // (the skin's always lit a little from above: by night, as if by a lamp)
     const up = Math.max(sun[1], 0.35), k = 1 / Math.hypot(sun[0], up, sun[2]);
-    this.skin.L.set({ sun: [sun[0] * k, up * k, sun[2] * k], a: [0.05, 6 + 14 * (1 - this.night), fine, 0] });
+    this.skin.L.set({ sun: [sun[0] * k, up * k, sun[2] * k], a: [0.032, 6 + 14 * (1 - this.night), fine, reveal] });
   }
 }

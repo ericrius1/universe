@@ -55,9 +55,9 @@ export class Solar {
     ring(16000, 2.15, 3.3, 0.06, [0.75, 0.68, 0.6], 0.25);
     ring(12000, 30, 50, 0.08, [0.6, 0.7, 0.85], 2.5);
     // the Oort cloud: a sphere of comets, 2,000 to 50,000 AU
-    for (let i = 0; i < 12000; i++) {
+    for (let i = 0; i < 3500; i++) {
       const rad = 2000 * Math.pow(25, r.next()), th = Math.acos(2 * r.next() - 1), ph = r.next() * Math.PI * 2;
-      P.push(rad * Math.sin(th) * Math.cos(ph), rad * Math.cos(th), rad * Math.sin(th) * Math.sin(ph), 0, 0.6, 0.75, 1.0, 400 * (0.3 + r.next()));
+      P.push(rad * Math.sin(th) * Math.cos(ph), rad * Math.cos(th), rad * Math.sin(th) * Math.sin(ph), 0, 0.6, 0.75, 1.0, 1.2 * (0.3 + r.next()));
     }
   }
 
