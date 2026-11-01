@@ -24,6 +24,20 @@ fn ss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0.0, 1.0
 // a stable per-pixel dither for marches (interleaved gradient noise)
 fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715)))); }
 
+// a float texture (unfilterable) read bilinearly at a uv (clamped to its edge)
+fn bilinear(t: texture_2d<f32>, uv: vec2f) -> f32 {
+  let d = vec2f(textureDimensions(t));
+  let q = clamp(uv, vec2f(0.0), vec2f(1.0)) * d - 0.5;
+  let i = vec2i(floor(q));
+  let f = q - floor(q);
+  let m = vec2i(d) - 1;
+  let a = textureLoad(t, clamp(i, vec2i(0), m), 0).r;
+  let b = textureLoad(t, clamp(i + vec2i(1, 0), vec2i(0), m), 0).r;
+  let c = textureLoad(t, clamp(i + vec2i(0, 1), vec2i(0), m), 0).r;
+  let e = textureLoad(t, clamp(i + vec2i(1, 1), vec2i(0), m), 0).r;
+  return mix(mix(a, b, f.x), mix(c, e, f.x), f.y);
+}
+
 fn ndcOf(uv: vec2f) -> vec2f { return vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0); }
 // ---- a planetarium's dome: a domemaster, the 180° equidistant fisheye (the zenith at the centre, the front at the
 // bottom rim). The camera looks at the dome's sweet spot, `elevation` above the front horizon; the viewer faces +z.

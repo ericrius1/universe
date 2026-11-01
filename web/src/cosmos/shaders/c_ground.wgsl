@@ -1,44 +1,44 @@
-// A meadow outside Boulder (metres; x east, y up, z south; the level's origin is the back of a hand lying in the
-// grass): the plains rising gently west to the Flatirons — fins of red sandstone tilted up against the foothills — and
-// the Indian Peaks beyond, on a curved Earth; grass blades up close; the hand; the sky and the haze from atmo.wgsl.
-// L.a: exposure, sun intensity, night (0..1), grass detail (0..1).
+// The meadow at Chautauqua in Boulder (metres; x east, y up, z south; the level's origin is the back of a hand lying
+// in the grass), on the real ground: Boulder's own heights and aerial pictures in two windows round the spot
+// (earthdata.ts: 8 km across at 16 m, 120 km at 117 m) — the Flatirons and Green Mountain over the meadow, the town
+// below, the plains, the Indian Peaks — on a curved Earth; Boulder's air (air.wgsl) for the sky and the haze; grass
+// blades up close and the hand, which are this level's own.
+// L.a: exposure, -, night (0..1), grass detail (0..1).
 #include "cosmos.wgsl"
-#include "atmo.wgsl"
+#include "air.wgsl"
 #include "weft/fullscreen"
 
-const EARTH_M = 6371000.0;
+struct GroundU {
+  near: vec4f,      // the near window: x its half (m), y z its heights' range (m), w -
+  far: vec4f,       // the far one
+  spot: vec4f,      // x the spot's height above the sea (km), y the Earth's radius there (m)
+}
+@group(2) @binding(1) var nearH: texture_2d<f32>;
+@group(2) @binding(2) var nearC: texture_2d<f32>;
+@group(2) @binding(3) var farH: texture_2d<f32>;
+@group(2) @binding(4) var farC: texture_2d<f32>;
+@group(2) @binding(5) var<uniform> G: GroundU;
 
-fn ridged(p: vec3f, o: i32) -> f32 { return 1.0 - abs(fbm(p, o) * 2.0 - 0.0); }
+fn srgbIn(c: vec3f) -> vec3f { return select(pow((c + 0.055) / 1.055, vec3f(2.4)), c / 12.92, c <= vec3f(0.04045)); }
+fn winUv(xz: vec2f, half: f32) -> vec2f { return clamp((xz + half) / (2.0 * half), vec2f(0.0), vec2f(1.0)); }
 
-// the land's height at (x, z), absolute ground coordinates; `lod` drops octaves with distance
+// the land's height at (x, z) (relative to the spot's ground); `lod` keeps the micro relief to near the eye
 fn terrain(x: f32, z: f32, lod: f32) -> f32 {
-  let q = vec3f(x, 0.0, z);
-  let oc = i32(clamp(7.0 - lod, 2.0, 7.0));
-  // the plains: a gentle swell, rising westward; flat round the meadow where the hand lies
-  let r0 = length(vec2f(x, z));
-  var h = (fbm(q / 260.0, max(oc - 2, 2)) * 3.0 + fbm(q / 3200.0 + 4.0, 3) * 18.0 - x * 0.012) * ss(25.0, 400.0, r0);
-  // the foothills and the Flatirons (only west of where they begin)
-  if (x > -1800.0) { return h - (x * x + z * z) / (2.0 * EARTH_M); }
-  let x0 = -2600.0 + 380.0 * sin(z / 2100.0) + 120.0 * fbm(q / 900.0, 2);
-  let m = ss(x0, x0 - 2600.0, x);
-  let hills = m * (480.0 + 380.0 * ridged(q / 1700.0, oc)) ;
-  // fins: the east faces slope up at ~50°, a row of them along the front
-  let k = floor(z / 900.0 + 0.5);
-  let dz = z - k * 900.0 - 160.0 * sin(k * 1.7);
-  let w = 330.0 + 140.0 * fract(sin(k * 12.9) * 43758.5);
-  // (a fin's top is jagged, its flanks weathered)
-  let tri = pow(max(0.0, 1.0 - abs(dz) / w), 0.6) * (0.85 + 0.15 * fbm(q / 90.0, max(oc - 4, 1)));
-  let rise = clamp((x0 + 150.0 - x) * 1.15, 0.0, 380.0 + 220.0 * fract(sin(k * 7.3) * 921.7));
-  let back = ss(x0 - 1100.0, x0 - 700.0, x);
-  let fin = rise * tri * back;
-  h += max(hills, fin + m * 220.0);
-  // the high peaks, 20–30 km west
-  if (x < -11000.0) {
-    let far = ss(-11000.0, -26000.0, x);
-    h += far * (1300.0 + 1100.0 * ridged(q / 5200.0 + 2.0, max(oc - 1, 2)));
+  let xz = vec2f(x, z);
+  // (past the far window, the plains' level: the planet's view of what's further is the Earth level's)
+  let ef = max(abs(x), abs(z)) / G.far.x;
+  var h = mix(G.far.y, G.far.z, bilinear(farH, winUv(xz, G.far.x))) * (1.0 - ss(0.92, 1.0, ef));
+  let en = max(abs(x), abs(z)) / G.near.x;
+  if (en < 1.0) {
+    let hn = mix(G.near.y, G.near.z, bilinear(nearH, winUv(xz, G.near.x)));
+    h = mix(hn, h, ss(0.8, 1.0, en));
   }
+  // the meadow levelled where the hand lies, its own small swells close by (finer than the data's 16 m)
+  let r = length(xz);
+  h *= ss(3.0, 40.0, r);
+  if (r < 300.0 && lod < 3.0) { h += fbm(vec3f(x, 0.0, z) / 9.0, 3) * 0.35 * ss(300.0, 60.0, r) * ss(1.5, 8.0, r); }
   // the Earth curves away
-  return h - (x * x + z * z) / (2.0 * EARTH_M);
+  return h - (x * x + z * z) / (2.0 * G.spot.y);
 }
 
 // ---------------------------------------------------------------- the hand
@@ -131,44 +131,28 @@ fn meadow(p: vec3f, dist: f32) -> vec3f {
   return c;
 }
 
-// the plains east of the foothills: farm parcels and the roads between them; Boulder's grid to the north
-fn plains(p: vec3f, dist: f32) -> vec3f {
-  let sz = vec2f(420.0, 310.0);
-  let cell = floor(p.xz / sz);
-  let h = hash3i(vec3i(i32(cell.x), i32(cell.y), 77));
-  var c = mix(vec3f(0.3, 0.25, 0.11), vec3f(0.1, 0.15, 0.05), h.x);
-  c = mix(c, vec3f(0.2, 0.14, 0.08), step(0.82, h.y));
-  // furrows and texture within a parcel
-  c *= 0.85 + 0.25 * vnoise(vec3f(p.x / 40.0 * select(1.0, 6.0, h.z > 0.5), 0.0, p.z / 40.0 * select(6.0, 1.0, h.z > 0.5)));
-  let f = fract(p.xz / sz) * sz;
-  let road = min(min(f.x, sz.x - f.x), min(f.y, sz.y - f.y));
-  c = mix(c, vec3f(0.24, 0.23, 0.22), ss(5.0, 2.5, road + dist * 0.0004));
-  // the town: a street grid, roofs, trees
-  let town = ss(-1500.0, -2300.0, p.z) * ss(-2300.0, -1400.0, p.x) * ss(3200.0, 2400.0, p.x) * ss(-9000.0, -8000.0, p.z);
-  if (town > 0.0) {
-    let bs = 95.0;
-    let b = fract(p.xz / bs) * bs;
-    let street = min(min(b.x, bs - b.x), min(b.y, bs - b.y));
-    let lot = hash3i(vec3i(i32(floor(p.x / 32.0)), i32(floor(p.z / 28.0)), 5));
-    var t = mix(vec3f(0.36, 0.3, 0.27), vec3f(0.42, 0.42, 0.44), lot.x);
-    t = mix(t, vec3f(0.06, 0.1, 0.04), step(0.55, lot.y) * 0.85);
-    t = mix(t, vec3f(0.2, 0.2, 0.21), ss(7.0, 4.0, street));
-    c = mix(c, t, town);
-  }
-  return c;
+// the pictures as the planet grades them (c_earth.wgsl regionAlbedo: the hand-over between them can't be seen)
+fn regionAlbedo(c: vec3f) -> vec3f {
+  let l = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+  return clamp(mix(vec3f(l), c, 0.8) * vec3f(1.05, 1.02, 0.96), vec3f(0.0), vec3f(0.9));
 }
 
-fn landColor(p: vec3f, n: vec3f, dist: f32) -> vec3f {
-  let slope = 1.0 - n.y;
-  // the meadow round the hand, parcels beyond it
-  var c = mix(meadow(p, dist), plains(p, dist), ss(220.0, 600.0, length(p.xz)) * ss(-2000.0, -1200.0, p.x));
-  // forest on the foothills, the Flatirons' red rock, snow up high
-  let forest = ss(1720.0 - 1655.0, 1900.0 - 1655.0, p.y) * ss(0.75, 0.35, slope);
-  c = mix(c, vec3f(0.022, 0.04, 0.02) * (0.7 + 0.6 * vnoise(p / 25.0)), forest);
-  let rock = ss(0.32, 0.6, slope);
-  c = mix(c, vec3f(0.42, 0.2, 0.12) * (0.75 + 0.35 * fbm(p / 25.0, 3)), rock);
-  c = mix(c, vec3f(0.9, 0.92, 0.95), ss(2500.0, 2900.0, p.y + 120.0 * fbm(p / 400.0, 3)) * ss(0.7, 0.4, slope));
-  return c;
+// the land's colour: the near window's picture (8 m), the far one's beyond (117 m), at the mip a pixel's footprint
+// there wants (fp, m); close in, the meadow's own texture over it
+fn landColor(p: vec3f, n: vec3f, dist: f32, fp: f32) -> vec3f {
+  let xz = p.xz;
+  let cf = srgbIn(textureSampleLevel(farC, samp_linear, winUv(xz, G.far.x), max(log2(fp / (2.0 * G.far.x / 1024.0)), 0.0)).rgb);
+  // (past the far window: the window's own average, its last mip)
+  var c = mix(cf, srgbIn(textureSampleLevel(farC, samp_linear, vec2f(0.5), 10.0).rgb), ss(0.92, 1.0, max(abs(xz.x), abs(xz.y)) / G.far.x));
+  let en = max(abs(xz.x), abs(xz.y)) / G.near.x;
+  if (en < 1.0) {
+    let cn = srgbIn(textureSampleLevel(nearC, samp_linear, winUv(xz, G.near.x), max(log2(fp / (2.0 * G.near.x / 1024.0)), 0.0)).rgb);
+    c = mix(cn, cf, ss(0.8, 1.0, en));
+  }
+  c = regionAlbedo(c);
+  // (within a couple of hundred metres, finer than the picture: the meadow's grass in its colour)
+  let k = ss(220.0, 40.0, length(xz));
+  return mix(c, c * meadow(p, dist) / vec3f(0.18, 0.18, 0.07) * 0.9, k * 0.6);
 }
 
 fn terrainNormal(x: f32, z: f32, e: f32, lod: f32) -> vec3f {
@@ -182,9 +166,6 @@ struct Hit { t: f32, kind: i32, tint: f32 }
   let rd = rayDir(in.uv);
   let ro = L.eye + L.origin;      // (ground coordinates: small, the origin is a few cm above the Boulder point)
   let sun = L.sun;
-  let sunI = L.a.y;
-  let center = vec3f(0.0, -RP, 0.0) - ro * 0.001;   // km, relative to the eye
-  let eyeKm = vec3f(0.0);
   var hit: Hit; hit.t = -1.0; hit.kind = 0;
   let tMax = 400000.0;
   // the hand (and its bounds), close in
@@ -223,21 +204,24 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     var t = 0.0;
     let tTop = select(1e9, (4500.0 - ro.y) / rd.y, rd.y < 0.0 && ro.y > 4500.0);
     if (tTop < 1e9) { t = tTop; }
+    // (no further than a blade or the hand already found nearer)
+    let tStop = min(tMax, min(tGrass, tHand));
     for (var i = 0; i < 160; i++) {
       let p = ro + rd * t;
       let lod = log2(max(t, 1.0) / 400.0);
       let h = terrain(p.x, p.z, lod);
       let dy = p.y - h;
       if (dy < max(0.002, t * 0.0008)) { tLand = t; break; }
-      t += max(dy * 0.5, 0.01 + t * 0.006);
-      if (t > tMax || (rd.y > 0.0 && p.y > 5000.0)) { break; }
+      t += max(dy * 0.5, 0.02 + t * 0.01);
+      if (t > tStop || (rd.y > 0.0 && p.y > 5000.0)) { break; }
     }
   }
   var col = vec3f(0.0);
   var alpha = 1.0;
   let tSurf = min(tHand, min(tGrass, tLand));
-  let sunCol = sunlightAt(vec3f(0.0, RP + max(ro.y, 0.0) * 0.001 + 0.05, 0.0), vec3f(0.0), sun) * sunI;
-  let ambient = vec3f(0.35, 0.45, 0.6) * 0.12 * sunI * max(sun.y + 0.15, 0.02);
+  // the sun through the air to the meadow (its illuminance 1 above the air, as Boulder's), the sky's blue light
+  let sunCol = sunAt(G.spot.x + max(ro.y, 0.0) * 0.001, sun.y) / PI;
+  let ambient = vec3f(0.025, 0.036, 0.058) * (0.8 * saturate(sun.y) + 0.2 * ss(-0.18, 0.12, sun.y));
   if (tSurf < 1e8) {
     let p = ro + rd * tSurf;
     var n: vec3f; var alb: vec3f; var sss = 0.0;
@@ -254,7 +238,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     } else {
       let lod = log2(max(tSurf, 1.0) / 400.0);
       n = terrainNormal(p.x, p.z, max(0.05, tSurf * 0.002), lod);
-      alb = landColor(p, n, tSurf);
+      alb = landColor(p, n, tSurf, tSurf * L.pxAngle / max(dot(n, -rd), 0.15));
       // near: soil and old stems under the blades
       alb = mix(alb, vec3f(0.06, 0.05, 0.03), L.a.w * ss(3.0, 0.5, tSurf) * 0.6);
     }
@@ -289,18 +273,18 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     }
     // the haze between (none to speak of within a couple of hundred metres)
     if (tSurf > 150.0) {
-      let a = air(eyeKm, rd, tSurf * 0.001, center, sun, sunI, 6);
-      col = col * a.trans + a.light;
+      let a = airSpan(rd, tSurf * 0.001, 6);
+      col = col * a.T + a.L;
     }
   } else {
     // (the sky only where it's seen)
-    let sky = air(eyeKm, rd, 1e9, center, sun, sunI, 10);
-    col = sky.light;
+    let sky = skyAt(rd);
+    col = sky;
     // the Sun's disc
     let mu = dot(rd, sun);
-    col += sunCol * ss(0.99996, 0.999985, mu) * 30.0;
+    col += sunCol * ss(0.99996, 0.999985, mu) * 4000.0;
     // (by night the sky is clear glass: the stars behind show through)
-    alpha = clamp(dot(sky.light, vec3f(0.3, 0.5, 0.2)) * 4.0, 0.0, 1.0);
+    alpha = clamp(dot(sky, vec3f(0.3, 0.5, 0.2)) * 60.0, 0.0, 1.0);
   }
   return vec4f(col * L.a.x * L.weight, alpha * L.weight);
 }

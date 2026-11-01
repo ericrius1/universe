@@ -39,9 +39,10 @@ const frame = (id: string, name: string, unit: number, parent: Frame | null, hom
 
 const axis = (x: number, y: number, z: number, a: number) => quat.setAxisAngle(quat.create(), [x, y, z], a);
 
-/** where on Earth (Boulder, Colorado: a meadow below the Flatirons) */
-export const PLACE = { lat: 40.0, lon: -105.29, name: 'Boulder, Colorado' };
-export const EARTH_R = 6371;            // km
+/** where on Earth: Chautauqua's meadow in Boulder, Colorado, below the Flatirons (earthdata.ts has its ground) */
+export const PLACE = { lat: 39.99652, lon: -105.28596, name: 'Boulder, Colorado' };
+/** the Earth's radius at the spot (km): the air's sea-level sphere (air.wgsl R_BOTTOM) and the meadow's 1759 m */
+export const EARTH_R = 6360 + 1.759;
 /** the back of the hand, in the ground frame (m) */
 export const HAND: Vec3 = [0, 0.046, 0];
 
@@ -169,6 +170,28 @@ export class Ladder {
       // (the body sits at the frame's origin)
       vec3.transformQuat(_v, f.target, f.q);
       vec3.scaleAndAdd(out, out, _v, -k * f.unit);
+    }
+    return out;
+  }
+
+  /** a point from one frame into another (in doubles, through their nearest common frame: never up through the
+   *  top's megaparsecs for two frames side by side) */
+  pointInto(from: Frame, to: Frame, p: ArrayLike<number>, out: Vec3 = [0, 0, 0]): Vec3 {
+    const up = (f: Frame) => { const a: Frame[] = []; for (let g: Frame | null = f; g; g = g.parent) a.push(g); return a; };
+    const fa = up(from), ta = up(to);
+    const common = fa.find((f) => ta.includes(f))!;
+    vec3.copy(out, p as Vec3);
+    // up from `from` to the common frame
+    for (let f = from; f !== common; f = f.parent!) {
+      vec3.transformQuat(out, out, f.rot);
+      vec3.scaleAndAdd(out, f.at, out, f.unit / f.parent!.unit);
+    }
+    // and down to `to`
+    const down = ta.slice(0, ta.indexOf(common)).reverse();
+    for (const f of down) {
+      vec3.subtract(out, out, f.at);
+      vec3.transformQuat(out, out, quat.invert(_q, f.rot));
+      vec3.scale(out, out, f.parent!.unit / f.unit);
     }
     return out;
   }

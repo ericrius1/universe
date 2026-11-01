@@ -52,13 +52,32 @@ export interface Lv {
   d: Vec4;
   view: Vec4;
 }
-export interface Air {
-  light: Vec3;
-  trans: Vec3;
+export interface AirView {
+  ax: Vec4;
+  ay: Vec4;
+  az: Vec4;
+  cam: Vec4;
+  center: Vec4;
+  sun: Vec4;
+}
+export interface Medium {
+  scat: Vec3;
+  ext: Vec3;
+  ray: Vec3;
+  mie: Vec3;
+}
+export interface Scat {
+  L: Vec3;
+  T: Vec3;
 }
 export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
+}
+export interface GroundU {
+  near: Vec4;
+  far: Vec4;
+  spot: Vec4;
 }
 export interface Hit {
   t: number;
@@ -66,5 +85,5 @@ export interface Hit {
   tint: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; Air: Air; FullscreenOut: FullscreenOut; Hit: Hit }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; AirView: AirView; Medium: Medium; Scat: Scat; FullscreenOut: FullscreenOut; GroundU: GroundU; Hit: Hit }, 'frame' | 'L' | 'AV' | 'G' | 'tLut' | 'msLut' | 'svLut' | 'nearH' | 'nearC' | 'farH' | 'farC' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

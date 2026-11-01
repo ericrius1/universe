@@ -13,6 +13,8 @@ import { Local } from './levels/local';
 import { Solar } from './levels/solar';
 import { Earth } from './levels/earth';
 import { Surface } from './levels/surface';
+import { Air } from './levels/air';
+import { EarthData } from './levels/earthdata';
 
 /** a moment: today at `utcHours` (default mid-morning in Boulder, 17:30 UTC) */
 export function moment(utcHours = 17.5) {
@@ -27,6 +29,8 @@ export interface CosmosOptions {
   input?: boolean;
   /** the moment (ms) the Earth, its Sun and the planets are placed for */
   time?: number;
+  /** where the real ground round the spot is (a folder's URL: earth.json and its files; default ./data/earth/) */
+  data?: string;
 }
 export type { DomeOptions };
 
@@ -40,7 +44,10 @@ export class Cosmos {
   readonly solar: Solar;
   readonly earth: Earth;
   readonly surface: Surface;
+  readonly air: Air;
+  readonly data: EarthData;
   time = 0;
+  private loading = false;
 
   constructor(readonly kit: Kit, o: CosmosOptions = {}) {
     this.ladder = new Ladder(o.time ?? moment());
@@ -50,8 +57,10 @@ export class Cosmos {
     this.galaxy = new Galaxy(kit, this.r, this.ladder);
     this.local = new Local(kit, this.r, this.ladder);
     this.solar = new Solar(kit, this.r, this.ladder);
-    this.earth = new Earth(this.r, this.ladder);
-    this.surface = new Surface(this.r, this.ladder);
+    this.data = new EarthData(kit, o.data ?? new URL('data/earth/', document.baseURI).href);
+    this.air = new Air(kit, this.r, this.ladder);
+    this.earth = new Earth(kit, this.r, this.ladder, this.air, this.data);
+    this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data);
   }
 
   /** where the view is, coarsest first */
@@ -103,7 +112,11 @@ export class Cosmos {
     this.galaxy.update(S);
     this.local.update(S);
     this.solar.update(S);
+    // (the ground round the spot, fetched once the dive comes within reach of it)
+    if (!this.loading && c.logS < 12) { this.loading = true; void this.data.load().catch((e) => console.warn('cosmos: the ground failed to load', e)); }
     this.earth.update(S);
+    this.air.on = this.earth.lv.weight > 0.002 || sf.ground.weight > 0.002;
+    if (this.air.on) this.air.update(this.earth.lv, this.earth.sun);
     this.r.over = alpha < 1;
     this.r.P.set({ alpha });
   }
