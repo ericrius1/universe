@@ -9,7 +9,9 @@ export const WHO = CAST[FIGURE];
 import { Ref, type Kit, type RenderPass, type StorageBuffer, type Texture, type UniformBuffer } from '@ericrius1/weft';
 import shader from '../shaders/figure.wgsl';
 import type { DomeOptions, Level } from '../renderer';
+import { vec3 } from 'math';
 import { FIGURE, FIGURE_FOCUS, FIGURE_FOCUS_N, POSE_D, POSE_R } from './pose';
+import { EYE_ROT } from '../frames';
 import { CAST } from './cast';
 
 const VBYTES = 24;
@@ -106,6 +108,8 @@ export class Figure {
       actor: W.cast, actorIris: W.iris, actor2: W.mouth, actor3: W.shading, actor4: [0, 0, 0, 0],
       hide: [0, 1, 2, 3].map((i) => W.hide[i] ?? -1),
       focus: [...FIGURE_FOCUS, 0], focusN: [...FIGURE_FOCUS_N, 0],
+      // (the tissue's sheet: the eye frame's x and z, in the ground's)
+      sheetX: [...vec3.transformQuat([0, 0, 0], [1, 0, 0], EYE_ROT), 0], sheetZ: [...vec3.transformQuat([0, 0, 0], [0, 0, 1], EYE_ROT), 0],
       cel: cel as never, celShade: shade as never,
     });
     this.ready = true;

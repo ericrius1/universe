@@ -22,7 +22,7 @@ type Shot = Up | In;
 const up = (l0: number, l1: number, p0: number, p1: number, dur: number, caption?: string, title?: string): Up => ({ kind: 'up', l0, l1, p0, p1, dur, caption, title });
 // (the places above the cell: zoom, pitch)
 const LYING = [0.35, -0.95], BOULDER = [3.5, -0.42], EARTH = [7.3, -0.15], SOLAR = [13.0, -0.62], STARS = [17.6, -0.3];
-const GALAXY = [21.3, -0.75], WEB = [24.3, -0.4], EDGE = [26.95, -0.25], FACE = [-0.75, -1.2], EYE = [-1.75, -1.1], IRIS = [-2.45, -1.1], CELLS = [-3.62, -1.05], DOOR = [-3.84, -1.05];
+const GALAXY = [21.3, -0.75], WEB = [24.3, -0.4], EDGE = [26.95, -0.25], FACE = [-0.75, -1.2], EYE = [-1.75, -1.1], IRIS = [-2.45, -1.1], CELLS = [-3.62, -1.05], DOOR = [-3.795, -1.05];
 const go = (a: number[], b: number[], dur: number) => up(a[0], b[0], a[1], b[1], dur);
 const hold = (a: number[], dur: number, caption?: string, title?: string) => up(a[0], a[0] - dur * 0.015, a[1], a[1], dur, caption, title);
 
@@ -91,7 +91,7 @@ export class Journey {
     }
     if (app.realm === 'cosmos') app.enterCell();
     if (fresh) {
-      if (s.out) c.flyTo(app.places.get('tissue')!.at, c.maxScale * 0.9, { yaw: c.yaw + 0.5, pitch: -0.9, duration: s.fly });
+      if (s.out) c.flyTo(app.places.get('tissue')!.at, Math.pow(10, DOOR[0]) / NM, { yaw: c.yaw + 0.5, pitch: DOOR[1], duration: s.fly });
       else {
         const p = app.places.get(s.place!)!;
         c.flyTo(p.at, app.fit(p.scale), { yaw: p.yaw, pitch: p.pitch, duration: s.fly });

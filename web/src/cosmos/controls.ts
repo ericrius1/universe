@@ -24,6 +24,8 @@ export class CosmosControls {
   readonly up: Vec3 = [0, 1, 0];
   /** the visitor zoomed in past `min` (the cell takes over) */
   onBelow: (() => void) | null = null;
+  /** keeping to another camera this frame (follow) */
+  private following = false;
   onUser: (() => void) | null = null;
   mouse: [number, number] = [0, 0];
   private zoomTarget = this.logS;
@@ -69,6 +71,12 @@ export class CosmosControls {
   }
 
   /** glide to a zoom: its time from the decades crossed */
+  /** keep to another camera's view (the cell's, while the two cross-fade): past `min` too, nothing set off */
+  follow(logS: number, yaw: number, pitch: number) {
+    this.following = true;
+    this.logS = this.zoomTarget = clamp(logS, this.min - 1, this.max);
+    this.yaw = yaw; this.pitch = pitch; this.flight = null;
+  }
   flyTo(logS: number, o: { yaw?: number; pitch?: number; duration?: number; done?: () => void } = {}) {
     const l1 = clamp(logS, this.min, this.max);
     const dur = o.duration ?? clamp(1.6 + Math.abs(l1 - this.logS) * 0.32, 1.6, 9);
@@ -150,8 +158,10 @@ export class CosmosControls {
       }
       this.keyboard(dt);
     }
-    if (this.logS < this.min && this.zoomTarget < this.min && !this.driven) { this.logS = this.min; this.onBelow?.(); }
-    this.logS = clamp(this.logS, this.min, this.max);
+    if (this.logS < this.min && this.zoomTarget < this.min && !this.driven && !this.following) { this.logS = this.min; this.onBelow?.(); }
+    // (keeping to the cell's camera it goes on in past `min`, as the cell does)
+    this.logS = clamp(this.logS, this.following ? this.min - 1 : this.min, this.max);
+    this.following = false;
     this.basis();
   }
 

@@ -52,6 +52,11 @@ export interface Lv {
   d: Vec4;
   view: Vec4;
 }
+export interface TCell {
+  at: Vec3;
+  s: number;
+  nuc: Vec3;
+}
 export interface HeroU {
   qmin: Vec4;
   qmax: Vec4;
@@ -79,6 +84,8 @@ export interface HeroU {
   hide: Vec4;
   focus: Vec4;
   focusN: Vec4;
+  sheetX: Vec4;
+  sheetZ: Vec4;
 }
 export interface VIn {
   pm: Vec4;
@@ -106,5 +113,5 @@ export interface LOut {
   rel: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; HeroU: HeroU; VIn: VIn; VOut: VOut; FOut: FOut; FaceInk: FaceInk; LOut: LOut }, 'frame' | 'L' | 'HU' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; TCell: TCell; HeroU: HeroU; VIn: VIn; VOut: VOut; FOut: FOut; FaceInk: FaceInk; LOut: LOut }, 'frame' | 'L' | 'HU' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

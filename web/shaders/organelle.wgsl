@@ -41,9 +41,13 @@ fn vsCommon(vi: u32, inner: bool) -> VOut {
 }
 @vertex fn vs_outer(@builtin(vertex_index) vi: u32) -> VOut { return vsCommon(vi, false); }
 @vertex fn vs_inner(@builtin(vertex_index) vi: u32) -> VOut { return vsCommon(vi, true); }
+// the wedge takes this one's surface here (the neighbouring cells are never cut: the tissue's sheet keeps them close
+// enough that the wedge's reach would nick them)
+fn uncut(k: u32) -> bool { return k == K_NEIGHBOR || k == K_NNUCLEUS; }
+fn cutHere(in: VOut) -> bool { return isCut(in.world) && !uncut(organelles[in.org].kind); }
 // (caps: only organelles the wedge reaches; the rest collapse to nothing)
 fn reachesCut(o: Organelle) -> bool {
-  if (G.cut <= 0.0) { return false; }
+  if (G.cut <= 0.0 || uncut(o.kind)) { return false; }
   let q = o.center - G.cutCenter;
   if (length(q) - o.bound > G.cutRadius) { return false; }
   return min(dot(q, G.cutN1), dot(q, G.cutN2)) > -o.bound;
@@ -134,7 +138,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 }
 
 @fragment fn fs_outer(in: VOut) -> GOut {
-  if (isCut(in.world)) { discard; }
+  if (cutHere(in)) { discard; }
   let o = orgAt(in.org);
   // membranes are solid only up close (cross-fading by dither with the glass)
   if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
@@ -145,7 +149,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   return out;
 }
 @fragment fn fs_inner(in: VOut) -> GOut {
-  if (isCut(in.world)) { discard; }
+  if (cutHere(in)) { discard; }
   if (bayer(in.pos.xy) > G.shellSolid) { discard; }
   let o = orgAt(in.org);
   var out: GOut;
@@ -158,7 +162,7 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 // glass: the membrane as a thin wet film — nearly clear face-on, its edge (where the eye grazes through more of it)
 // dense and bright; both faces drawn, the far one from inside
 @fragment fn fs_glass(in: VOut, @builtin(front_facing) ff: bool) -> OitOut {
-  if (isCut(in.world)) { discard; }
+  if (cutHere(in)) { discard; }
   let o = orgAt(in.org);
   let m = material(o.kind, false);
   var n = normalize(in.n);

@@ -91,6 +91,8 @@ for (const [ax, want] of [[[1, 0, 0], [0, 0, -1]], [[0, 1, 0], [-1, 0, 0]], [[0,
   if (rot(ax).some((x, i) => Math.abs(x - want[i]) > 1e-9)) throw new Error('rotation');
 }
 const eyeG = toGround(target);
+// (the skin's way out at the target, in the ground frame: the eye frame's up, so the tissue's sheet lies in its x, z)
+const normalG = [M[0][0] * focusN[0] + M[0][1] * focusN[1] + M[0][2] * focusN[2], M[1][0] * focusN[0] + M[1][1] * focusN[1] + M[1][2] * focusN[2], M[2][0] * focusN[0] + M[2][1] * focusN[1] + M[2][2] * focusN[2]];
 
 // capsules round them (bind: bone heads and tails; radii by eye), for the shadow and the pressed grass
 const B = (n, k = 'head') => bone[n][k];
@@ -124,6 +126,8 @@ export const POSE_D = [${d.map(f8).join(', ')}] as const;
  *  the mesh's facets would kink it) */
 export const FIGURE_FOCUS = [${target.map(f8).join(', ')}] as const;
 export const FIGURE_FOCUS_N = [${focusN.map(f8).join(', ')}] as const;
+/** the skin's way out there, in the ground frame (the eye frame's up: frames.ts) */
+export const FIGURE_NORMAL = [${normalG.map(f8).join(', ')}] as const;
 /** the dive's target, on the drawn right iris (the ground frame, m) */
 export const FIGURE_EYE = [${eyeG.map(f8).join(', ')}] as const;
 `);

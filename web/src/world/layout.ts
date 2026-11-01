@@ -2,6 +2,7 @@
 // disc, each with a noisy surface), and the filaments as polylines. Units are nanometres; the cell sits at the origin.
 // The same shapes are evaluated on the GPU (shaders/world.wgsl, sdOrganelle) to put molecules on and inside them, so
 // every surface function here has a twin there.
+import { TISSUE, tissueNear, tissueRand } from '../cosmos/tissue';
 import { Rng, fbm, vnoise, type V3 } from './noise';
 
 export const enum Kind {
@@ -230,18 +231,16 @@ export function buildWorld(seed = 7): World {
     }
   }
 
-  // neighbours: other cells round about, for the view from outside (no insides beyond a nucleus)
-  // neighbours: other cells round about in a loose sheet (a tissue seen from above), none in the way of the first view
-  const ring = 9;
-  for (let i = 0; i < ring + 5; i++) {
-    const outer = i >= ring;
-    const a = (outer ? (i - ring + 0.5) / 5 : i / ring) * Math.PI * 2 + rng.range(-0.15, 0.15);
-    const dist = outer ? rng.range(36000, 42000) : rng.range(19000, 22500);
-    const c: V3 = [Math.cos(a) * dist, rng.range(-1800, 1200), Math.sin(a) * dist];
-    const s = rng.range(0.82, 1.08);
-    const ni = push({ kind: Kind.Neighbor, shape: Shape.Blob, a: c, b: [8800 * s, 6400 * s, 8600 * s], r: 7800 * s, amp: 900, freq: 1 / 5200, seed: rng.range(0, 100), thick: 6, bend: 0, parent: -1 });
-    push({ kind: Kind.NeighborNucleus, shape: Shape.Blob, a: add(c, mul(rng.dir(), 1500)), b: [3000 * s, 2700 * s, 2900 * s], r: 2900 * s, amp: 150, freq: 1 / 2600, seed: rng.range(0, 100), thick: 40, bend: 0, parent: ni });
-  }
+  // neighbours: the tissue's sheet round the first cell (cosmos/tissue.ts, which the cosmos paints on Lyra's cornea and
+  // shaders/post.wgsl paints beyond these): its nearest cells as cells of their own (no insides beyond a nucleus)
+  tissueNear(TISSUE.near).slice(1).forEach((t, k) => {
+    const s = t.s, c = t.at;
+    const ni = push({ kind: Kind.Neighbor, shape: Shape.Blob, a: c, b: [8800 * s, 6400 * s, 8600 * s], r: 7800 * s, amp: 900, freq: 1 / 5200, seed: tissueRand(k, 1, 7) * 100, thick: 6, bend: 0, parent: -1 });
+    push({ kind: Kind.NeighborNucleus, shape: Shape.Blob, a: add(c, t.nucleus), b: [3000 * s, 2700 * s, 2900 * s], r: 2900 * s, amp: 150, freq: 1 / 2600, seed: tissueRand(k, 2, 7) * 100, thick: 40, bend: 0, parent: ni });
+  });
+  // (the draws the ring of neighbours used to take, still taken: everything made after them — the filaments, the
+  // collagen — comes out as it always has)
+  for (let i = 0; i < 14; i++) { for (let k = 0; k < 6; k++) rng.range(0, 1); rng.dir(); }
 
   // ------------------------------------------------------------------ filaments
   const F: Filament[] = [];

@@ -39,6 +39,8 @@ export class Controls {
   pitch = -0.25;
   minScale = 1.2;
   maxScale = 160000;
+  /** how far past maxScale it may be put (keeping to the cosmos's view while they cross-fade) */
+  reach = 1;
   /** the camera's basis and eye, as of the last basis() */
   readonly forward: Vec3 = [0, 0, -1];
   readonly right: Vec3 = [1, 0, 0];
@@ -458,7 +460,7 @@ export class Controls {
       }
       this.keyboard(dt);
     }
-    this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.scale));
+    this.scale = Math.max(this.minScale, Math.min(this.maxScale * this.reach, this.scale));
     this.basis();
     vec3.copy(cam.position as Vec3, this.position);
     cam.yaw = this.yaw;

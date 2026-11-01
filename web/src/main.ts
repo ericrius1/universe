@@ -108,8 +108,8 @@ async function boot() {
 // the haze inside each compartment: (colour, background)
 type Haze = [Vec3, Vec3];
 const HAZE: Record<string, Haze> = {
-  // (the tissue under the skin: a warm dim rose, as the skin's living layer looks from above)
-  outside: [[0.06, 0.032, 0.036], [0.034, 0.018, 0.022]],
+  // (the tissue at the bottom of the dive, Lyra's cornea: a dim mauve, her eye's violet in it)
+  outside: [[0.05, 0.034, 0.062], [0.028, 0.019, 0.037]],
   cytosol: [[0.006, 0.016, 0.026], [0.0025, 0.007, 0.012]],
   nucleus: [[0.008, 0.007, 0.03], [0.004, 0.0035, 0.015]],
   mito: [[0.016, 0.006, 0.006], [0.007, 0.0025, 0.003]],
@@ -210,20 +210,21 @@ export class App {
     if (this.realm === 'cell') return;
     const cc = this.cosmos.controls, t = this.places.get('tissue')!;
     this.setFly(false);
-    this.controls.set(t.at, this.controls.maxScale * 0.92, cc.yaw, cc.pitch);
+    // (at the cosmos's own distance: the tissue's sheet is where its cornea's was, cell for cell: cosmos/tissue.ts)
+    this.controls.set(t.at, Math.min(this.controls.maxScale, cc.S / NM), cc.yaw, cc.pitch);
     this.cutTarget = 0;
     this.setRealm('cell');
     this.sound('arrive');
   }
-  /** out of the tissue: the cosmos's camera where the cell's was, a little wider */
+  /** out of the tissue: the cosmos's camera where the cell's was */
   leaveCell() {
     if (this.realm === 'cosmos' || this.game) return;
     const c = this.controls;
     this.setFly(false);
     this.tour.stop();
     this.intro.hide(true);
-    this.cosmos.controls.set(Math.log10(c.scale * NM) + 0.08, c.yaw, c.pitch);
-    this.cosmos.controls.zoom(0.25);
+    // (exactly where the cell's was: the tissue's sheet is the same in both, cell for cell)
+    this.cosmos.controls.set(Math.max(this.cosmos.controls.min + 0.005, Math.log10(c.scale * NM)), c.yaw, c.pitch);
     this.setRealm('cosmos');
     this.sound('fly');
   }
@@ -448,7 +449,13 @@ export class App {
     const want = this.realm === 'cosmos' ? 1 : 0;
     this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
     if (Math.abs(want - this.mix) < 0.004) this.mix = want;
+    // (while they cross-fade, the one going keeps to the view of the one coming — the tissue's sheet is in both, cell
+    // for cell, cosmos/tissue.ts — so the two are one picture all the way through)
+    const cc = this.cosmos.controls, fading = this.mix > 0 && this.mix < 1;
+    this.controls.reach = fading && this.realm === 'cosmos' ? 4 : 1;
+    if (fading && this.realm === 'cosmos') this.controls.set(this.places.get('tissue')!.at, Math.min(this.controls.maxScale * 4, cc.S / NM), cc.yaw, cc.pitch);
     if (this.mix < 1) this.cellFrame(dt);
+    if (fading && this.realm === 'cell') cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
       this.cosmos.frame(dt, this.mix);
       if (this.realm === 'cosmos') this.cosmosHud(dt);

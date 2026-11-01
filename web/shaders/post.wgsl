@@ -2,6 +2,7 @@
 // at ten nanometres), the haze of the crowded cytoplasm (its reach follows the zoom), bloom from a mip chain, and the
 // grade — an AgX-style curve, a vignette, a touch of grain.
 #include "world.wgsl"
+#include "../src/cosmos/shaders/tissue.wgsl"
 #include "weft/fullscreen"
 
 struct Post {
@@ -80,8 +81,27 @@ fn background(uv: vec2f) -> vec3f {
   var c = G.bgColor * (0.65 + 0.7 * k * k);
   let sp = cellular(r * 180.0, 1.0);
   c += G.fogColor * 0.35 * smoothstep(0.08, 0.0, sp.d1) * step(0.8, sp.id.x);
+  // the tissue's sheet going on beyond the cells round this one (cosmos/tissue.ts: the cosmos paints the same sheet on
+  // Lyra's cornea, so coming in from there it's all one), in the haze, while the view takes in the tissue
+  let far = smoothstep(12000.0, 30000.0, G.scale);
+  let cam = frame.camPos + G.origin;
+  if (far > 0.0 && r.y < -1e-4 && cam.y > 0.0) {
+    let t = -cam.y / r.y;
+    let m = tissueMasks((cam + r * t).xz, t * G.pxAngle, TISSUE_NEAR);
+    var s = c;
+    s = mix(s, TISSUE_BODY, m.x * 0.5);
+    s += TISSUE_RIM * m.y;
+    s = mix(s, TISSUE_NUC, m.z * 0.7);
+    s += TISSUE_NRIM * m.w;
+    c = mix(c, mix(s, G.fogColor, fogAmount(t)), far);
+  }
   return c;
 }
+// (the sheet's colours in this world's light: as its own cells show from afar)
+const TISSUE_BODY = vec3f(0.055, 0.036, 0.042);
+const TISSUE_RIM = vec3f(0.07, 0.048, 0.05);
+const TISSUE_NUC = vec3f(0.03, 0.03, 0.075);
+const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
 
 @fragment fn fs_composite(in: FullscreenOut) -> @location(0) vec4f {
   let dims = vec2f(textureDimensions(depthTex));

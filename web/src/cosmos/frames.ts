@@ -12,7 +12,7 @@
 // pole, the Earth's its spin axis, the ground's and the eye's the local vertical. The camera's reference orientation
 // glides between frames as you zoom (frames.ts reference()), so each one is seen square-on at its own scale.
 import { quat, vec3, type Quat, type Vec3 } from 'math';
-import { FIGURE_EYE } from './figure/pose';
+import { FIGURE_EYE, FIGURE_NORMAL } from './figure/pose';
 
 export const MPC = 3.0857e22, KPC = 3.0857e19, PC = 3.0857e16, LY = 9.4607e15, AU = 1.495978707e11, KM = 1e3, M = 1, MM = 1e-3, NM = 1e-9;
 const DEG = Math.PI / 180;
@@ -47,6 +47,9 @@ export const EARTH_R = 6360 + 1.759;
 /** the target on Eli's drawn right eye, in the ground frame (m): in the iris, on the skin it's drawn on
  *  (figure/pose.ts) */
 export const EYE: Vec3 = [FIGURE_EYE[0], FIGURE_EYE[1], FIGURE_EYE[2]];
+/** the eye frame in the ground's: turned so its up is her skin's at the target (the camera's reference there, and the
+ *  tissue's sheet in its x, z: cosmos/tissue.ts, the cell world's axes) */
+export const EYE_ROT: Quat = quat.rotationTo(quat.create(), [0, 1, 0], [FIGURE_NORMAL[0], FIGURE_NORMAL[1], FIGURE_NORMAL[2]]);
 
 /** days since J2000.0 (2000-01-01 12:00 TT) */
 export const daysJ2000 = (ms: number) => (ms - Date.UTC(2000, 0, 1, 12)) / 86400000;
@@ -113,7 +116,7 @@ export class Ladder {
   readonly earth = frame('earth', 'The Earth', KM, this.solar, 7.3);
   readonly ground = frame('ground', PLACE.name, M, this.earth, 2.0);
   /** the eye, close: y the way it looks (straight up), the target at its origin */
-  readonly eye = frame('eye', 'An eye', MM, this.ground, -2.2, [EYE[0], EYE[1], EYE[2]]);
+  readonly eye = frame('eye', 'An eye', MM, this.ground, -2.2, [EYE[0], EYE[1], EYE[2]], EYE_ROT);
   readonly all: Frame[] = [this.cosmos, this.galaxy, this.local, this.solar, this.earth, this.ground, this.eye];
   /** days since J2000 */
   day = 0;

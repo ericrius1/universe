@@ -91,6 +91,11 @@ export interface Surf {
   trans: number;
   rim: number;
 }
+export interface TCell {
+  at: Vec3;
+  s: number;
+  nuc: Vec3;
+}
 export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
@@ -115,5 +120,5 @@ export interface Lvl {
   last: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Surf: Surf; FullscreenOut: FullscreenOut; Post: Post; Lvl: Lvl }, 'frame' | 'G' | 'P' | 'L' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'bloomTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post; Lvl: Lvl }, 'frame' | 'G' | 'P' | 'L' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'bloomTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

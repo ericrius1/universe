@@ -8,6 +8,7 @@
 // Drawn into its own target (colour and coverage, and the inverse of its distance) for the meadow to lay into its
 // grass (c_ground.wgsl).
 #include "cosmos.wgsl"
+#include "tissue.wgsl"
 
 struct HeroU {
   qmin: vec4f,            // the quantisation box (bind space); w the nose tip's height
@@ -33,6 +34,8 @@ struct HeroU {
   hide: vec4f,
   // the dive's target (bind space) and the skin's way out there: the drawn eye's chart on that plane up close
   focus: vec4f, focusN: vec4f,
+  // the tissue's sheet (tissue.wgsl) on her cornea: the eye frame's x and z in the ground's
+  sheetX: vec4f, sheetZ: vec4f,
 }
 @group(2) @binding(1) var<uniform> HU: HeroU;
 
@@ -70,6 +73,14 @@ fn figClip(rel: vec3f) -> vec4f {
 }
 
 fn underGround(rel: vec3f) -> bool { return (rel.y + L.eye.y) + L.origin.y < -0.004; }
+// (the tissue's sheet as the cell's world shows it at the hand-over: display colours)
+const TISSUE_GAP = vec3f(0.36, 0.28, 0.39);
+const TISSUE_FOG = vec3f(0.53, 0.475, 0.575);
+const TISSUE_BODY_D = vec3f(0.46, 0.38, 0.44);
+const TISSUE_RIM_D = vec3f(0.66, 0.6, 0.63);
+const TISSUE_NUC_D = vec3f(0.47, 0.42, 0.58);
+const TISSUE_NRIM_D = vec3f(0.42, 0.4, 0.64);
+const TISSUE_MID_D = vec3f(0.8, 0.82, 0.74);
 fn luma(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
 fn sq(x: f32) -> f32 { return x * x; }
 
@@ -99,33 +110,6 @@ fn irisNear(c0: vec3f, q: vec2f, px: f32) -> vec3f {
   // furrows round its outer part, and its rim darker
   c *= 1.0 - 0.25 * ss(0.6, 0.9, abs(sin(r * 46.0 + vnoise(vec3f(dir * 5.0, 9.0)) * 2.0))) * ss(0.75, 0.85, r);
   return mix(c0, c, k);
-}
-fn cornea(p: vec2f) -> vec4f {
-  // a few layers of flat cells ~40 µm across, their walls and their nuclei: colour, how much it hides
-  var col = vec3f(0.0);
-  var a = 0.0;
-  for (var k = 0; k < 3; k++) {
-    let s = 0.00004 * (1.0 - f32(k) * 0.2);
-    let q = p / s + vec2f(f32(k) * 7.3, f32(k) * 3.1);
-    let i = floor(q);
-    var d1 = 9.0; var d2 = 9.0; var id = vec3f(0.0); var cc = vec2f(0.0);
-    for (var y = -1; y <= 1; y++) {
-      for (var x = -1; x <= 1; x++) {
-        let g = i + vec2f(f32(x), f32(y));
-        let h = hash3i(vec3i(i32(g.x), i32(g.y), 913 + k));
-        let c = g + 0.5 + (h.xy - 0.5) * 0.8;
-        let d = length(q - c);
-        if (d < d1) { d2 = d1; d1 = d; id = h; cc = c; } else if (d < d2) { d2 = d; }
-      }
-    }
-    let wall = exp(-(d2 - d1) * (d2 - d1) / 0.0016);
-    let nuc = 1.0 - ss(0.14, 0.24, length((q - cc) * vec2f(1.0, 1.35)) * (0.9 + 0.3 * id.z));
-    let layer = vec3f(0.95, 0.78, 0.74) * 0.35 + vec3f(1.0, 0.9, 0.86) * wall * 0.5 + vec3f(0.42, 0.28, 0.62) * nuc * 0.85;
-    let la = clamp(0.1 + wall * 0.35 + nuc * 0.55, 0.0, 1.0) * (1.0 - f32(k) * 0.2);
-    col += (1.0 - a) * la * layer;
-    a += (1.0 - a) * la;
-  }
-  return vec4f(col, a);
 }
 
 // ---- Boulder's drawn face (hero.wgsl, as it is there)
@@ -199,8 +183,6 @@ fn drawEye(x0: f32, y0: f32, side: f32, widen: f32, px0: f32, lit: f32) -> FaceI
   // (round eyes: a second, smaller glint low across the pupil)
   let gl2 = length(vec2f(x, y) - ic - vec2f(0.0036 * side, -0.0042));
   c = mix(c, vec3f(1.0), (1.0 - smoothstep(0.0009 - px * 0.5, 0.0009 + px * 0.5, gl2)) * rnd);
-  // (and nearer still, the cornea's living cells over all of it)
-  if (HU.deep.x > 0.0) { let e = cornea(vec2f(x, y)); c = mix(c, e.rgb, e.a * HU.deep.x); }
   o.col = c; o.a = open;
   let ink = vec3f(0.1, 0.06, 0.05);
   let dU = (y - up.x) / sqrt(1.0 + up.y * up.y);
@@ -517,6 +499,25 @@ fn celKey() -> vec3f {
     let Vh = dqDirR(vec4f(-q.xyz, q.w), normalize(-hc));
     let fd = drawFace(hp, fpx, lit, atan2(Vh.x, Vh.z), false);
     col = mix(col, srgbToLin(fd.col), fd.a);
+  }
+  // nearer still, the cornea's living cells: the tissue's sheet, as the cell's world will show it (its haze between
+  // them, its cells' membranes and nuclei: their colours as that world shows them), round the dive's target in the
+  // eye frame's axes — the cell world's own (tissue.ts)
+  if (HU.deep.x > 0.0) {
+    let g = dqDirR(HU.headR, hp - HU.focus.xyz) * 1e9;
+    let sp = vec2f(dot(g, HU.sheetX.xyz), dot(g, HU.sheetZ.xyz));
+    let dist = length(in.rel) * 1e9;
+    let m = tissueMasks(sp, L.pxAngle * dist, -1.0);
+    var tc = TISSUE_GAP;
+    tc = mix(tc, TISSUE_BODY_D, m.x * 0.7);
+    tc = mix(tc, TISSUE_RIM_D, m.y * 0.8);
+    tc = mix(tc, TISSUE_NUC_D, m.z * 0.8);
+    tc = mix(tc, TISSUE_NRIM_D, m.w * 0.6);
+    // (the one the dive goes into, lit up as the cell's world shows it: cut open, its insides catching the light)
+    let mid = 1.0 - ss(0.75, 1.0, length(sp / vec2f(9600.0, 8800.0)));
+    tc = mix(tc, TISSUE_MID_D, mid * 0.65);
+    tc = mix(tc, TISSUE_FOG, 1.0 - exp(-dist / (6.0 * L.scale * 1e9)));
+    col = mix(col, srgbToLin(tc), HU.deep.x);
   }
   // a thin warm rim on the shadow side when the light is behind them
   let nv = max(dot(N, V), 0.0);

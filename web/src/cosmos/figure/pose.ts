@@ -9,5 +9,7 @@ export const POSE_D = [-0.42315958, 0.34723268, -0.40718328, -0.36320898] as con
  *  the mesh's facets would kink it) */
 export const FIGURE_FOCUS = [-0.03195261, 1.54078452, 0.10220253] as const;
 export const FIGURE_FOCUS_N = [-0.34800468, 0.00449909, 0.93748200] as const;
+/** the skin's way out there, in the ground frame (the eye frame's up: frames.ts) */
+export const FIGURE_NORMAL = [-0.00449909, 0.93748200, 0.34800468] as const;
 /** the dive's target, on the drawn right iris (the ground frame, m) */
 export const FIGURE_EYE = [0.00000000, 0.22210372, 0.00000000] as const;
