@@ -4,12 +4,17 @@
 const RP = 6371.0;
 const RA = 6471.0;
 const BETA_R = vec3f(5.8e-3, 13.5e-3, 33.1e-3);   // per km
-const BETA_M = 21e-3;
+const BETA_M = 12e-3;
 const H_R = 8.0;
 const H_M = 1.2;
 const G_M = 0.76;
 
 struct Air { light: vec3f, trans: vec3f }
+
+// the air between the eye and the land: a little clearer than the sky's own (a dry Colorado day), so the land seen
+// from high up keeps its colour under the haze
+const HAZE = 0.7;
+fn overLand(c: vec3f, a: Air) -> vec3f { return c * pow(a.trans, vec3f(HAZE)) + a.light * HAZE; }
 
 fn raySphere(ro: vec3f, rd: vec3f, c: vec3f, r: f32) -> vec2f {
   let oc = ro - c;

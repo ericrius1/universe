@@ -1,45 +1,11 @@
 // A meadow outside Boulder (metres; x east, y up, z south; the level's origin is the back of a hand lying in the
-// grass): the plains rising gently west to the Flatirons — fins of red sandstone tilted up against the foothills — and
-// the Indian Peaks beyond, on a curved Earth; grass blades up close; the hand; the sky and the haze from atmo.wgsl.
+// grass): the Front Range round it (front.wgsl: the plains, the Flatirons, the Indian Peaks, on a curved Earth); grass
+// blades up close; the hand; the sky and the haze from atmo.wgsl.
 // L.a: exposure, sun intensity, night (0..1), grass detail (0..1).
 #include "cosmos.wgsl"
 #include "atmo.wgsl"
+#include "front.wgsl"
 #include "weft/fullscreen"
-
-const EARTH_M = 6371000.0;
-
-fn ridged(p: vec3f, o: i32) -> f32 { return 1.0 - abs(fbm(p, o) * 2.0 - 0.0); }
-
-// the land's height at (x, z), absolute ground coordinates; `lod` drops octaves with distance
-fn terrain(x: f32, z: f32, lod: f32) -> f32 {
-  let q = vec3f(x, 0.0, z);
-  let oc = i32(clamp(7.0 - lod, 2.0, 7.0));
-  // the plains: a gentle swell, rising westward; flat round the meadow where the hand lies
-  let r0 = length(vec2f(x, z));
-  var h = (fbm(q / 260.0, max(oc - 2, 2)) * 3.0 + fbm(q / 3200.0 + 4.0, 3) * 18.0 - x * 0.012) * ss(25.0, 400.0, r0);
-  // the foothills and the Flatirons (only west of where they begin)
-  if (x > -1800.0) { return h - (x * x + z * z) / (2.0 * EARTH_M); }
-  let x0 = -2600.0 + 380.0 * sin(z / 2100.0) + 120.0 * fbm(q / 900.0, 2);
-  let m = ss(x0, x0 - 2600.0, x);
-  let hills = m * (480.0 + 380.0 * ridged(q / 1700.0, oc)) ;
-  // fins: the east faces slope up at ~50°, a row of them along the front
-  let k = floor(z / 900.0 + 0.5);
-  let dz = z - k * 900.0 - 160.0 * sin(k * 1.7);
-  let w = 330.0 + 140.0 * fract(sin(k * 12.9) * 43758.5);
-  // (a fin's top is jagged, its flanks weathered)
-  let tri = pow(max(0.0, 1.0 - abs(dz) / w), 0.6) * (0.85 + 0.15 * fbm(q / 90.0, max(oc - 4, 1)));
-  let rise = clamp((x0 + 150.0 - x) * 1.15, 0.0, 380.0 + 220.0 * fract(sin(k * 7.3) * 921.7));
-  let back = ss(x0 - 1100.0, x0 - 700.0, x);
-  let fin = rise * tri * back;
-  h += max(hills, fin + m * 220.0);
-  // the high peaks, 20–30 km west
-  if (x < -11000.0) {
-    let far = ss(-11000.0, -26000.0, x);
-    h += far * (1300.0 + 1100.0 * ridged(q / 5200.0 + 2.0, max(oc - 1, 2)));
-  }
-  // the Earth curves away
-  return h - (x * x + z * z) / (2.0 * EARTH_M);
-}
 
 // ---------------------------------------------------------------- the hand
 fn sdCapsule(p: vec3f, a: vec3f, b: vec3f, r: f32) -> f32 {
@@ -123,59 +89,6 @@ fn grassColor(t: f32, u: f32) -> vec3f {
   return mix(base, vec3f(0.42, 0.36, 0.14) * (0.5 + u), ss(0.55, 0.95, t) * 0.7);
 }
 
-fn meadow(p: vec3f, dist: f32) -> vec3f {
-  let q = vec3f(p.x, 0.0, p.z);
-  let patchy = fbm(q / 18.0, 4) * 0.5 + 0.5;
-  var c = mix(vec3f(0.09, 0.12, 0.04), vec3f(0.28, 0.25, 0.1), ss(0.35, 0.75, patchy));
-  c *= 0.8 + 0.4 * fbm(q * 3.0, 3) * ss(60.0, 5.0, dist);
-  return c;
-}
-
-// the plains east of the foothills: farm parcels and the roads between them; Boulder's grid to the north
-fn plains(p: vec3f, dist: f32) -> vec3f {
-  let sz = vec2f(420.0, 310.0);
-  let cell = floor(p.xz / sz);
-  let h = hash3i(vec3i(i32(cell.x), i32(cell.y), 77));
-  var c = mix(vec3f(0.3, 0.25, 0.11), vec3f(0.1, 0.15, 0.05), h.x);
-  c = mix(c, vec3f(0.2, 0.14, 0.08), step(0.82, h.y));
-  // furrows and texture within a parcel
-  c *= 0.85 + 0.25 * vnoise(vec3f(p.x / 40.0 * select(1.0, 6.0, h.z > 0.5), 0.0, p.z / 40.0 * select(6.0, 1.0, h.z > 0.5)));
-  let f = fract(p.xz / sz) * sz;
-  let road = min(min(f.x, sz.x - f.x), min(f.y, sz.y - f.y));
-  c = mix(c, vec3f(0.24, 0.23, 0.22), ss(5.0, 2.5, road + dist * 0.0004));
-  // the town: a street grid, roofs, trees
-  let town = ss(-1500.0, -2300.0, p.z) * ss(-2300.0, -1400.0, p.x) * ss(3200.0, 2400.0, p.x) * ss(-9000.0, -8000.0, p.z);
-  if (town > 0.0) {
-    let bs = 95.0;
-    let b = fract(p.xz / bs) * bs;
-    let street = min(min(b.x, bs - b.x), min(b.y, bs - b.y));
-    let lot = hash3i(vec3i(i32(floor(p.x / 32.0)), i32(floor(p.z / 28.0)), 5));
-    var t = mix(vec3f(0.36, 0.3, 0.27), vec3f(0.42, 0.42, 0.44), lot.x);
-    t = mix(t, vec3f(0.06, 0.1, 0.04), step(0.55, lot.y) * 0.85);
-    t = mix(t, vec3f(0.2, 0.2, 0.21), ss(7.0, 4.0, street));
-    c = mix(c, t, town);
-  }
-  return c;
-}
-
-fn landColor(p: vec3f, n: vec3f, dist: f32) -> vec3f {
-  let slope = 1.0 - n.y;
-  // the meadow round the hand, parcels beyond it
-  var c = mix(meadow(p, dist), plains(p, dist), ss(220.0, 600.0, length(p.xz)) * ss(-2000.0, -1200.0, p.x));
-  // forest on the foothills, the Flatirons' red rock, snow up high
-  let forest = ss(1720.0 - 1655.0, 1900.0 - 1655.0, p.y) * ss(0.75, 0.35, slope);
-  c = mix(c, vec3f(0.022, 0.04, 0.02) * (0.7 + 0.6 * vnoise(p / 25.0)), forest);
-  let rock = ss(0.32, 0.6, slope);
-  c = mix(c, vec3f(0.42, 0.2, 0.12) * (0.75 + 0.35 * fbm(p / 25.0, 3)), rock);
-  c = mix(c, vec3f(0.9, 0.92, 0.95), ss(2500.0, 2900.0, p.y + 120.0 * fbm(p / 400.0, 3)) * ss(0.7, 0.4, slope));
-  return c;
-}
-
-fn terrainNormal(x: f32, z: f32, e: f32, lod: f32) -> vec3f {
-  let h0 = terrain(x, z, lod);
-  return normalize(vec3f(h0 - terrain(x + e, z, lod), e, h0 - terrain(x, z + e, lod)));
-}
-
 struct Hit { t: f32, kind: i32, tint: f32 }
 
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
@@ -254,7 +167,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     } else {
       let lod = log2(max(tSurf, 1.0) / 400.0);
       n = terrainNormal(p.x, p.z, max(0.05, tSurf * 0.002), lod);
-      alb = landColor(p, n, tSurf);
+      alb = landColor(p, n, tSurf, tSurf * L.pxAngle);
       // near: soil and old stems under the blades
       alb = mix(alb, vec3f(0.06, 0.05, 0.03), L.a.w * ss(3.0, 0.5, tSurf) * 0.6);
     }
@@ -290,7 +203,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     // the haze between (none to speak of within a couple of hundred metres)
     if (tSurf > 150.0) {
       let a = air(eyeKm, rd, tSurf * 0.001, center, sun, sunI, 6);
-      col = col * a.trans + a.light;
+      col = overLand(col, a);
     }
   } else {
     // (the sky only where it's seen)

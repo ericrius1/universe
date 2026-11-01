@@ -1,9 +1,12 @@
 // The Earth from space (kilometres; L.b.xyz its centre relative to the level's origin, which is the meadow outside
 // Boulder): continents where they really are (soft blobs at their real latitudes and longitudes, broken up by noise),
 // biomes by latitude and wetness, ice caps, oceans with the Sun's glint, two decks of cloud drifting, city lights on
-// the night side, and the air over all of it (atmo.wgsl). The Moon where it is today. L.a: exposure, sun intensity.
+// the night side, and the air over all of it (atmo.wgsl). Close in, the land round Boulder is the meadow level's own
+// (front.wgsl), and the sky over it is clear, so the two agree as one hands over to the other. The Moon where it is
+// today. L.a: exposure, sun intensity, how near (0..1).
 #include "cosmos.wgsl"
 #include "atmo.wgsl"
+#include "front.wgsl"
 #include "weft/fullscreen"
 
 // lat, lon, angular radius (deg), weight
@@ -49,23 +52,40 @@ fn elevation(n: vec3f, near: f32) -> vec2f {
   return vec2f(e, mtn);
 }
 
-fn clouds(n: vec3f, t: f32) -> f32 {
-  // two decks: a large swirl and cumulus, drifting east and west with latitude
+// (clear: 0..1, how clear the sky is kept here)
+fn clouds(n: vec3f, t: f32, clear: f32) -> f32 {
+  // two decks: a large swirl and cumulus, drifting east and west with latitude; finer cells close in
   let lat = n.y;
   let drift = vec3f(cos(t * 0.004 * (1.0 - lat * lat)), 0.0, sin(t * 0.004 * (1.0 - lat * lat)));
   let q = n * 3.3 + drift * 0.3;
-  let w = fbm(q + fbm(q * 1.7, 3) * 0.8, 6) + fbm(n * 40.0 + drift, 4) * 0.12 * L.a.z;
+  var w = fbm(q + fbm(q * 1.7, 3) * 0.8, 6) + fbm(n * 40.0 + drift, 4) * 0.12 * L.a.z;
+  w += (fbm(n * 170.0 + drift * 3.0, 4) * 0.07) * L.a.z - clear * 0.45;
   let band = 0.08 + 0.18 * ss(0.15, 0.5, abs(lat)) * (1.0 - ss(0.8, 0.95, abs(lat)));
-  return ss(0.18 - band, 0.5 - band, w) * 0.8;
+  return ss(0.25 - band, 0.42 - band, w) * 0.85;
 }
 
-fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32) -> vec3f {
+// the surface's colour (lit), n the sphere's normal; g the point in the meadow's frame (m) and how much of the
+// meadow's own land shows (gw), px a pixel's size there (km)
+fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32, g: vec3f, gw: f32, t: f32, E: vec3f, S: vec3f) -> vec3f {
+  let px = t * L.pxAngle;
   let el = elevation(n, near);
   let e = el.x;
   let lat = abs(n.y);
-  let lam = dot(n, sun);
   var alb: vec3f;
   var spec = 0.0;
+  // relief: ridges and valleys, shading the land as its slopes face the Sun (as many octaves as the pixels hold)
+  var nn = n;
+  if (e > 0.0) {
+    let oct = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 160.0) + 1.0, 1.0, 6.0));
+    let amp = (0.25 + 2.2 * el.y) * near / 6371.0;
+    if (amp > 0.0) {
+      let eps = max(px, 0.4) / 6371.0;
+      let r0 = ridged(n * 160.0, oct);
+      let rx = ridged((n + E * eps) * 160.0, oct);
+      let rz = ridged((n + S * eps) * 160.0, oct);
+      nn = normalize(n - (E * (rx - r0) + S * (rz - r0)) * (amp / eps) * ss(0.0, 0.02, e));
+    }
+  }
   if (e < 0.0) {
     alb = mix(vec3f(0.004, 0.02, 0.06), vec3f(0.015, 0.075, 0.11), ss(-0.12, 0.0, e));
     spec = 1.0;
@@ -73,18 +93,39 @@ fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32) -> vec3f {
     // wet forest and grassland, dry steppe and desert in the subtropics, tundra, ice
     let wet = fbm(n * 5.0 + 9.0, 5) * 0.5 + 0.5;
     let dryBelt = ss(0.2, 0.0, abs(lat - 0.4)) * 0.8;
-    let dry = clamp(dryBelt + (0.45 - wet) * 1.2, 0.0, 1.0);
-    alb = mix(vec3f(0.035, 0.07, 0.025), vec3f(0.09, 0.11, 0.045), ss(0.35, 0.7, wet));
-    alb = mix(alb, vec3f(0.2, 0.16, 0.09), ss(0.3, 0.6, dry));
+    // (and the high plains in the Rockies' rain shadow)
+    let lon = degrees(atan2(-n.z, n.x));
+    let shadow = exp(-pow((lon + 99.0) / 6.0, 2.0)) * ss(0.42, 0.55, n.y) * ss(0.82, 0.72, n.y);
+    let dry = clamp(dryBelt + shadow * 0.7 + (0.45 - wet) * 1.2, 0.0, 1.0);
+    alb = mix(vec3f(0.045, 0.075, 0.028), vec3f(0.11, 0.12, 0.05), ss(0.35, 0.7, wet));
+    alb = mix(alb, vec3f(0.22, 0.17, 0.095), ss(0.3, 0.6, dry));
     alb = mix(alb, vec3f(0.42, 0.32, 0.2), ss(0.6, 0.9, dry));
-    alb *= 0.85 + 0.3 * fbm(n * 90.0, 4) * near;
-    // the mountains: brown-grey rock, snow on the highest
-    alb = mix(alb, vec3f(0.17, 0.15, 0.13), ss(0.25, 0.6, el.y));
+    // fields, forest and scrub down to what the pixels hold
+    let fo = i32(clamp(log2(6371.0 / (2.0 * max(px, 0.05)) / 700.0) + 1.0, 0.0, 5.0));
+    var fine = fbm(n * 90.0, 4) * 0.3;
+    if (fo > 0) { fine += fbm(n * 700.0 + 5.0, fo) * 0.45; }
+    alb *= 0.85 + fine * near;
+    // the mountains: conifers on their flanks, bare rock on the ridges, snow on the highest
+    let crest = ss(0.0, 0.35, el.y * (0.6 + 0.4 * ridged(n * 900.0, 3)));
+    alb = mix(alb, vec3f(0.035, 0.055, 0.025), ss(0.15, 0.4, el.y) * (1.0 - dry * 0.6));
+    alb = mix(alb, vec3f(0.17, 0.15, 0.13), ss(0.55, 0.85, crest) * ss(0.4, 0.7, el.y));
     alb = mix(alb, vec3f(0.8, 0.82, 0.86), ss(0.85, 1.05, el.y + lat * 0.25));
     alb = mix(alb, vec3f(0.12, 0.11, 0.08), ss(0.72, 0.8, lat));
   }
   alb = mix(alb, vec3f(0.85, 0.88, 0.92), ss(0.9, 0.95, lat) + ss(-0.86, -0.9, n.y));
-  var c = alb * max(lam, 0.0);
+  // round Boulder: the meadow's own land, its own relief
+  if (gw > 0.0) {
+    // (as the meadow's level would draw it from here)
+    let pm = px * 1000.0;
+    let lod = log2(max(t * 1000.0, 1.0) / 400.0);
+    let ln = terrainNormal(g.x, g.z, max(pm, 30.0), lod);
+    let h = terrain(g.x, g.z, lod);
+    let fa = landColor(vec3f(g.x, h, g.z), ln, t * 1000.0, pm);
+    alb = mix(alb, fa, gw);
+    nn = normalize(mix(nn, normalize(E * ln.x + n * ln.y + S * ln.z), gw));
+  }
+  let lam = dot(n, sun);
+  var c = alb * max(dot(nn, sun), 0.0) * ss(-0.05, 0.1, lam);
   if (spec > 0.0) {
     let h = normalize(sun + v);
     c += vec3f(1.0, 0.9, 0.75) * pow(max(dot(n, h), 0.0), 220.0) * 2.0 * step(0.0, lam);
@@ -122,15 +163,22 @@ fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32) -> vec3f {
     let p = ro + rd * hp.x;
     let n = normalize(p - c);
     let sunL = sunlightAt(p + n * 0.5, c, sun);
-    col = surface(n, sun, -rd, L.a.z) * sunL * sunI;
-    // the clouds over it, and their shadows
-    let cl = clouds(n, L.time);
-    let cs = clouds(normalize(n + sun * 0.004), L.time);
+    // Boulder's frame (its zenith, east and south) and how far from it (km)
+    let up0 = normalize(-c);
+    let E = normalize(cross(vec3f(0.0, 1.0, 0.0), up0));
+    let S = cross(E, up0);
+    let dB = length(p);
+    let gw = ss(650.0, 220.0, dB) * L.a.z;
+    col = surface(n, sun, -rd, L.a.z, vec3f(dot(p, E), dot(p, up0), dot(p, S)) * 1000.0, gw, hp.x, E, S) * sunL * sunI;
+    // the clouds over it, and their shadows (a clear day over the Front Range)
+    let clear = ss(380.0, 120.0, dB);
+    let cl = clouds(n, L.time, clear);
+    let cs = clouds(normalize(n + sun * 0.004), L.time, clear);
     col *= 1.0 - cs * 0.6;
     let lam = max(dot(n, sun), 0.0);
     col = mix(col, vec3f(0.8) * (lam * 0.9 + 0.02) * sunL * sunI, cl);
     let a = air(ro, rd, hp.x, c, sun, sunI, 12);
-    col = col * a.trans + a.light;
+    col = overLand(col, a);
     alpha = 1.0;
   } else {
     let a = air(ro, rd, 1e9, c, sun, sunI, 12);
