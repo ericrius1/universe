@@ -9,5 +9,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 npx tsc --noEmit
 git -C .. diff --quiet HEAD -- web || echo "note: Universe has uncommitted changes in web/, and this deployment has them too"
-[[ -f .vercel/project.json ]] || vercel link --yes --project universe
-vercel deploy "$@"
+# (the CLI as it is now: an old global one is refused by the API)
+[[ -f .vercel/project.json ]] || npx -y vercel@latest link --yes --project universe
+npx -y vercel@latest deploy "$@"
