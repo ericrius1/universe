@@ -12,6 +12,7 @@ struct Lv {
   sun: vec3f, exposure: f32,      // toward the Sun (unit, the level's axes)
   sunPos: vec3f, pxAngle: f32,    // the Sun relative to the origin; radians per pixel
   a: vec4f, b: vec4f, c: vec4f, d: vec4f,   // the level's own
+  view: vec4f,                    // xy 1 / the target's size (px); z 1: a dome's fisheye; w its sweet spot's elevation
 }
 @group(2) @binding(0) var<uniform> L: Lv;
 
@@ -24,19 +25,46 @@ fn ss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0.0, 1.0
 fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715)))); }
 
 fn ndcOf(uv: vec2f) -> vec2f { return vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0); }
+// ---- a planetarium's dome: a domemaster, the 180° equidistant fisheye (the zenith at the centre, the front at the
+// bottom rim). The camera looks at the dome's sweet spot, `elevation` above the front horizon; the viewer faces +z.
+fn domeBasis() -> mat3x3f {
+  let e = L.view.w;
+  // (columns: the viewer's right, up and forward in the dome's axes)
+  return mat3x3f(vec3f(-1.0, 0.0, 0.0), vec3f(0.0, cos(e), -sin(e)), vec3f(0.0, sin(e), cos(e)));
+}
+fn isDome() -> bool { return L.view.z > 0.5; }
+
 // the view ray through a screen uv (level axes)
 fn rayDir(uv: vec2f) -> vec3f {
+  if (isDome()) {
+    let q = (uv - 0.5) * 2.0;
+    let r = max(length(q), 1e-6);
+    // (past the rim, the rim's own direction: nothing there is seen, and the bloom has nothing new to spread)
+    let th = min(r, 1.0) * 0.5 * PI;
+    let d = vec3f(sin(th) * q.x / r, cos(th), sin(th) * q.y / r);
+    let k = transpose(domeBasis()) * d;      // (right, up, forward) components
+    return normalize(L.right * k.x + L.up * k.y + L.fwd * k.z);
+  }
   let n = ndcOf(uv);
   return normalize(L.fwd + L.right * (n.x * L.tanHalf * L.aspect) + L.up * (n.y * L.tanHalf));
 }
 // a point relative to the eye to clip space (no depth: the levels paint in order)
 fn clipOf(rel: vec3f) -> vec4f {
+  if (isDome()) {
+    let n = normalize(rel);
+    let d = domeBasis() * vec3f(dot(n, L.right), dot(n, L.up), dot(n, L.fwd));
+    let off = acos(clamp(d.y, -1.0, 1.0));
+    // (below the dome's rim: nothing)
+    if (off > 0.52 * PI) { return vec4f(0.0, 0.0, 0.0, -1.0); }
+    let uv = vec2f(0.5) + d.xz * (off / PI) / max(length(d.xz), 1e-6);
+    return vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 0.0, 1.0);
+  }
   let z = dot(rel, L.fwd);
   return vec4f(dot(rel, L.right) / (L.tanHalf * L.aspect), dot(rel, L.up) / L.tanHalf, 0.0, z);
 }
 // the corner of a screen-aligned quad of `rpx` pixels round a clip position
 fn quadCorner(c: vec4f, corner: vec2f, rpx: f32) -> vec4f {
-  return vec4f(c.xy + corner * rpx * 2.0 * frame.invRes * c.w, c.z, c.w);
+  return vec4f(c.xy + corner * rpx * 2.0 * L.view.xy * c.w, c.z, c.w);
 }
 const CORNERS = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0));
 

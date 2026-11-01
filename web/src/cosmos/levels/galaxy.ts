@@ -2,7 +2,7 @@
 // the same disc, arms, bar and bulge, with the globular clusters in the halo. Seen whole it's a barred spiral; from the
 // Sun's place 8.2 kpc out it's the band across the sky behind every level below.
 import type { Kit } from '@ericrius1/weft';
-import galShader from '../../../shaders/c_galaxy.wgsl';
+import galShader from '../shaders/c_galaxy.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
 import type { Ladder } from '../frames';

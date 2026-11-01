@@ -114,8 +114,10 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
   var col = vec3f(0.0);
   // march the height field (it lies within −0.12..0.03 mm of the plane)
   var t = 0.0;
+  // (looking up from the skin, at a dome's zenith: the warm haze, as far off)
+  let haze = vec3f(0.42, 0.25, 0.21) * sunI * 0.45;
   if (ro.y > 0.05) {
-    if (rd.y >= 0.0) { return vec4f(0.0); }
+    if (rd.y >= 0.0) { return vec4f(haze * L.a.x * L.weight, L.weight); }
     t = (0.05 - ro.y) / rd.y;
   }
   var hitT = -1.0;

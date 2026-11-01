@@ -4,7 +4,7 @@
 // background closes the sphere (shaders/c_web.wgsl draws that shell). The Local Group and the Virgo cluster are put in
 // by hand: Andromeda, the Magellanic Clouds, the Triangulum galaxy.
 import type { Kit } from '@ericrius1/weft';
-import webShader from '../../../shaders/c_web.wgsl';
+import webShader from '../shaders/c_web.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
 import type { Ladder } from '../frames';

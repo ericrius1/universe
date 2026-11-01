@@ -1,8 +1,8 @@
 // The meadow outside Boulder (metres) and the skin of the hand lying in it (millimetres): both lit by the Sun where it
 // really is over Boulder now (frames.ts sunGround). Night falls on them as it falls there; the stars show through
 // the ground's sky by night, and the levels above are told how much (`night`).
-import ground from '../../../shaders/c_ground.wgsl';
-import skin from '../../../shaders/c_skin.wgsl';
+import ground from '../shaders/c_ground.wgsl';
+import skin from '../shaders/c_skin.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import type { Ladder } from '../frames';
 

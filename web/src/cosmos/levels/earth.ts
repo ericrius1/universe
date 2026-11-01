@@ -1,7 +1,7 @@
 // The Earth from space (kilometres, its own turning axes): shaders/c_earth.wgsl draws it, its air, its clouds and the
 // Moon. Its centre, the Sun's direction and the Moon are worked out here in doubles, relative to the level's origin.
 import { quat, vec3, type Vec3 } from 'math';
-import earthShader from '../../../shaders/c_earth.wgsl';
+import earthShader from '../shaders/c_earth.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { moonPos, type Ladder } from '../frames';
 

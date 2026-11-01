@@ -4,7 +4,9 @@
 #include "weft/fullscreen"
 #include "noise.wgsl"
 
-struct CPost { bloom: f32, exposure: f32, vignette: f32, grain: f32, saturation: f32, contrast: f32, alpha: f32, pad: f32 }
+// (encode: 1 for a screen that wants the sRGB curve written, 0 for an sRGB texture that applies it itself)
+// (disc: 1 for a dome's fisheye, black outside its circle)
+struct CPost { bloom: f32, exposure: f32, vignette: f32, grain: f32, saturation: f32, contrast: f32, alpha: f32, encode: f32, disc: f32, pad0: f32, pad1: f32, pad2: f32 }
 @group(2) @binding(0) var<uniform> P: CPost;
 @group(2) @binding(1) var srcTex: texture_2d<f32>;
 @group(2) @binding(2) var bloomTex: texture_2d<f32>;
@@ -54,6 +56,7 @@ fn agx(c0: vec3f) -> vec3f {
 }
 
 @fragment fn fs_final(in: FullscreenOut) -> @location(0) vec4f {
+  if (P.disc > 0.5 && length(in.uv - 0.5) > 0.5) { return vec4f(0.0, 0.0, 0.0, P.alpha); }
   var c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;
   c += textureSampleLevel(bloomTex, samp_linear, in.uv, 0.0).rgb * P.bloom;
   c *= P.exposure;
@@ -64,5 +67,6 @@ fn agx(c0: vec3f) -> vec3f {
   let dc = in.uv - 0.5;
   g *= 1.0 - P.vignette * smoothstep(0.25, 0.95, length(dc * vec2f(frame.aspect, 1.0)) / max(frame.aspect, 1.0) * 1.5);
   g += (hash3u(vec3u(vec2u(in.pos.xy), frame.frame)).x - 0.5) * P.grain;
-  return vec4f(pow(max(g, vec3f(0.0)), vec3f(1.0 / 2.2)), P.alpha);
+  g = max(g, vec3f(0.0));
+  return vec4f(select(g, pow(g, vec3f(1.0 / 2.2)), P.encode > 0.5), P.alpha);
 }

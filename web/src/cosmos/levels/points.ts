@@ -1,7 +1,7 @@
 // Points of light (shaders/c_points.wgsl): a buffer of { position, radius, colour, luminosity } drawn as quads into the
 // cosmos pass while their level shows.
 import type { Kit, StorageBuffer } from '@ericrius1/weft';
-import pointShader from '../../../shaders/c_points.wgsl';
+import pointShader from '../shaders/c_points.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 
 export const PT_FLOATS = 8;

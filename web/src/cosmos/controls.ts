@@ -36,7 +36,9 @@ export class CosmosControls {
   private flight: { l0: number; l1: number; y0: number; y1: number; p0: number; p1: number; t: number; dur: number; done: (() => void) | null } | null = null;
   private readonly ref: Quat = quat.create();
 
-  constructor(private canvas: HTMLCanvasElement, private ladder: Ladder) {
+  /** `input`: false when something else drives it (a planetarium's console): no listeners on the page */
+  constructor(private canvas: HTMLCanvasElement, private ladder: Ladder, input = true) {
+    if (!input) return;
     canvas.addEventListener('pointerdown', (e) => this.press(e));
     addEventListener('pointermove', (e) => this.drag(e));
     addEventListener('pointerup', (e) => this.release(e));

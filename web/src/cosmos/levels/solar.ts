@@ -2,7 +2,7 @@
 // orbits themselves, the asteroid belt, the Kuiper belt and the Oort cloud far out. Close to the Earth, its own level
 // takes over from the dot this one draws.
 import type { Kit, StorageBuffer } from '@ericrius1/weft';
-import solarShader from '../../../shaders/c_solar.wgsl';
+import solarShader from '../shaders/c_solar.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
 import { AU, PLANETS, planetPos, orbitPoint, type Ladder } from '../frames';

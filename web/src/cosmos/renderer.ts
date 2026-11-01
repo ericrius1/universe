@@ -7,8 +7,8 @@
 // target in its frame, rounded to float32): a level never sees a number bigger than its own few thousand units.
 import type { Kit, RenderPass, Texture, UniformBuffer, RunEntry } from '@ericrius1/weft';
 import { quat, vec3, type Quat, type Vec3 } from 'math';
-import common from '../../shaders/cosmos.wgsl';
-import post from '../../shaders/c_post.wgsl';
+import common from './shaders/cosmos.wgsl';
+import post from './shaders/c_post.wgsl';
 import type { Frame, Ladder } from './frames';
 import type { CosmosControls } from './controls';
 
@@ -19,6 +19,10 @@ export const TIME_WRAP = 4096;
 export type Band = [number, number, number, number];
 const smooth = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
 export const bandWeight = (l: number, [a, b, c, d]: Band) => (l > b ? 1 - smooth((l - b) / (a - b)) : 1) * (l < c ? 1 - smooth((c - l) / (c - d)) : 1);
+
+/** drawn for a planetarium instead of a screen: a square domemaster `size` pixels across, into `out` (an sRGB
+ *  texture, rgba8unorm-srgb), the camera on the dome's sweet spot `elevation` (rad) above the front horizon */
+export interface DomeOptions { size: number; out: Texture | 'screen'; elevation?: number }
 
 export interface Level {
   id: string;
@@ -52,11 +56,20 @@ export class CosmosRenderer {
   private readonly offset: Vec3 = [0, 0, 0];
   private readonly off: Vec3 = [0, 0, 0];
 
-  constructor(readonly kit: Kit, readonly ladder: Ladder) {
+  /** the dome's sweet spot's elevation (rad), when drawing a dome */
+  elevation: number;
+
+  constructor(readonly kit: Kit, readonly ladder: Ladder, readonly dome: DomeOptions | null = null) {
     const k = kit;
-    this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: 'render' });
-    this.bloom = k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM_MIPS });
-    this.P = k.uniforms(post.structs.CPost, 'cosmos.post').set({ bloom: 0.012, exposure: 1, vignette: 0.45, grain: 0.004, saturation: 1.08, contrast: 1.08, alpha: 1 });
+    const N = dome?.size ?? 0;
+    this.elevation = dome?.elevation ?? (35 * Math.PI) / 180;
+    this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: dome ? [N, N] : 'render' });
+    this.bloom = dome
+      ? k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: [N / 2, N / 2], mips: BLOOM_MIPS })
+      : k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM_MIPS });
+    this.P = k.uniforms(post.structs.CPost, 'cosmos.post').set({
+      bloom: 0.012, exposure: 1, vignette: dome ? 0 : 0.45, grain: dome ? 0 : 0.004, saturation: 1.08, contrast: 1.08, alpha: 1, encode: dome && dome.out !== 'screen' ? 0 : 1, disc: dome ? 1 : 0,
+    });
     k.overlay.tweak(this.P, 'cosmos.post');
     this.scene = k.pass({ label: 'cosmos', color: [{ target: this.hdr, clear: [0, 0, 0, 1] }] });
     const P = this.P;
@@ -75,7 +88,7 @@ export class CosmosRenderer {
       p.fullscreen(post, { label: `cosmos.bloom.up${i}`, fragment: 'fs_up', blend: 'add', bind: { P, B: u, srcTex: this.bloom.mip(i + 1) } });
       items.push(p);
     }
-    const fin = k.pass({ label: 'cosmos.final', color: [{ target: 'screen', clear: [0, 0, 0, 1] }], enabled: () => !this.over });
+    const fin = k.pass({ label: 'cosmos.final', color: [{ target: !dome || dome.out === 'screen' ? 'screen' : dome.out.mip(0), clear: [0, 0, 0, 1] }], enabled: () => !this.over });
     fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
     const finOver = k.pass({ label: 'cosmos.final.over', color: [{ target: 'screen', clear: false }], enabled: () => this.over });
     finOver.fullscreen(post, { label: 'cosmos.final.over', fragment: 'fs_final', blend: 'alpha', bind: { P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
@@ -97,8 +110,11 @@ export class CosmosRenderer {
   update(c: CosmosControls, time: number) {
     const S = c.S, logS = c.logS;
     const kit = this.kit, cam = kit.camera;
-    const tanHalf = Math.tan(cam.fovY / 2), aspect = kit.size.render[0] / Math.max(1, kit.size.render[1]);
-    const pxAngle = (2 * tanHalf) / kit.size.render[1];
+    const [W, H] = this.size();
+    const tanHalf = Math.tan(cam.fovY / 2), aspect = W / Math.max(1, H);
+    // (a fisheye's pixel is its 180° over its width)
+    const pxAngle = this.dome ? Math.PI / W : (2 * tanHalf) / H;
+    const view = [1 / W, 1 / H, this.dome ? 1 : 0, this.elevation];
     this.ladder.pivotOffset(logS, this.offset);
     for (const lv of this.levels) {
       lv.weight = bandWeight(logS, lv.band);
@@ -116,14 +132,17 @@ export class CosmosRenderer {
       }
       lv.L.set({
         origin: lv.origin, weight: lv.weight, eye: lv.eye, scale: lv.scale, fwd: lv.fwd, tanHalf, right: lv.right, aspect,
-        up: lv.up, time: time % TIME_WRAP, pxAngle,
+        up: lv.up, time: time % TIME_WRAP, pxAngle, view,
       });
     }
     this.sizeBloom();
   }
 
+  /** the target's size (px) */
+  size(): [number, number] { return this.dome ? [this.dome.size, this.dome.size] : [this.kit.size.render[0], this.kit.size.render[1]]; }
+
   private sizeBloom() {
-    const [w, h] = this.kit.size.render;
+    const [w, h] = this.size();
     const size = (m: number) => [Math.max(1, Math.round(w * 0.5) >> m), Math.max(1, Math.round(h * 0.5) >> m)];
     for (let i = 0; i < BLOOM_MIPS; i++) {
       const src = i === 0 ? [w, h] : size(i - 1);
@@ -135,7 +154,8 @@ export class CosmosRenderer {
     }
   }
 
-  frame() {
-    this.kit.run([...this.before, this.scene, ...this.items]);
-  }
+  /** this frame's GPU work, for a host that runs it with its own */
+  run(): RunEntry[] { return [...this.before, this.scene, ...this.items]; }
+
+  frame() { this.kit.run(this.run()); }
 }

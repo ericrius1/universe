@@ -1,14 +1,15 @@
-// The places above the cell, as the dock and the intro know places: each a zoom (log10 of the view distance in metres)
-// and a look, with its scale, a line and things to look for. Their ids start 'u:' so the app knows whose camera
-// flies there.
-import type { Place } from '../ui/places';
-import { INTRO } from '../ui/intro';
+// The places above the cell: each a zoom (log10 of the view distance in metres) and a look, with its scale, a line
+// and things to look for (`act` a button's: 'place:<id>'). Their ids start 'u:' so an app knows whose camera flies
+// there. Plain data: the Universe's dock and intros show them, Fiske's console has them as its buttons.
+export interface CosmosTip { k: string; t: string; act?: string }
+export interface CosmosPlace { id: string; name: string; short: string; logS: number; yaw: number; pitch: number; line: string; size: string; tips: CosmosTip[] }
 
-export interface CosmosPlace extends Place { logS: number }
+const place = (id: string, name: string, logS: number, pitch: number, line: string, size: string, tips: [string, string, string?][]): CosmosPlace =>
+  ({ id, name, short: SHORT[id] ?? name, logS, pitch, yaw: 0.4, line, size, tips: tips.map(([k, t, act]) => ({ k, t, act })) });
 
-const place = (id: string, name: string, logS: number, pitch: number, line: string, size: string, tips: [string, string, string?][]): CosmosPlace => {
-  INTRO[id] = { size, tips: tips.map(([k, t, act]) => ({ k, t, act })) };
-  return { id, name, logS, pitch, yaw: 0.4, line, art: '', at: [0, 0, 0], scale: 0 };
+const SHORT: Record<string, string> = {
+  'u:universe': 'Universe', 'u:web': 'Cosmic web', 'u:milkyway': 'Milky Way', 'u:neighbourhood': 'Neighbours', 'u:solar': 'Solar system',
+  'u:earth': 'Earth', 'u:boulder': 'Boulder', 'u:hand': 'Hand', 'u:skin': 'Skin',
 };
 
 export const COSMOS_PLACES: CosmosPlace[] = [

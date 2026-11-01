@@ -24,9 +24,14 @@ import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
-import { Cosmos } from './cosmos';
+import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
 import { COSMOS_PLACES, type CosmosPlace } from './cosmos/places';
+import { INTRO } from './ui/intro';
+
+// the places above the cell, as the dock and the intros know places
+for (const p of COSMOS_PLACES) INTRO[p.id] = { size: p.size, tips: p.tips };
+const asPlace = (p: CosmosPlace): Place => ({ id: p.id, name: p.name, scale: 0, at: [0, 0, 0], yaw: p.yaw, pitch: p.pitch, line: p.line, art: '' });
 
 const $ = (id: string) => document.getElementById(id)!;
 const status = (msg: string, f: number) => { $('ld-msg').textContent = msg; ($('ld-bar') as HTMLElement).style.width = `${Math.round(f * 100)}%`; };
@@ -59,7 +64,11 @@ async function boot() {
   const controls = new Controls(canvas);
   status('laying out the universe…', 0.62);
   await frame();
-  const cosmos = new Cosmos(kit);
+  // (?dome: the planetarium's fisheye on a square canvas, as Fiske's dome gets it; ?now the real moment, ?utc=<h> an hour)
+  const dome = params.has('dome');
+  if (dome) Object.assign(canvas.style, { width: '100vmin', height: '100vmin', left: 'calc(50vw - 50vmin)', top: 'calc(50vh - 50vmin)', position: 'fixed' });
+  const time = params.has('now') ? Date.now() : moment(Number(params.get('utc') ?? 17.5));
+  const cosmos = new Cosmos(kit, { time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined });
   status('compiling shaders…', 0.7);
   const t0 = performance.now();
   const ready = await kit.ready();
@@ -159,7 +168,7 @@ export class App {
     if (params.has('nocut')) this.cutTarget = this.cut = 0;
 
     const ui = $('ui');
-    this.hud = new Hud(ui, [...COSMOS_PLACES, ...placeList], BASE);
+    this.hud = new Hud(ui, [...COSMOS_PLACES.map(asPlace), ...placeList], BASE);
     // the interface's toggle, top right (and / anywhere), as in every project on the site: it shows unless folded away
     interfaceToggle({ name: 'cell', label: 'the interface', phone: true, onChange: (open) => document.body.classList.toggle('ui-off', !open) });
     this.gamePanel = document.createElement('div');
@@ -329,7 +338,7 @@ export class App {
     this.hud.showCard(null);
     this.cosmos.controls.flyTo(p.logS, { pitch: p.pitch, done: () => this.sound('arrive') });
     this.cosmosAt = p;
-    this.intro.show(p);
+    this.intro.show(asPlace(p));
     this.sound('fly');
   }
 

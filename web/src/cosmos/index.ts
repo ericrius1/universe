@@ -1,8 +1,12 @@
 // Everything above the cell: the ladder of frames, the camera that zooms down it, the renderer and its levels.
+// Self-contained (nothing here reaches outside cosmos/): the Universe app drives it on its canvas, and a planetarium
+// (Boulder's Fiske) on its dome, through `dome` — a fisheye drawn into the dome's own texture — and with no input of
+// its own (its console flies the camera). The host either lets it run its frame (`frame`) or takes its GPU work
+// into its own (`update` then `run`).
 import type { Kit } from '@ericrius1/weft';
 import { Ladder } from './frames';
 import { CosmosControls } from './controls';
-import { CosmosRenderer } from './renderer';
+import { CosmosRenderer, type DomeOptions } from './renderer';
 import { Web } from './levels/web';
 import { Galaxy } from './levels/galaxy';
 import { Local } from './levels/local';
@@ -10,17 +14,24 @@ import { Solar } from './levels/solar';
 import { Earth } from './levels/earth';
 import { Surface } from './levels/surface';
 
-/** the moment: mid-morning in Boulder today (17:30 UTC), or ?utc=<hours>, or ?now for the real one */
-function moment() {
-  const q = new URLSearchParams(location.search);
-  if (q.has('now')) return Date.now();
+/** a moment: today at `utcHours` (default mid-morning in Boulder, 17:30 UTC) */
+export function moment(utcHours = 17.5) {
   const d = new Date();
-  const h = Number(q.get('utc') ?? 17.5);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + h * 3600000;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + utcHours * 3600000;
 }
 
+export interface CosmosOptions {
+  /** draw a planetarium's fisheye into a texture instead of the screen */
+  dome?: DomeOptions;
+  /** listen to the page's pointer, wheel and keys (false: the host flies the camera) */
+  input?: boolean;
+  /** the moment (ms) the Earth, its Sun and the planets are placed for */
+  time?: number;
+}
+export type { DomeOptions };
+
 export class Cosmos {
-  readonly ladder = new Ladder(moment());
+  readonly ladder: Ladder;
   readonly controls: CosmosControls;
   readonly r: CosmosRenderer;
   readonly web: Web;
@@ -31,9 +42,10 @@ export class Cosmos {
   readonly surface: Surface;
   time = 0;
 
-  constructor(readonly kit: Kit) {
-    this.controls = new CosmosControls(kit.canvas, this.ladder);
-    this.r = new CosmosRenderer(kit, this.ladder);
+  constructor(readonly kit: Kit, o: CosmosOptions = {}) {
+    this.ladder = new Ladder(o.time ?? moment());
+    this.controls = new CosmosControls(kit.canvas, this.ladder, o.input ?? true);
+    this.r = new CosmosRenderer(kit, this.ladder, o.dome ?? null);
     this.web = new Web(kit, this.r, this.ladder);
     this.galaxy = new Galaxy(kit, this.r, this.ladder);
     this.local = new Local(kit, this.r, this.ladder);
@@ -67,6 +79,15 @@ export class Cosmos {
 
   /** a frame: the camera, every level's view, the draw (over the cell's frame with `alpha` < 1) */
   frame(dt: number, alpha = 1) {
+    this.update(dt, alpha);
+    this.r.frame();
+  }
+
+  /** this frame's GPU work, after `update`, for a host to run with its own */
+  run() { return this.r.run(); }
+
+  /** the camera and every level's view for this frame */
+  update(dt: number, alpha = 1) {
     this.time += dt;
     const c = this.controls;
     c.update(dt);
@@ -85,6 +106,5 @@ export class Cosmos {
     this.earth.update(S);
     this.r.over = alpha < 1;
     this.r.P.set({ alpha });
-    this.r.frame();
   }
 }

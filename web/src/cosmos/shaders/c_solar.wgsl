@@ -90,7 +90,7 @@ fn jupiterBands(n: vec3f, s: f32) -> f32 {
     let phase = 0.5 + 0.5 * dot(toEye, sunDir);
     return vec4f(p.color * i * (0.3 + 0.7 * phase) * L.a.y * L.weight, 0.0);
   }
-  let rd = rayDir(in.pos.xy * frame.invRes);
+  let rd = rayDir(in.pos.xy * L.view.xy);
   let h = sphereHit(L.eye, rd, p.pos, p.r);
   var col = vec3f(0.0);
   var a = 0.0;
