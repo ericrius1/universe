@@ -24,6 +24,8 @@ import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
+import { Cosmos } from './cosmos';
+import { NM } from './cosmos/frames';
 
 const $ = (id: string) => document.getElementById(id)!;
 const status = (msg: string, f: number) => { $('ld-msg').textContent = msg; ($('ld-bar') as HTMLElement).style.width = `${Math.round(f * 100)}%`; };
@@ -54,13 +56,16 @@ async function boot() {
   const walkers = new Walkers(world, filaments.set, field);
 
   const controls = new Controls(canvas);
+  status('laying out the universe…', 0.62);
+  await frame();
+  const cosmos = new Cosmos(kit);
   status('compiling shaders…', 0.7);
   const t0 = performance.now();
   const ready = await kit.ready();
   console.log(`cell: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
   status('', 1);
 
-  const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols);
+  const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
   const capture = new Capture(kit);
   // hold the frame rate on smaller GPUs by trading resolution (GPU timestamps; inactive where there are none)
   if (!params.has('film') && !params.has('noautores')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
@@ -128,8 +133,13 @@ export class App {
   /** the place last flown to, while the view is still there */
   private at: Place | null = null;
 
+  /** which camera has the controls: the world above the cell, or the cell's */
+  realm: 'cosmos' | 'cell' = 'cosmos';
+  /** how much of the frame is the cosmos's (eased toward 1 above the cell, 0 in it) */
+  private mix = 1;
+
   constructor(readonly kit: Kit, readonly r: Renderer, readonly world: World, readonly controls: Controls, readonly field: Field,
-    readonly walkers: Walkers, readonly fil: FilamentSet, readonly mols: Molecules) {
+    readonly walkers: Walkers, readonly fil: FilamentSet, readonly mols: Molecules, readonly cosmos: Cosmos) {
     const placeList = buildPlaces(world);
     this.places = new Map(placeList.map((p) => [p.id, p]));
     const start = this.places.get(params.get('place') ?? 'tissue') ?? this.places.get('tissue')!;
@@ -137,6 +147,13 @@ export class App {
     // the wedge opens toward where the visitor first looks from
     this.wedgeDir = [Math.sin(WEDGE.yaw), 0, Math.cos(WEDGE.yaw)];
     this.cut = start.id === 'tissue' ? 0 : 1;
+    // the visit starts at the edge of the observable universe unless a place in the cell was asked for
+    if (params.has('place')) this.setRealm('cell', true);
+    else {
+      this.setRealm('cosmos', true);
+      const s = params.get('s');
+      cosmos.controls.set(s ? Number(s) : cosmos.controls.max - 0.15);
+    }
     if (params.has('nocut')) this.cutTarget = this.cut = 0;
 
     const ui = $('ui');
@@ -164,8 +181,40 @@ export class App {
     else setTimeout(() => { if (!controls.fly) this.hud.toast('Scroll or pinch to dive in — all the way down to the molecules', 6000); }, 2200);
   }
 
+  /** hand the camera to the cosmos or the cell (`now`: without the crossfade) */
+  setRealm(realm: 'cosmos' | 'cell', now = false) {
+    this.realm = realm;
+    this.controls.enabled = realm === 'cell';
+    this.cosmos.controls.enabled = realm === 'cosmos';
+    if (now) this.mix = realm === 'cosmos' ? 1 : 0;
+  }
+  /** from the skin into the tissue: the cell's camera where the cosmos's was */
+  private enterCell() {
+    if (this.realm === 'cell') return;
+    const cc = this.cosmos.controls, t = this.places.get('tissue')!;
+    this.setFly(false);
+    this.controls.set(t.at, this.controls.maxScale * 0.92, cc.yaw, cc.pitch);
+    this.cutTarget = 0;
+    this.setRealm('cell');
+    this.sound('arrive');
+  }
+  /** out of the tissue: the cosmos's camera where the cell's was, a little wider */
+  private leaveCell() {
+    if (this.realm === 'cosmos' || this.game) return;
+    const c = this.controls;
+    this.setFly(false);
+    this.tour.stop();
+    this.intro.hide(true);
+    this.cosmos.controls.set(Math.log10(c.scale * NM) + 0.08, c.yaw, c.pitch);
+    this.cosmos.controls.zoom(0.25);
+    this.setRealm('cosmos');
+    this.sound('fly');
+  }
+
   private wire() {
     const c = this.controls, hud = this.hud;
+    c.onAbove = () => this.leaveCell();
+    this.cosmos.controls.onBelow = () => this.enterCell();
     c.pick = (x, y) => {
       const p = this.lastPick;
       if (!p || Math.hypot(p.x - x, p.y - y) > 30) return null;
@@ -356,6 +405,26 @@ export class App {
   }
 
   frame(dt: number) {
+    // the cross-fade between the cosmos and the cell: each draws while it shows
+    const want = this.realm === 'cosmos' ? 1 : 0;
+    this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
+    if (Math.abs(want - this.mix) < 0.004) this.mix = want;
+    if (this.mix < 1) this.cellFrame(dt);
+    if (this.mix > 0) {
+      this.cosmos.frame(dt, this.mix);
+      if (this.realm === 'cosmos') this.cosmosHud();
+    }
+  }
+
+  private cosmosHud() {
+    const cc = this.cosmos.controls, kit = this.kit;
+    const S = this.cosmos.S / NM;
+    const fovW = 2 * S * Math.tan(kit.camera.fovY / 2) * (kit.size.css[0] / kit.size.css[1]);
+    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.cosmos.crumbs(), hover: null, mouse: cc.mouse });
+    this.hud.setHere(null);
+  }
+
+  private cellFrame(dt: number) {
     const c = this.controls, kit = this.kit;
     // the floating origin for this frame: where the camera looked last (everything the GPU gets is relative to it;
     // ?noorigin keeps it at the world's origin, the old float32 trouble, for comparison)

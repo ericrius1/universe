@@ -67,6 +67,8 @@ export class Controls {
   onDoubleClick: ((x: number, y: number, p: Pick | null) => void) | null = null;
   /** the visitor moved the camera (tours give way) */
   onUser: (() => void) | null = null;
+  /** zooming out past the widest view (the world above the cell takes the camera) */
+  onAbove: (() => void) | null = null;
   enabled = true;
   /** films and tours drive the camera themselves */
   driven = false;
@@ -407,6 +409,7 @@ export class Controls {
 
   /** zoom by `amount` (log units, + is out) keeping the point under (x, y) where it is */
   zoomAt(x: number, y: number, amount: number) {
+    if (amount > 0 && this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) { this.onAbove(); return; }
     const p = this.pick(x, y);
     this.basis();
     if (p && amount < 0) {
@@ -484,6 +487,6 @@ export class Controls {
     if (k.has('arrowup')) this.orbit(0, dt * 1.0);
     if (k.has('arrowdown')) this.orbit(0, -dt * 1.0);
     if (k.has('=') || k.has('+')) this.zoomTarget -= dt * 1.5;
-    if (k.has('-') || k.has('_')) this.zoomTarget += dt * 1.5;
+    if (k.has('-') || k.has('_')) { if (this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) this.onAbove(); else this.zoomTarget += dt * 1.5; }
   }
 }

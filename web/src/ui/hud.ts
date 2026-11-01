@@ -5,16 +5,34 @@
 import type { Card } from './info';
 import type { Place } from './places';
 
+// (lengths are nanometres here, all the way up: 1e36 nm is the observable universe)
 const RUNGS: [number, string, string][] = [
-  [1e5, '100 µm', 'a hair is about this wide'],
+  [1e36, '100 billion ly', 'the observable universe'],
+  [1e33, '100 million ly', 'the cosmic web'],
+  [1e30, '100,000 ly', 'the Milky Way'],
+  [1e26, '10 light-years', 'the nearest stars'],
+  [1e22, '70 AU', 'the solar system'],
+  [1e16, '10,000 km', 'the Earth'],
+  [1e13, '10 km', 'a town'],
+  [1e9, '1 m', 'a person'],
+  [1e6, '1 mm', 'the creases of skin'],
   [1e4, '10 µm', 'a cell'],
-  [1e3, '1 µm', 'mitochondria, bacteria'],
   [1e2, '100 nm', 'viruses, nuclear pores'],
-  [1e1, '10 nm', 'proteins, ribosomes'],
   [1e0, '1 nm', 'DNA\'s width, a lipid'],
 ];
+/** the ladder's ends (log10 nm) */
+const TOP = 36.2, BOTTOM = -0.3;
 
+const LYR = 9.4607e24, AU_NM = 1.495978707e20;
+const num = (x: number) => { const p = +x.toPrecision(2); return p >= 1e4 ? p.toLocaleString('en') : String(p); };
 export function fmtLength(nm: number): string {
+  if (nm >= LYR * 1e9) return `${num(nm / (LYR * 1e9))} billion ly`;
+  if (nm >= LYR * 1e6) return `${num(nm / (LYR * 1e6))} million ly`;
+  if (nm >= LYR * 0.1) return `${num(nm / LYR)} light-years`;
+  if (nm >= AU_NM * 0.05) return `${num(nm / AU_NM)} AU`;
+  if (nm >= 1e12) return `${num(nm / 1e12)} km`;
+  if (nm >= 1e9) return `${num(nm / 1e9)} m`;
+  if (nm >= 1e7) return `${num(nm / 1e7)} cm`;
   if (nm >= 1e6) return `${+(nm / 1e6).toPrecision(2)} mm`;
   if (nm >= 1e3) return `${+(nm / 1e3).toPrecision(2)} µm`;
   if (nm >= 1) return `${+nm.toPrecision(2)} nm`;
@@ -127,8 +145,8 @@ export class Hud {
 
   update(s: HudState) {
     this.set('crumbs', this.crumbs, s.crumbs.map((c, i) => `<span${i === s.crumbs.length - 1 ? ' class="here"' : ''}>${c}</span>`).join('<i>›</i>'), 'html');
-    // ladder: rungs are a decade apart, top 100 µm; the dot sits at log10 of the field of view
-    const t = Math.max(0, Math.min(1, (5 - Math.log10(Math.max(s.fov, 1))) / 5));
+    // ladder: from the observable universe to a nanometre; the dot sits at log10 of the field of view
+    const t = Math.max(0, Math.min(1, (TOP - Math.log10(Math.max(s.fov, 1e-3))) / (TOP - BOTTOM)));
     this.set('dot', this.ladderDot, `${(t * 100).toFixed(2)}%`, 'style', 'top');
     this.set('dotv', this.ladderVal, fmtLength(s.fov));
     // a round length about a sixth of the screen
