@@ -109,7 +109,9 @@ export class Hud {
     scaleBox.append(this.bar, this.timeText);
 
     for (const p of places) {
-      const c = h('button', 'place', `<img alt="" src="${base}art/${p.art}.webp" onerror="this.style.visibility='hidden'"><span>${p.name}</span>`) as HTMLButtonElement;
+      // (the places above the cell have no picture yet: no request for one)
+      const img = p.art ? `<img alt="" src="${base}art/${p.art}.webp" onerror="this.style.visibility='hidden'">` : '<img alt="" style="visibility:hidden">';
+      const c = h('button', 'place', `${img}<span>${p.name}</span>`) as HTMLButtonElement;
       c.title = p.line;
       c.addEventListener('click', (e) => { e.stopPropagation(); this.onPlace(p.id); });
       this.placeEls.set(p.id, c);
