@@ -32,7 +32,7 @@ struct VOut {
   if (L.a.y < 0.5) {
     // a star: the eye sees a point, brighter is wider
     // (the eye's response compressed: the brightest are wider and whiter, not blinding discs)
-    rpx = clamp(1.4 + 2.0 * log2(1.0 + apparent * 3.0), 1.4, 13.0);
+    rpx = clamp(1.4 + 1.3 * log2(1.0 + apparent * 3.0), 1.4, 7.0);
     core = 1.0;
     col = p.color * apparent / (1.0 + apparent * 0.3);
   } else {
@@ -57,7 +57,7 @@ struct VOut {
   var i: f32;
   if (L.a.y < 0.5) {
     // a tight core and a wide faint halo
-    i = exp(-r2 * 28.0) * 1.6 + exp(-r2 * 6.0) * 0.25 + (1.0 - r2) * 0.02;
+    i = exp(-r2 * 30.0) * 1.8 + exp(-r2 * 7.0) * 0.12;
   } else {
     i = mix(exp(-r2 * 6.0), exp(-r2 * 3.0) * (1.0 - r2), in.core);
   }

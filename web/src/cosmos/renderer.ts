@@ -49,12 +49,14 @@ export class CosmosRenderer {
   private items: RunEntry[];
   private bloomLv: UniformBuffer<any>[] = [];
   private readonly qi: Quat = quat.create();
+  private readonly offset: Vec3 = [0, 0, 0];
+  private readonly off: Vec3 = [0, 0, 0];
 
   constructor(readonly kit: Kit, readonly ladder: Ladder) {
     const k = kit;
     this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: 'render' });
     this.bloom = k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM_MIPS });
-    this.P = k.uniforms(post.structs.CPost, 'cosmos.post').set({ bloom: 0.012, exposure: 1, vignette: 0.45, grain: 0.01, saturation: 1.08, contrast: 1.08, alpha: 1 });
+    this.P = k.uniforms(post.structs.CPost, 'cosmos.post').set({ bloom: 0.012, exposure: 1, vignette: 0.45, grain: 0.004, saturation: 1.08, contrast: 1.08, alpha: 1 });
     k.overlay.tweak(this.P, 'cosmos.post');
     this.scene = k.pass({ label: 'cosmos', color: [{ target: this.hdr, clear: [0, 0, 0, 1] }] });
     const P = this.P;
@@ -97,6 +99,7 @@ export class CosmosRenderer {
     const kit = this.kit, cam = kit.camera;
     const tanHalf = Math.tan(cam.fovY / 2), aspect = kit.size.render[0] / Math.max(1, kit.size.render[1]);
     const pxAngle = (2 * tanHalf) / kit.size.render[1];
+    this.ladder.pivotOffset(logS, this.offset);
     for (const lv of this.levels) {
       lv.weight = bandWeight(logS, lv.band);
       const f = lv.frame;
@@ -105,10 +108,11 @@ export class CosmosRenderer {
       vec3.transformQuat(lv.right, c.right, this.qi);
       vec3.transformQuat(lv.up, c.up, this.qi);
       lv.scale = S / f.unit;
+      vec3.transformQuat(this.off, this.offset, this.qi);
       for (let i = 0; i < 3; i++) {
         lv.origin[i] = Math.fround(f.target[i]);
         // (in doubles: the eye from the target, then relative to the origin)
-        lv.eye[i] = f.target[i] - lv.fwd[i] * lv.scale - lv.origin[i];
+        lv.eye[i] = f.target[i] + this.off[i] / f.unit - lv.fwd[i] * lv.scale - lv.origin[i];
       }
       lv.L.set({
         origin: lv.origin, weight: lv.weight, eye: lv.eye, scale: lv.scale, fwd: lv.fwd, tanHalf, right: lv.right, aspect,

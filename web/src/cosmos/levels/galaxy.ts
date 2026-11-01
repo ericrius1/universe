@@ -85,7 +85,9 @@ export class Galaxy {
     // the volume: steps enough for the disc seen whole, more from within it
     this.lv.weight *= this.sky;
     this.stars.weight *= this.sky;
-    this.lv.L.set({ weight: this.lv.weight, a: [Sk < 3 ? 0.035 : 0.16, 14.0, Sk < 3 ? 72 : 56, 0] });
-    this.stars.L.set({ weight: this.stars.weight, a: [0.0005 * Math.max(Sk, 1.6) ** 2, 0, 0.02, 1] });
+    // (inside the disc, the sky's band takes over from the march)
+    const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
+    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, 56, inside], d: [0, 0.045, 0, 0] });
+    this.stars.L.set({ weight: this.stars.weight, a: [0.0005 * Math.max(Sk, 12) ** 2, 0, 0.02, 1] });
   }
 }

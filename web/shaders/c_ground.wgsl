@@ -50,18 +50,34 @@ fn sdRoundBox(p: vec3f, b: vec3f, r: f32) -> f32 {
 }
 fn smin(a: f32, b: f32, k: f32) -> f32 { let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
 
+// a capsule whose radius runs from ra at a to rb at b
+fn sdCone(p: vec3f, a: vec3f, b: vec3f, ra: f32, rb: f32) -> f32 {
+  let pa = p - a; let ba = b - a;
+  let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - mix(ra, rb, h);
+}
 fn hand(p: vec3f) -> f32 {
-  var d = sdRoundBox(p - vec3f(0.0, 0.026, 0.0), vec3f(0.045, 0.012, 0.041), 0.008);
-  d = smin(d, sdCapsule(p, vec3f(0.07, 0.027, 0.0), vec3f(0.34, 0.034, 0.07), 0.031), 0.025);
+  // the palm, a little domed, then the forearm tapering to the wrist
+  // (a soft dome, lower on the little finger's side)
+  let pp = p - vec3f(0.0, 0.022 + p.z * 0.06, 0.0);
+  var d = sdRoundBox(pp, vec3f(0.036, 0.004, 0.032), 0.016) - 0.003 * (1.0 - clamp(length(pp.xz) / 0.05, 0.0, 1.0));
+  d = smin(d, sdCone(p, vec3f(0.05, 0.026, 0.004), vec3f(0.34, 0.036, 0.075), 0.021, 0.034), 0.02);
+  // four fingers, relaxed: three bones each, curling down to the grass; kept apart (a hard union between them)
+  var f = 1e9;
   for (var i = 0; i < 4; i++) {
-    let zf = -0.03 + f32(i) * 0.02;
-    let len = select(0.075, 0.088, i == 1 || i == 2) - select(0.0, 0.012, i == 3);
-    let a = vec3f(-0.042, 0.027, zf);
-    let m = vec3f(-0.042 - len * 0.55, 0.024, zf * 1.06);
-    let b = vec3f(-0.042 - len, 0.013, zf * 1.1);
-    d = smin(d, min(sdCapsule(p, a, m, 0.0088), sdCapsule(p, m, b, 0.0078)), 0.006);
+    let zf = -0.03 + f32(i) * 0.0205;
+    let len = select(0.074, 0.086, i == 1 || i == 2) - select(0.0, 0.014, i == 3);
+    let r = select(0.0082, 0.0074, i == 3);
+    let a = vec3f(-0.044, 0.028, zf);
+    let m1 = vec3f(-0.044 - len * 0.45, 0.026, zf * 1.08);
+    let m2 = vec3f(-0.044 - len * 0.78, 0.018, zf * 1.12);
+    let b = vec3f(-0.044 - len, 0.008, zf * 1.15);
+    f = min(f, min(sdCapsule(p, a, m1, r), min(sdCone(p, m1, m2, r * 0.95, r * 0.86), sdCone(p, m2, b, r * 0.86, r * 0.72))));
   }
-  d = smin(d, sdCapsule(p, vec3f(0.012, 0.022, -0.04), vec3f(-0.03, 0.017, -0.072), 0.0105), 0.012);
+  d = smin(d, f, 0.004);
+  d = smin(d, min(sdCone(p, vec3f(0.014, 0.022, -0.038), vec3f(-0.018, 0.017, -0.064), 0.0115, 0.0098), sdCone(p, vec3f(-0.018, 0.017, -0.064), vec3f(-0.042, 0.012, -0.078), 0.0098, 0.0082)), 0.01);
+  // the knuckles
+  for (var i = 0; i < 4; i++) { d = smin(d, length(p - vec3f(-0.043, 0.033, -0.03 + f32(i) * 0.0205)) - 0.0075, 0.006); }
   return d;
 }
 fn handNormal(p: vec3f) -> vec3f {
@@ -112,12 +128,40 @@ fn meadow(p: vec3f, dist: f32) -> vec3f {
   return c;
 }
 
+// the plains east of the foothills: farm parcels and the roads between them; Boulder's grid to the north
+fn plains(p: vec3f, dist: f32) -> vec3f {
+  let sz = vec2f(420.0, 310.0);
+  let cell = floor(p.xz / sz);
+  let h = hash3i(vec3i(i32(cell.x), i32(cell.y), 77));
+  var c = mix(vec3f(0.3, 0.25, 0.11), vec3f(0.1, 0.15, 0.05), h.x);
+  c = mix(c, vec3f(0.2, 0.14, 0.08), step(0.82, h.y));
+  // furrows and texture within a parcel
+  c *= 0.85 + 0.25 * vnoise(vec3f(p.x / 40.0 * select(1.0, 6.0, h.z > 0.5), 0.0, p.z / 40.0 * select(6.0, 1.0, h.z > 0.5)));
+  let f = fract(p.xz / sz) * sz;
+  let road = min(min(f.x, sz.x - f.x), min(f.y, sz.y - f.y));
+  c = mix(c, vec3f(0.24, 0.23, 0.22), ss(5.0, 2.5, road + dist * 0.0004));
+  // the town: a street grid, roofs, trees
+  let town = ss(-1500.0, -2300.0, p.z) * ss(-2300.0, -1400.0, p.x) * ss(3200.0, 2400.0, p.x) * ss(-9000.0, -8000.0, p.z);
+  if (town > 0.0) {
+    let bs = 95.0;
+    let b = fract(p.xz / bs) * bs;
+    let street = min(min(b.x, bs - b.x), min(b.y, bs - b.y));
+    let lot = hash3i(vec3i(i32(floor(p.x / 32.0)), i32(floor(p.z / 28.0)), 5));
+    var t = mix(vec3f(0.36, 0.3, 0.27), vec3f(0.42, 0.42, 0.44), lot.x);
+    t = mix(t, vec3f(0.06, 0.1, 0.04), step(0.55, lot.y) * 0.85);
+    t = mix(t, vec3f(0.2, 0.2, 0.21), ss(7.0, 4.0, street));
+    c = mix(c, t, town);
+  }
+  return c;
+}
+
 fn landColor(p: vec3f, n: vec3f, dist: f32) -> vec3f {
   let slope = 1.0 - n.y;
-  var c = meadow(p, dist);
+  // the meadow round the hand, parcels beyond it
+  var c = mix(meadow(p, dist), plains(p, dist), ss(220.0, 600.0, length(p.xz)) * ss(-2000.0, -1200.0, p.x));
   // forest on the foothills, the Flatirons' red rock, snow up high
   let forest = ss(1720.0 - 1655.0, 1900.0 - 1655.0, p.y) * ss(0.75, 0.35, slope);
-  c = mix(c, vec3f(0.035, 0.06, 0.03) * (0.8 + 0.4 * vnoise(p / 30.0)), forest);
+  c = mix(c, vec3f(0.022, 0.04, 0.02) * (0.7 + 0.6 * vnoise(p / 25.0)), forest);
   let rock = ss(0.32, 0.6, slope);
   c = mix(c, vec3f(0.42, 0.2, 0.12) * (0.75 + 0.35 * fbm(p / 25.0, 3)), rock);
   c = mix(c, vec3f(0.9, 0.92, 0.95), ss(2500.0, 2900.0, p.y + 120.0 * fbm(p / 400.0, 3)) * ss(0.7, 0.4, slope));
@@ -230,7 +274,13 @@ struct Hit { t: f32, kind: i32, tint: f32 }
       diff *= clamp(sh, 0.0, 1.0);
     }
     let wrap = max((lam + 0.5) / 1.5, 0.0) * sss * vec3f(1.0, 0.45, 0.3) * 0.5;
-    col = alb * (sunCol * (diff + wrap) + ambient);
+    // occlusion: the ground under and round the hand, the hand's creases
+    var ao = 1.0;
+    if (abs(p.x - 0.1) < 0.4 && abs(p.z) < 0.25) {
+      if (tSurf == tHand) { ao = clamp(0.4 + hand(p + n * 0.006) / 0.006 * 0.6, 0.3, 1.0); }
+      else { ao = mix(0.35, 1.0, ss(0.0, 0.035, hand(p))); }
+    }
+    col = alb * (sunCol * (diff + wrap) + ambient) * ao;
     if (tSurf == tHand) {
       let h = normalize(sun - rd);
       col += sunCol * pow(max(dot(n, h), 0.0), 40.0) * 0.06 * diff;

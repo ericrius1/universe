@@ -58,12 +58,12 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
     for (var i = -2; i <= 2; i++) {
       let g = c0 + vec2f(f32(i), f32(j));
       let h = hash3i(vec3i(i32(g.x), i32(g.y), 41));
-      if (h.z > 0.55) { continue; }
+      if (h.z > 0.22) { continue; }
       let base = vec3f((g.x + h.x) * cs, -0.02, (g.y + h.y) * cs);
       let dir = normalize(vec3f(-0.9 + h.y * 0.3, 0.45, 0.25 - h.x * 0.5));
       let tip = base + dir * (2.5 + h.z * 4.0);
       // ray–capsule, approximately: the closest approach of the ray to the segment
-      let r = 0.022 * (1.0 + 0.0);
+      let r = 0.026;
       let ba = tip - base; let oa = ro - base;
       let baba = dot(ba, ba); let bard = dot(ba, rd); let baoa = dot(ba, oa); let rdoa = dot(rd, oa); let oaoa = dot(oa, oa);
       let a = baba - bard * bard;
@@ -85,17 +85,18 @@ fn hairs(ro: vec3f, rd: vec3f) -> vec2f {
 fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
   var col = vec3f(0.0);
   var T = 1.0;
-  let n = 28;
-  let dt = 0.11 / f32(n);
+  let n = 56;
+  let dt = 0.06 / f32(n);
   for (var i = 0; i < n; i++) {
     let q = p0 + rd * ((f32(i) + jit) * dt);
-    let c = cellular(q / 0.026 + vec3f(3.1, 0.0, 1.7), 0.8);
+    let c = cellular(q / 0.014 + vec3f(3.1, 0.0, 1.7), 0.8);
     // membranes between the cells, the cytoplasm clear and pale, the nucleus dense and purple
-    let wall = exp(-(c.d2 - c.d1) * (c.d2 - c.d1) / 0.003);
-    let nuc = 1.0 - ss(0.2, 0.27, c.d1);
-    let sCyt = 14.0; let sWall = 260.0 * wall; let sNuc = 340.0 * nuc;
+    let wall = exp(-(c.d2 - c.d1) * (c.d2 - c.d1) / 0.006);
+    let nuc = 1.0 - ss(0.17, 0.24, c.d1 * (0.9 + 0.25 * c.id.x));
+    let sCyt = 22.0; let sWall = 220.0 * wall; let sNuc = 700.0 * nuc;
     let sig = sCyt + sWall + sNuc;
-    let cc = (vec3f(1.0, 0.78, 0.7) * sCyt + vec3f(1.1, 0.88, 0.82) * sWall + vec3f(0.32, 0.2, 0.68) * sNuc) / sig;
+    let deep = exp(-f32(i) * dt * 14.0);
+    let cc = (vec3f(0.62, 0.32, 0.3) * sCyt + vec3f(1.25, 0.95, 0.88) * sWall + vec3f(0.26, 0.1, 0.45) * sNuc) / sig * (0.4 + 0.6 * deep);
     let a = 1.0 - exp(-sig * dt);
     col += T * a * cc;
     T *= 1.0 - a;
@@ -135,8 +136,11 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
     col = c * sunI * 0.35 + vec3f(1.0, 0.95, 0.9) * sunI * 0.08 * pow(1.0 - abs(dot(rd, sun)), 8.0);
     return vec4f(col * L.a.x * L.weight, L.weight);
   }
-  if (hitT < 0.0) { return vec4f(0.0); }
+  // the far skin fades into a warm haze (no edge of the world below a millimetre)
+  let fogC = vec3f(0.42, 0.25, 0.21) * sunI * 0.45;
+  if (hitT < 0.0) { return vec4f(fogC * L.a.x * L.weight, L.weight); }
   let p = ro + rd * hitT;
+  let fog = 1.0 - exp(-max(hitT - L.scale, 0.0) / (L.scale * 5.0));
   let e = max(0.0008, hitT * px * 1.5);
   let h0 = skinH(p.xz, fine).h;
   let n = normalize(vec3f(h0 - skinH(p.xz + vec2f(e, 0.0), fine).h, e, h0 - skinH(p.xz + vec2f(0.0, e), fine).h));
@@ -158,7 +162,8 @@ fn epidermis(p0: vec3f, rd: vec3f, jit: f32) -> vec4f {
     let jit = hash3u(vec3u(vec2u(in.pos.xy), frame.frame % 16u)).x;
     let e = epidermis(p + rd * 0.004, rd, jit);
     let lit = sunI * (0.55 + 0.45 * max(-rd.y, 0.0));
-    col = mix(col, e.rgb * lit * 0.8 + col * 0.15 * (1.0 - e.a), reveal);
+    col = mix(col, e.rgb * lit * 0.2 + col * 0.06 * (1.0 - e.a), reveal);
   }
+  col = mix(col, fogC, fog);
   return vec4f(col * L.a.x * L.weight, L.weight);
 }

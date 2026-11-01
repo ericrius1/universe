@@ -74,7 +74,7 @@ export class Solar {
     this.planets.write(this.pdata);
     // the Sun relative to the origin; its brightness held as the zoom changes
     const sunGain = 0.35;
-    const orbitA = 0.5 * Math.min(1, Math.max(0, (l - 10.2) / 1.5)) * Math.min(1, Math.max(0, (16.4 - l) / 1.2));
+    const orbitA = 0.16 * Math.min(1, Math.max(0, (l - 10.2) / 1.5)) * Math.min(1, Math.max(0, (16.4 - l) / 1.2));
     lv.L.set({ sunPos: [-o[0], -o[1], -o[2]], a: [sunGain, 1.0, orbitA, 0] });
     this.belts.L.set({ a: [0.0045 * Math.max(Sau, 3) ** 2, 0, Math.max(Sau * 0.004, 0.002), 1] });
   }

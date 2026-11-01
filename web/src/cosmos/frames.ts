@@ -158,6 +158,21 @@ export class Ladder {
     }
   }
 
+  /** where the camera looks, as an offset from the target (metres, the top frame's axes): at each body's own scale it
+   *  eases onto the body — the galaxy's centre, the Sun, the Earth's — and back onto the target as the zoom passes it,
+   *  so every scale is framed on what it's about and the dive still ends on the hand */
+  pivotOffset(logS: number, out: Vec3): Vec3 {
+    vec3.set(out, 0, 0, 0);
+    const ease = (a: number, b: number) => { const t = Math.max(0, Math.min(1, (logS - a) / (b - a))); return t * t * (3 - 2 * t); };
+    for (const [f, k] of [[this.galaxy, ease(19.4, 21.0)], [this.solar, ease(10.9, 12.3)], [this.earth, ease(6.1, 7.1)]] as [Frame, number][]) {
+      if (k <= 0) continue;
+      // (the body sits at the frame's origin)
+      vec3.transformQuat(_v, f.target, f.q);
+      vec3.scaleAndAdd(out, out, _v, -k * f.unit);
+    }
+    return out;
+  }
+
   /** a direction from one frame's axes into another's */
   dirInto(from: Frame, to: Frame, v: Vec3, out: Vec3 = [0, 0, 0]): Vec3 {
     vec3.transformQuat(out, v, from.q);
@@ -182,3 +197,4 @@ export class Ladder {
   }
 }
 const _q = quat.create();
+const _v: Vec3 = [0, 0, 0];

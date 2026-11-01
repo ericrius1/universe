@@ -20,6 +20,9 @@ const PI = 3.14159265;
 // smoothstep for either order of edges (WGSL leaves low > high undefined, and Metal makes it NaN)
 fn ss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 
+// a stable per-pixel dither for marches (interleaved gradient noise)
+fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715)))); }
+
 fn ndcOf(uv: vec2f) -> vec2f { return vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0); }
 // the view ray through a screen uv (level axes)
 fn rayDir(uv: vec2f) -> vec3f {

@@ -137,7 +137,7 @@ fn surface(n: vec3f, sun: vec3f, v: vec3f, near: f32) -> vec3f {
     col = a.light;
     trans = a.trans;
     // (the air's glow is light; it hides little)
-    alpha = clamp(1.0 - dot(a.trans, vec3f(0.333)), 0.0, 1.0) * 0.6;
+    alpha = 0.0;
   }
   return vec4f(col * L.a.x * L.weight, alpha * L.weight);
 }

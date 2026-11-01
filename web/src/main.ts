@@ -96,7 +96,7 @@ async function boot() {
 type Haze = [Vec3, Vec3];
 const HAZE: Record<string, Haze> = {
   // (the tissue under the skin: a warm dim rose, as the skin's living layer looks from above)
-  outside: [[0.011, 0.0055, 0.006], [0.006, 0.003, 0.0034]],
+  outside: [[0.06, 0.032, 0.036], [0.034, 0.018, 0.022]],
   cytosol: [[0.006, 0.016, 0.026], [0.0025, 0.007, 0.012]],
   nucleus: [[0.008, 0.007, 0.03], [0.004, 0.0035, 0.015]],
   mito: [[0.016, 0.006, 0.006], [0.007, 0.0025, 0.003]],

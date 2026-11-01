@@ -5,7 +5,8 @@
 #include "weft/fullscreen"
 
 fn cmb(n: vec3f) -> f32 {
-  return fbm(n * 6.0, 5) * 0.7 + fbm(n * 23.0 + 4.0, 3) * 0.3;
+  // Planck's sky: fine mottle on every scale down to a degree or so
+  return fbm(n * 9.0, 4) * 0.45 + fbm(n * 34.0 + 4.0, 4) * 0.35 + vnoise(n * 120.0) * 0.2;
 }
 
 @fragment fn fs_cmb(in: FullscreenOut) -> @location(0) vec4f {
@@ -25,11 +26,10 @@ fn cmb(n: vec3f) -> f32 {
     let warm = vec3f(1.0, 0.42, 0.12);
     let cool = vec3f(0.12, 0.35, 1.0);
     // a thin shell: brighter edge-on
-    let edge = 1.0 / max(abs(dot(n, rd)), 0.12);
-    let col = mix(cool, warm, ss(-0.35, 0.35, v)) * (0.35 + 0.65 * abs(v) * 2.0) * edge;
-    let w = select(0.25, 0.6, k == 0);
+    let edge = 1.0 / max(abs(dot(n, rd)), 0.25);
+    let col = mix(cool, warm, ss(-0.3, 0.3, v)) * (0.25 + 0.75 * abs(v) * 2.0) * edge;
+    let w = select(0.3, 0.55, k == 0);
     c += col * w;
-    a = max(a, select(0.0, 0.12, k == 0));
   }
   // from far outside it, a little brighter; as the view comes inside, it fades to a faint wall
   let fade = ss(R * 0.02, R * 0.6, L.scale);
@@ -46,7 +46,8 @@ fn webDensity(p: vec3f) -> vec2f {
   let fine = exp(-(b.d2 - b.d1) * 26.0);
   // clusters where the fine web's walls meet the coarse one's
   let knot = wall * fine;
-  return vec2f(wall * (0.35 + 0.65 * fine) + knot * 2.5, knot);
+  // (voids empty: below a floor, nothing)
+  return vec2f(max(wall * (0.35 + 0.65 * fine) + knot * 2.5 - 0.22, 0.0), knot);
 }
 
 @fragment fn fs_vol(in: FullscreenOut) -> @location(0) vec4f {
@@ -59,7 +60,7 @@ fn webDensity(p: vec3f) -> vec2f {
   // (no further than a few view distances: beyond, every ray averages to the same grey)
   let t1 = min(h.y, t0 + 6.0 * L.scale);
   let steps = i32(L.c.y);
-  let jit = hash3u(vec3u(vec2u(in.pos.xy), frame.frame % 64u)).x;
+  let jit = ign(in.pos.xy);
   var col = vec3f(0.0);
   var tPrev = t0;
   for (var i = 0; i < steps; i++) {

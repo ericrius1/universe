@@ -34,19 +34,39 @@ fn galaxy(p: vec3f) -> Gal {
   let bulge = exp(-length(p * vec3f(1.0, 1.45, 1.0)) / 0.55);
   // knots of star formation strung along the arms
   let knots = pow(max(vnoise(p * 2.6) * 0.5 + 0.5 - 0.62, 0.0) * 3.0, 3.0) * arms * 6.0;
-  g.glow = vec3f(1.0, 0.78, 0.52) * (bulge * 9.0 + bar * 3.2)
-         + vec3f(1.0, 0.86, 0.72) * disc * 1.6
-         + vec3f(0.58, 0.72, 1.0) * arms * 2.6
-         + vec3f(1.0, 0.35, 0.55) * knots;
+  g.glow = vec3f(1.0, 0.66, 0.32) * (bulge * 9.0 + bar * 3.2)
+         + vec3f(1.0, 0.8, 0.6) * disc * 1.4
+         + vec3f(0.42, 0.6, 1.0) * arms * 3.0
+         + vec3f(1.0, 0.25, 0.5) * knots * 1.6;
   // dust: a thin layer, thickest just inside the arms
   let dph = pow(0.5 + 0.5 * cos(2.0 * ph + 0.55 + wob), 4.0) + 0.5 * pow(0.5 + 0.5 * cos(2.0 * ph + 3.69 + wob * 1.3), 6.0);
   g.dust = (dph * 0.85 + 0.15) * exp(-r / 4.5) * exp(-z / 0.09) * ss(0.8, 2.6, r) * (0.55 + 0.9 * max(fbm(p * 1.7 + 11.0, 4), 0.0));
   return g;
 }
 
+// the Milky Way as the Sun sees it: a band along the galactic plane, broad and warm toward the centre (in
+// Sagittarius, along −x), knotted into star clouds, split by dark lanes of dust (the Great Rift)
+fn milkyWay(rd: vec3f) -> vec3f {
+  let b = asin(clamp(rd.y, -1.0, 1.0));
+  let l = atan2(rd.z, -rd.x);                       // 0 toward the centre
+  let toC = 0.5 + 0.5 * cos(l);                     // 1 toward the centre, 0 away
+  let width = 0.07 + 0.09 * toC * toC;
+  let band = exp(-pow(abs(b) / width, 1.4));
+  let bulge = exp(-(l * l + b * b * 4.0) / 0.09) * 1.6;
+  let dir = vec3f(cos(l), sin(l), b * 3.0);
+  let clouds = 0.55 + 0.9 * max(fbm(dir * 6.0, 5), -0.3) + 0.5 * max(fbm(dir * 22.0 + 3.0, 4), -0.2);
+  // the dust: thin dark lanes hugging the plane, strongest toward the centre
+  let lane = exp(-pow((b - 0.012 * sin(l * 3.0) - 0.02 * fbm(dir * 9.0, 3)) / (0.018 + 0.03 * toC), 2.0));
+  let rift = clamp(lane * (0.5 + 0.8 * max(fbm(dir * 14.0 + 7.0, 4) + 0.3, 0.0)) * (0.35 + 0.65 * toC), 0.0, 0.95);
+  let c = mix(vec3f(0.7, 0.75, 0.95), vec3f(1.0, 0.82, 0.62), toC * 0.8 + bulge * 0.2);
+  return c * (band * clouds + bulge) * (1.0 - rift) + vec3f(0.02, 0.022, 0.03) * band;
+}
+
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
   let rd = rayDir(in.uv);
   let ro = L.eye + L.origin;
+  // from inside the disc, near the Sun, the sky's band (L.a.w: how far inside)
+  if (L.a.w >= 0.999) { return vec4f(milkyWay(rd) * L.d.y * L.weight, 0.0); }
   // the slab |y| < 2.2 within r < 22 (a cylinder)
   var t0 = 0.0; var t1 = 1e9;
   if (abs(rd.y) > 1e-6) {
@@ -63,7 +83,7 @@ fn galaxy(p: vec3f) -> Gal {
   if (t1 <= t0) { return vec4f(0.0); }
   let steps = i32(L.a.z);
   // (steps cluster near the eye: from inside the disc the nearby kiloparsec matters most)
-  let jit = hash3u(vec3u(vec2u(in.pos.xy), frame.frame % 64u)).x;
+  let jit = ign(in.pos.xy);
   var T = 1.0;
   var col = vec3f(0.0);
   let span = t1 - t0;
@@ -79,5 +99,6 @@ fn galaxy(p: vec3f) -> Gal {
     T *= exp(-tau);
     if (T < 0.01) { break; }
   }
-  return vec4f(col * L.weight, (1.0 - T) * L.weight);
+  col = mix(col, milkyWay(rd) * L.d.y, L.a.w);
+  return vec4f(col * L.weight, mix(1.0 - T, 0.0, L.a.w) * L.weight);
 }

@@ -88,9 +88,17 @@ export class Web {
     // Andromeda (M31) 0.78 Mpc, a bigger spiral than ours; M33; the Magellanic Clouds (50, 62 kpc); Virgo's heart, 16.5 Mpc
     P.push(0.42, -0.31, 0.58, 0.034, 0.95, 0.88, 0.8, 2.6);
     P.push(0.5, -0.45, 0.52, 0.009, 0.75, 0.85, 1.0, 0.3);
-    P.push(-0.002, -0.032, -0.038, 0.004, 0.8, 0.85, 1.0, 0.12);
-    P.push(0.004, -0.044, -0.044, 0.002, 0.8, 0.85, 1.0, 0.04);
     const r = rng(5);
+    // the Magellanic Clouds: irregular swarms of young stars, not discs
+    const cloud = (x: number, y: number, z: number, sz: number, n: number, lum: number) => {
+      for (let i = 0; i < n; i++) {
+        const u = r.gauss() * sz, v = r.gauss() * sz * 0.5, w = r.gauss() * sz * 0.8;
+        const k = r.next() < 0.3 ? 1.6 : 1;
+        P.push(x + u + v * 0.6, y + w * 0.4, z + v, sz * 0.18, 0.75 * k, 0.85, 1.0, lum / n * (0.3 + r.next() * 1.4));
+      }
+    };
+    cloud(-0.002, -0.032, -0.038, 0.0035, 420, 0.12);
+    cloud(0.004, -0.044, -0.044, 0.0018, 220, 0.04);
     for (let i = 0; i < 1500; i++) P.push(9.5 + r.gauss() * 0.9, 4.2 + r.gauss() * 0.9, -12.4 + r.gauss() * 0.9, 0.015, 1.0, 0.8, 0.55, Math.exp(r.gauss() * 0.6) * 1.4);
     // the Local Group's dwarfs
     for (let i = 0; i < 40; i++) P.push(r.gauss() * 0.35 + 0.2, r.gauss() * 0.35 - 0.15, r.gauss() * 0.35 + 0.3, 0.0015, 0.85, 0.85, 0.9, 0.02);
@@ -104,6 +112,6 @@ export class Web {
     // (fading in as the web's volume fades out)
     const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.0) / 0.9)));
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.004, 0.02), 1], b: [EDGE, 0, 0, 0] });
-    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [0.09, Smpc > 6000 ? 40 : 64, 0, 0] });
+    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [0.16, Smpc > 6000 ? 40 : 64, 0, 0] });
   }
 }
