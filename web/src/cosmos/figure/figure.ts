@@ -65,7 +65,8 @@ export class Figure {
       count: () => this.n, bind: { L: ground.L, HU: this.u } as never, enabled: () => this.ready,
     };
     this.pass.draw(shader, { ...draw, label: 'figure', vertex: 'vs', fragment: 'fs', cull: 'none' });
-    this.pass.draw(shader, { ...draw, label: 'figure.ink', vertex: 'vsOutline', fragment: 'fsOutline', cull: 'front' });
+    // (the ink hull's back faces: a dome's fisheye mirrors the picture, so its winding turns over)
+    this.pass.draw(shader, { ...draw, label: 'figure.ink', vertex: 'vsOutline', fragment: 'fsOutline', cull: 'front', frontFace: dome ? 'cw' : 'ccw' });
   }
 
   /** fetch the mesh (once, when the dive comes near) */

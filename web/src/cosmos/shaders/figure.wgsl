@@ -471,8 +471,10 @@ fn celKey() -> vec3f {
   let dB = dqDirR(vec4f(-HU.headR.xyz, HU.headR.w), normalize(in.rel));
   let camB = lp - dB * length(in.rel);
   let tP = dot(HU.focus.xyz - camB, HU.focusN.xyz) / min(dot(dB, HU.focusN.xyz), -1e-4);
-  let near = (1.0 - ss(0.003, 0.012, L.scale)) * step(length(lp - HU.focus.xyz), 0.03);
-  let hp = mix(lp, camB + dB * tP, near);
+  let onPlane = camB + dB * tP;
+  // (only where the plane and the skin are as good as one: a ray grazing the plane — the dome's rim — keeps the skin's)
+  let near = (1.0 - ss(0.003, 0.012, L.scale)) * step(length(lp - HU.focus.xyz), 0.03) * (1.0 - ss(0.001, 0.004, length(onPlane - lp)));
+  let hp = mix(lp, onPlane, near);
   let fpx = max(length(fwidth(vec2f(atan2(hp.x, hp.z) * 0.1, hp.y))), 1e-10);
   let faceZone = faceZoneOf(hp);
   var N = normalize(in.nrm);
