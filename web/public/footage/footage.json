@@ -1,5 +1,20 @@
 [
  {
+  "id": "trailer",
+  "title": "Trailer",
+  "sub": "Universe in twenty-five seconds, cut from the journey: out of the grass over Boulder, past the Earth and the Milky Way into the cosmic web, then back down into Lyra's eye, through her iris, to the DNA in one of her cells.",
+  "date": "2026-11-02",
+  "created": "2026-11-02T00:09-07:00",
+  "seconds": 26,
+  "width": 1920,
+  "height": 1080,
+  "mb": 87.3,
+  "video": "https://footage.ericrius1.workers.dev/universe/707385abf888bd43/universe-trailer-2026-11-02.mp4",
+  "small": "https://footage.ericrius1.workers.dev/universe/adbcc0546ed4167f/universe-trailer-2026-11-02-720p.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/universe/60d439fb3c7a8ed3/trailer-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/universe/5b311e95da5ccd62/trailer-card.jpg"
+ },
+ {
   "id": "the-journey",
   "title": "The journey",
   "sub": "From Lyra lying in the grass at Chautauqua in Boulder out past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down into her eye, through its iris and the cornea's living cells into one of them, to the DNA wound on its nucleosomes, and out again: thirty-five powers of ten in one take.",
