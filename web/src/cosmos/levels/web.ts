@@ -26,8 +26,10 @@ export class Web {
     this.tier(r, 30, 70, 520, 150000, 0.022);
     this.localGroup();
     // the edge first (behind everything), the web seen whole, then the galaxies
-    R.scene.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: this.vol.on });
-    R.scene.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: this.vol.on });
+    R.volume('web.vol', () => this.vol.on(), (p) => {
+      p.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: () => this.vol.on() });
+      p.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: () => this.vol.on() });
+    });
     drawPoints(kit, R, this.lv, this.pts, 'web', () => this.lv.on() && this.ptsOn > 0);
   }
 

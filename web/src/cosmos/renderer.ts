@@ -9,6 +9,7 @@ import type { Kit, RenderPass, Texture, UniformBuffer, RunEntry } from '@ericriu
 import { quat, vec3, type Quat, type Vec3 } from 'math';
 import common from './shaders/cosmos.wgsl';
 import post from './shaders/c_post.wgsl';
+import volShader from './shaders/c_vol.wgsl';
 import type { Frame, Ladder } from './frames';
 import type { CosmosControls } from './controls';
 
@@ -59,8 +60,12 @@ export class CosmosRenderer {
   /** the dome's sweet spot's elevation (rad), when drawing a dome */
   elevation: number;
 
-  constructor(readonly kit: Kit, readonly ladder: Ladder, readonly dome: DomeOptions | null = null) {
+  /** the resolution the volumes march at (volume()), a fraction of the frame's */
+  readonly volumeScale: number;
+
+  constructor(readonly kit: Kit, readonly ladder: Ladder, readonly dome: DomeOptions | null = null, volumeScale = 1) {
     const k = kit;
+    this.volumeScale = dome ? 1 : volumeScale;
     const N = dome?.size ?? 0;
     this.elevation = dome?.elevation ?? (35 * Math.PI) / 180;
     this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: dome ? [N, N] : 'render' });
@@ -104,6 +109,19 @@ export class CosmosRenderer {
     };
     this.levels.push(lv);
     return lv;
+  }
+
+  /** a march that costs a lot per pixel (a volume, a shell) and has no fine edge to it: drawn into the scene where it
+   *  comes, or below full resolution into a target of its own (cleared, before the scene) that's laid into the scene
+   *  there, upsampled. Its draws blend premultiplied, as the scene's do, so the two come to the same */
+  volume(label: string, enabled: () => boolean, draw: (into: RenderPass) => void) {
+    if (this.volumeScale >= 1) { draw(this.scene); return; }
+    const k = this.kit;
+    const tex = k.texture({ label: `cosmos.${label}`, format: 'rgba16float', size: 'render', scale: this.volumeScale });
+    const p = k.pass({ label: `cosmos.${label}`, color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled });
+    draw(p);
+    this.before.push(p);
+    this.scene.fullscreen(volShader, { label: `cosmos.${label}.up`, fragment: 'fs', blend: 'premultiplied', bind: { volTex: tex }, enabled });
   }
 
   /** every level's view for this frame (the camera's, from the controls, in each level's own units) */

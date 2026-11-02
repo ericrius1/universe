@@ -35,6 +35,9 @@ export interface CosmosOptions {
   data?: string | ((file: string) => string);
   /** the mesh of whoever lies in the meadow, Boulder's DNC1 file (default ./data/figure/<theirs>, figure/cast.ts) */
   figure?: string;
+  /** the resolution the volumes (the cosmic web, the microwave background, the Milky Way) march at, a fraction of the
+   *  frame's: below 1 for a phone (default 1; a dome always 1) */
+  volumeScale?: number;
 }
 export type { DomeOptions };
 
@@ -56,7 +59,7 @@ export class Cosmos {
   constructor(readonly kit: Kit, o: CosmosOptions = {}) {
     this.ladder = new Ladder(o.time ?? moment());
     this.controls = new CosmosControls(kit.canvas, this.ladder, o.input ?? true);
-    this.r = new CosmosRenderer(kit, this.ladder, o.dome ?? null);
+    this.r = new CosmosRenderer(kit, this.ladder, o.dome ?? null, o.volumeScale ?? 1);
     this.web = new Web(kit, this.r, this.ladder);
     this.galaxy = new Galaxy(kit, this.r, this.ladder);
     this.local = new Local(kit, this.r, this.ladder);

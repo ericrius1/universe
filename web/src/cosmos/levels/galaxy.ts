@@ -21,7 +21,8 @@ export class Galaxy {
     // (the stars are a second view of the same frame, with their own gains)
     this.stars = R.level('galaxy.stars', ladder.galaxy, [23.0, 22.2, -99, -100]);
     this.populate();
-    R.scene.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L }, blend: 'premultiplied', enabled: () => this.lv.on() && this.sky > 0.01 });
+    const on = () => this.lv.on() && this.sky > 0.01;
+    R.volume('galaxy', on, (p) => p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L }, blend: 'premultiplied', enabled: on }));
     drawPoints(kit, R, this.stars, this.pts, 'galaxy.stars', () => this.stars.on() && this.sky > 0.01);
   }
 

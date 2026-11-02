@@ -1,8 +1,9 @@
 // The meadow outside Boulder (metres) and Eli lying in it, looking up (figure/figure.ts), down to their eye and the
 // cornea's cells: lit by the Sun where it really is over Boulder now (frames.ts sunGround). Night falls on them as it
 // falls there; the stars show through the ground's sky by night, and the levels above are told how much (`night`).
-import { Ref, type Kit, type UniformBuffer } from '@ericrius1/weft';
+import { Ref, type Kit, type Texture, type UniformBuffer } from '@ericrius1/weft';
 import ground from '../shaders/c_ground.wgsl';
+import pressShader from '../shaders/c_press.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { EARTH_R, type Ladder } from '../frames';
 import { Figure } from '../figure/figure';
@@ -25,12 +26,16 @@ export class Surface {
     this.figure = new Figure(kit, this.ground, R.dome, figureUrl);
     R.before.push(this.figure.pass);
     this.G = kit.uniforms(ground.structs.GroundU, 'ground.u');
+    // the grass they press flat, worked out once (shaders/figpress.wgsl)
+    const press: Texture = kit.texture({ label: 'ground.press', format: 'rgba16float', size: [256, 128], usage: ['sample', 'storage'] });
+    let pressed = false;
+    R.before.push(kit.compute(pressShader, { label: 'ground.press', entry: 'press', threads: [256, 128], bind: { outTex: press }, enabled: () => !pressed && (pressed = true) }));
     const fig = this.figure;
     R.scene.fullscreen(ground, {
       label: 'ground', fragment: 'fs', blend: 'premultiplied', enabled: () => this.ground.on() && data.ready,
       bind: {
         L: this.ground.L, G: this.G, nearH: new Ref(() => data.nearH), nearC: new Ref(() => data.nearC), farH: new Ref(() => data.farH),
-        farC: new Ref(() => data.farC), figCol: fig.col, figDist: fig.dist, ...air.bind(this.ground),
+        farC: new Ref(() => data.farC), figCol: fig.col, figDist: fig.dist, pressTex: press, ...air.bind(this.ground),
       } as never,
     });
   }

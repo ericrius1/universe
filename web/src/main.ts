@@ -12,6 +12,7 @@ import { Field } from './world/field';
 import { Walkers } from './world/walkers';
 import { Renderer } from './engine/renderer';
 import { Controls, type Pick } from './engine/camera';
+import { FramePace } from './engine/pace';
 import { Hud } from './ui/hud';
 import { controls as interfaceToggle } from './ui/controls';
 import { buildPlaces, type Place } from './ui/places';
@@ -44,7 +45,8 @@ const frame = () => new Promise((res) => requestAnimationFrame(res));
 async function boot() {
   const canvas = $('c') as HTMLCanvasElement;
   status('waking the GPU…', 0.05);
-  const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900);
+  // (?phone: a phone's settings anywhere)
+  const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900) || params.has('phone');
   const kit = await createKit(canvas, { maxPixelRatio: mobile ? 2 : 1.5, renderScale: mobile ? 0.7 : 1 });
   const quality = Number(params.get('q') ?? (mobile ? 0.5 : 1));
 
@@ -69,7 +71,8 @@ async function boot() {
   const dome = params.has('dome');
   if (dome) Object.assign(canvas.style, { width: '100vmin', height: '100vmin', left: 'calc(50vw - 50vmin)', top: 'calc(50vh - 50vmin)', position: 'fixed' });
   const time = params.has('now') ? Date.now() : moment(Number(params.get('utc') ?? 17.5));
-  const cosmos = new Cosmos(kit, { time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined });
+  // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
+  const cosmos = new Cosmos(kit, { time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1 });
   status('compiling shaders…', 0.7);
   const t0 = performance.now();
   const ready = await kit.ready();
@@ -78,9 +81,14 @@ async function boot() {
 
   const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
   const capture = new Capture(kit);
-  // hold the frame rate on smaller GPUs by trading resolution (GPU timestamps; inactive where there are none)
-  if (!params.has('film') && !params.has('noautores')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
-  kit.loop(({ dt }) => app.frame(dt));
+  // hold the frame rate on smaller GPUs by trading resolution: by the GPU's timestamps where it has them, by the
+  // frames' intervals where it hasn't (a phone's Safari; ?pace for the latter anywhere)
+  let pace: FramePace | null = null;
+  if (!params.has('film') && !params.has('noautores')) {
+    if (kit.profiler.available && !params.has('pace')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
+    else pace = new FramePace({ min: mobile ? 0.4 : 0.5, max: mobile ? 0.8 : 1 });
+  }
+  kit.loop(({ dt }) => { pace?.update(kit); app.frame(dt); });
   if (params.has('film')) {
     // films step their own frames: no live loop, no visitor at the controls
     kit.manual = true;

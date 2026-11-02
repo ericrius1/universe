@@ -7,7 +7,7 @@
 // L.a: exposure, -, night (0..1), grass detail (0..1).
 #include "cosmos.wgsl"
 #include "air.wgsl"
-#include "figproxy.wgsl"
+#include "figpress.wgsl"
 #include "weft/fullscreen"
 
 struct GroundU {
@@ -22,6 +22,7 @@ struct GroundU {
 @group(2) @binding(5) var<uniform> G: GroundU;
 @group(2) @binding(6) var figCol: texture_2d<f32>;
 @group(2) @binding(7) var figDist: texture_2d<f32>;
+@group(2) @binding(8) var pressTex: texture_2d<f32>;
 
 fn srgbIn(c: vec3f) -> vec3f { return select(pow((c + 0.055) / 1.055, vec3f(2.4)), c / 12.92, c <= vec3f(0.04045)); }
 fn winUv(xz: vec2f, half: f32) -> vec2f { return clamp((xz + half) / (2.0 * half), vec2f(0.0), vec2f(1.0)); }
@@ -49,18 +50,24 @@ fn terrain(x: f32, z: f32, lod: f32) -> f32 {
 const GH = 0.11;
 // a blade near (x, z) at height y: distance to it, and its tint
 fn blade(p: vec3f) -> vec2f {
-  let cs = 0.011;
+  let cs = GRASS_CS;
   let c = floor(p.xz / cs);
   var best = 1.0; var tint = 0.0;
   for (var j = -1; j <= 1; j++) {
     for (var i = -1; i <= 1; i++) {
       let g = c + vec2f(f32(i), f32(j));
       let h = hash3i(vec3i(i32(g.x), i32(g.y), 31));
+      // (above it even standing: pressing only lowers it)
+      let stand = GH * (0.45 + 0.55 * h.z);
+      if (p.y > stand) { continue; }
       // (flattened under them and round their edge)
       let bp = vec3f((g.x + 0.5) * cs, 0.0, (g.y + 0.5) * cs);
       var press = 1.0;
-      if (all(bp.xz > FIG_LO.xz - 0.06) && all(bp.xz < FIG_HI.xz + 0.06)) { press = ss(0.0, 0.05, figPrint(bp.xz)); }
-      let hgt = GH * (0.45 + 0.55 * h.z) * mix(0.15, 1.0, press);
+      if (all(bp.xz > FIG_LO.xz - PRESS_PAD) && all(bp.xz < FIG_HI.xz + PRESS_PAD)) {
+        let k = vec2i(g) - PRESS_G0;
+        if (all(k >= vec2i(0)) && all(k < PRESS_N)) { press = textureLoad(pressTex, k, 0).r; } else { press = pressOf(g); }
+      }
+      let hgt = stand * mix(0.15, 1.0, press);
       let u = p.y / hgt;
       if (u > 1.0) { continue; }
       // bent by its lean and the wind, more toward the tip
