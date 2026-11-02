@@ -1,4 +1,5 @@
-// Cell: a human cell from the outside in, eight orders of magnitude, in one continuous world measured in nanometres.
+// Universe: one continuous zoom from the edge of the observable universe to a single molecule. Above the cell the
+// cosmos draws (cosmos/); from the skin down, a human cell from the outside in, one world measured in nanometres.
 // Boot: the GPU, the world (layout.ts), its systems (organelles, filaments, molecules, walkers), the camera, the
 // interface; then every frame the globals (scale, cut, haze), the molecular field, the run, and a read of what's under
 // the cursor.
@@ -29,10 +30,10 @@ import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
 import { COSMOS_PLACES, type CosmosPlace } from './cosmos/places';
-import { INTRO } from './ui/intro';
+import { SIZE } from './ui/intro';
 
 // the places above the cell, as the dock and the intros know places
-for (const p of COSMOS_PLACES) INTRO[p.id] = { size: p.size, tips: p.tips };
+for (const p of COSMOS_PLACES) SIZE[p.id] = p.size;
 const asPlace = (p: CosmosPlace): Place => ({ id: p.id, name: p.name, scale: 0, at: [0, 0, 0], yaw: p.yaw, pitch: p.pitch, line: p.line, art: '' });
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -191,11 +192,15 @@ export class App {
     this.intro = new Intro(ui);
     // flying: on a touch screen the on-screen stick (and no pointer lock), with a mouse the lock
     this.flyUi = new FlyUi(ui, controls, matchMedia('(pointer: coarse)').matches || params.has('touch'));
-    this.tour = new Tour(controls, this.places, (s) => {
+    this.tour = new Tour({
+      fly: (id, done) => this.tourFly(id, done),
+      orbit: (a) => (this.realm === 'cosmos' ? cosmos.controls : controls).orbit(a, 0),
+      cancel: () => { controls.cancelFlight(); cosmos.controls.cancelFlight(); },
+    }, (s) => {
       this.hud.setCaption(s ? s.caption : '');
       this.hud.setActive('tour', !!s);
       if (s?.cut) this.cutTarget = 1;
-    }, (s) => this.fit(s));
+    });
     this.wire();
     this.hud.setActive('cut', true);
     // browsers only start audio from a gesture
@@ -224,12 +229,12 @@ export class App {
     this.setRealm('cell');
     this.sound('arrive');
   }
-  /** out of the tissue: the cosmos's camera where the cell's was */
-  leaveCell() {
+  /** out of the tissue: the cosmos's camera where the cell's was (`tour`: the tour's own way out, which goes on) */
+  leaveCell(tour = false) {
     if (this.realm === 'cosmos' || this.game) return;
     const c = this.controls;
     this.setFly(false);
-    this.tour.stop();
+    if (!tour) this.tour.stop();
     this.intro.hide(true);
     // (exactly where the cell's was: the tissue's sheet is the same in both, cell for cell)
     this.cosmos.controls.set(Math.max(this.cosmos.controls.min + 0.005, Math.log10(c.scale * NM)), c.yaw, c.pitch);
@@ -246,7 +251,7 @@ export class App {
       if (!p || Math.hypot(p.x - x, p.y - y) > 30) return null;
       return p;
     };
-    c.onUser = () => { if (this.tour.active) this.tour.stop(); };
+    c.onUser = this.cosmos.controls.onUser = () => { if (this.tour.active) this.tour.stop(); };
     c.onClick = (_x, _y, p) => {
       if (this.game) return;
       const card = p ? this.card(p.id) : null;
@@ -270,11 +275,6 @@ export class App {
     hud.onPlace = (id) => this.goTo(id);
     hud.onPlay = (id) => this.startGame(id);
     hud.onButton = (id) => this.button(id);
-    this.intro.onAct = (a) => {
-      if (a.startsWith('play:')) this.startGame(a.slice(5));
-      else if (a.startsWith('place:')) this.goTo(a.slice(6));
-      else this.button(a);
-    };
     c.onFly = (on) => {
       document.body.classList.toggle('flying', on);
       hud.setActive('fly', on);
@@ -323,6 +323,7 @@ export class App {
   }
 
   goTo(id: string) {
+    this.tour.stop();
     if (id.startsWith('u:')) { this.goToCosmos(id); return; }
     const p = this.places.get(id);
     if (!p) return;
@@ -334,7 +335,6 @@ export class App {
       return;
     }
     this.setFly(false);
-    this.tour.stop();
     this.hud.showCard(null);
     if (id === 'cell') this.cutTarget = 1;
     this.controls.flyTo(p.at, this.fit(p.scale), { yaw: p.yaw, pitch: p.pitch, done: () => this.sound('arrive') });
@@ -357,6 +357,22 @@ export class App {
     this.sound('fly');
   }
 
+  /** the tour's legs: to a place above the cell or in it, the camera handed over on the way (out of the cell by the
+   * tissue's widest view, where the cosmos's camera takes over; into it by the skin, as goTo goes) */
+  private tourFly(id: string, done: () => void) {
+    const cc = this.cosmos.controls, up = COSMOS_PLACES.find((q) => q.id === id);
+    if (up) {
+      const fly = () => cc.flyTo(up.logS, { pitch: up.pitch, done });
+      if (this.realm === 'cell') this.controls.flyTo(this.places.get('tissue')!.at, Math.pow(10, cc.min) / NM, { speed: 0.85, done: () => { this.leaveCell(true); fly(); } });
+      else fly();
+      return;
+    }
+    const p = this.places.get(id)!;
+    const fly = () => this.controls.flyTo(p.at, this.fit(p.scale), { yaw: p.yaw, pitch: p.pitch, speed: 0.85, done });
+    if (this.realm === 'cosmos') cc.flyTo(cc.min, { done: () => { this.enterCell(); fly(); } });
+    else fly();
+  }
+
   /** whether the view is still at a place: about as close, and looking round somewhere near it */
   private near(p: Place) {
     const S = this.controls.scale, s = this.fit(p.scale);
@@ -368,7 +384,7 @@ export class App {
     this.sound('click');
     if (id === 'fly') { this.setFly(!this.controls.fly); return; }
     if (id === 'tour' || id === 'play' || id === 'help') this.setFly(false);
-    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else { hud.showCard(null); this.intro.hide(true); this.at = null; this.tour.start(); } }
+    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else { hud.showCard(null); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
     else if (id === 'cut') { this.cutTarget = this.cutTarget > 0.5 ? 0 : 1; hud.toast(this.cutTarget ? 'Cutaway: the cell opened' : 'Cutaway closed'); }
     else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Fluorescence microscope: DAPI, MitoTracker, tubulin, phalloidin' : 'Back to colour'); }
     else if (id === 'help') hud.toggleHelp();
@@ -453,6 +469,7 @@ export class App {
 
   frame(dt: number) {
     this.journey?.(dt);
+    this.tour.update(dt);
     // the cross-fade between the cosmos and the cell: each draws while it shows
     const want = this.realm === 'cosmos' ? 1 : 0;
     this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
@@ -486,7 +503,6 @@ export class App {
     // the floating origin for this frame: where the camera looked last (everything the GPU gets is relative to it;
     // ?noorigin keeps it at the world's origin, the old float32 trouble, for comparison)
     if (!NO_ORIGIN) setOrigin(c.pivot);
-    this.tour.update(dt);
     this.director?.(dt);
     if (this.game) this.game.update(dt);
     c.update(dt, kit.camera);

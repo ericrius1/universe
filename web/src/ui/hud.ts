@@ -80,7 +80,7 @@ export class Hud {
 
   constructor(parent: HTMLElement, places: Place[], base: string) {
     this.root = parent;
-    const brand = h('div', 'brand', '<div class="brand-name">Cell</div>');
+    const brand = h('div', 'brand', '<div class="brand-name">Universe</div>');
     brand.append(this.crumbs);
     home({ mount: brand, before: brand.firstElementChild, mark: true });
     const top = h('div', 'topbar');
@@ -91,7 +91,7 @@ export class Hud {
       this.buttons[id] = b;
       top.append(b);
     };
-    btn('tour', '<b>▶</b> Tour', 'A guided journey from tissue to atoms (T)');
+    btn('tour', '<b>▶</b> Tour', 'A guided journey from the edge of the universe to the DNA in one cell (T)');
     btn('fly', '<b>✈&#xFE0E;</b> Fly', 'Fly through it yourself, first person (F)');
     btn('play', '✦ Play', 'Become part of the cell (P)');
     btn('cut', '◐ Cutaway', 'Open or close the cell (C)');
@@ -121,17 +121,17 @@ export class Hud {
     }
     this.help.innerHTML = `
       <div class="help-in">
-        <h2>Moving through the cell</h2>
+        <h2>Moving through the universe</h2>
         <div class="help-grid">
-          <div><b>Zoom</b><span>scroll, pinch, or + / −. You zoom toward what's under the cursor — keep going and you pass through membranes.</span></div>
+          <div><b>Zoom</b><span>scroll, pinch, or + / −. You zoom toward what's under the cursor: keep going, from the edge of the universe down past the Earth, into an eye, and through a cell's membranes to its molecules.</span></div>
           <div><b>Look round</b><span>drag (it turns round whatever you grabbed). Right-drag or two fingers to pan.</span></div>
           <div><b>Go to</b><span>double-click anything, or pick a place below.</span></div>
           <div><b>Fly</b><span>F (or ✈&#xFE0E; Fly) for first person: the mouse looks, W A S D and Q / E fly, Shift is faster, scroll sets the speed, Esc lands. On a phone your left thumb flies and a drag looks. The speed follows the scale.</span></div>
           <div><b>Learn</b><span>hover anything for its name, click for its story. Every protein is a real structure from the Protein Data Bank.</span></div>
           <div><b>Time</b><span>biology is too fast to see up close, so time slows as you zoom in: about 100× slower among the molecules.</span></div>
         </div>
-        <p class="help-foot">Structures: RCSB PDB (1KX5, 4UG0, 6ZPO, 5FLM, 1JFF, …). Rendered live on your GPU with WebGPU.
-          <a href="${base}film/cell-trailer.mp4" target="_blank" rel="noopener">Watch the one-minute film ↗</a></p>
+        <p class="help-foot">The planets and the Moon are where they are today. Structures: RCSB PDB (1KX5, 4UG0, 6ZPO, 5FLM, 1JFF, …). Rendered live on your GPU with WebGPU.
+          <a href="${base}footage/" target="_blank" rel="noopener">Watch the two-minute film ↗</a></p>
         <button class="btn help-close">Close</button>
       </div>`;
     this.help.addEventListener('click', () => this.toggleHelp(false));
