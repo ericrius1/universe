@@ -41,13 +41,18 @@ fn terrain(x: f32, z: f32, lod: f32) -> f32 {
   // the meadow levelled where they lie, its own small swells close by (finer than the data's 16 m)
   let r = length(xz);
   h *= ss(3.0, 40.0, r);
-  if (r < 300.0 && lod < 3.0) { h += fbm(vec3f(x, 0.0, z) / 9.0, 3) * 0.35 * ss(300.0, 60.0, r) * ss(1.5, 8.0, r); }
+  // (faded out as it falls under a pixel, never popped in: a hard reach would have it rise as the view came in)
+  let rk = ss(3.5, 2.0, lod) * ss(300.0, 60.0, r) * ss(1.5, 8.0, r);
+  if (rk > 0.0) { h += fbm(vec3f(x, 0.0, z) / 9.0, 3) * 0.35 * rk; }
   // the Earth curves away
   return h - (x * x + z * z) / (2.0 * G.spot.y);
 }
 
 // ---------------------------------------------------------------- grass
 const GH = 0.11;
+// (the blades' colour scaled so that, with the soil between them, they average to the land's own colour: the hand-over
+// as they grow finer than a pixel can't be seen)
+const BLADE_GAIN = vec3f(0.56, 0.66, 0.7);
 // a blade near (x, z) at height y: distance to it, and its tint
 fn blade(p: vec3f) -> vec2f {
   let cs = GRASS_CS;
@@ -91,9 +96,20 @@ fn meadow(p: vec3f, dist: f32) -> vec3f {
   let q = vec3f(p.x, 0.0, p.z);
   let patchy = fbm(q / 18.0, 4) * 0.5 + 0.5;
   var c = mix(vec3f(0.09, 0.12, 0.04), vec3f(0.28, 0.25, 0.1), ss(0.35, 0.75, patchy));
-  c *= 0.8 + 0.4 * fbm(q * 3.0, 3) * ss(60.0, 5.0, dist);
+  // (its tufts and patches, each scale there once a pixel is small enough to hold it — by the footprint, so nothing
+  // swims as the view comes in, and the detail runs on down without a gap from the photo's 8 m to the blades)
+  let fp = dist * L.pxAngle;
+  c *= 1.0 + 0.22 * fbm(q * 0.55, 3) * ss(3.0, 0.6, fp);
+  c *= 0.8 + 0.4 * fbm(q * 3.0, 3) * ss(0.5, 0.1, fp);
+  let tuft = fbm(q * 13.0 + 7.0, 2);
+  c *= 1.0 + 0.3 * tuft * ss(0.12, 0.025, fp);
+  // (dry stems among the green, as the blades' straw tips)
+  c = mix(c, c * vec3f(1.3, 1.15, 0.85), ss(0.25, 0.6, tuft) * 0.4 * ss(0.12, 0.025, fp));
   return c;
 }
+
+// how much of the blades shows at a distance (0: finer than a pixel, the land's own colour their average)
+fn bladesShow(t: f32) -> f32 { return L.a.w * (1.0 - ss(0.0025, 0.009, t * L.pxAngle)); }
 
 // the pictures as the planet grades them (c_earth.wgsl regionAlbedo: the hand-over between them can't be seen)
 fn regionAlbedo(c: vec3f) -> vec3f {
@@ -167,13 +183,24 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     // (no further than a blade or the hand already found nearer)
     let tStop = min(tMax, min(tGrass, tHand));
     var ran = true;
+    var tLast = 0.0;
     for (var i = 0; i < 160; i++) {
       let p = ro + rd * t;
       let lod = log2(max(t, 1.0) / 400.0);
       let h = terrain(p.x, p.z, lod);
       let dy = p.y - h;
-      if (dy < max(0.002, t * 0.0008)) { tLand = t; ran = false; break; }
-      t += max(dy * 0.5, 0.02 + t * 0.012);
+      if (dy < max(0.002, t * 0.0008)) {
+        // (halved back to where it crossed: the step that found it can overshoot by a percent of the distance, and the
+        // hills' edges would shift with the view)
+        var a = max(t - tLast, 0.0); var b = t;
+        for (var k = 0; k < 6; k++) {
+          let m = 0.5 * (a + b); let q = ro + rd * m;
+          if (q.y - terrain(q.x, q.z, log2(max(m, 1.0) / 400.0)) < 0.0) { b = m; } else { a = m; }
+        }
+        tLand = 0.5 * (a + b); ran = false; break;
+      }
+      tLast = max(dy * 0.5, 0.02 + t * 0.012);
+      t += tLast;
       if (t > tStop || (rd.y > 0.0 && p.y > 5000.0)) { ran = false; break; }
     }
     // (a ray that grazed the land all the way, out of steps still just above it, has met it: not the sky)
@@ -189,16 +216,20 @@ struct Hit { t: f32, kind: i32, tint: f32 }
     let p = ro + rd * tSurf;
     var n: vec3f; var alb: vec3f; var sss = 0.0;
     if (tSurf == tGrass) {
+      // a blade, as far as it can still be told from its neighbours; past that the land's own colour (their average)
       let u = clamp(p.y / GH, 0.0, 1.0);
-      n = normalize(vec3f(-rd.x, 0.6, -rd.z));
-      alb = grassColor(gTint, u) * (0.8 + 0.5 * meadow(p, tSurf).g * 3.0);
-      sss = 0.6;
+      let w = bladesShow(tSurf);
+      let up = normalize(vec3f(-rd.x, 0.6, -rd.z));
+      let ln = terrainNormal(p.x, p.z, max(0.05, tSurf * 0.002), log2(max(tSurf, 1.0) / 400.0));
+      n = normalize(mix(ln, up, w));
+      alb = mix(landColor(p, ln, tSurf, tSurf * L.pxAngle), grassColor(gTint, u) * (0.8 + 0.5 * meadow(p, tSurf).g * 3.0) * BLADE_GAIN, w);
+      sss = 0.6 * w;
     } else {
       let lod = log2(max(tSurf, 1.0) / 400.0);
       n = terrainNormal(p.x, p.z, max(0.05, tSurf * 0.002), lod);
       alb = landColor(p, n, tSurf, tSurf * L.pxAngle / max(dot(n, -rd), 0.15));
-      // near: soil and old stems under the blades
-      alb = mix(alb, vec3f(0.06, 0.05, 0.03), L.a.w * ss(3.0, 0.5, tSurf) * 0.6);
+      // (between the blades where they show: soil and old stems)
+      alb = mix(alb, vec3f(0.03, 0.036, 0.022), bladesShow(tSurf) * 0.7);
     }
     let lam = dot(n, sun);
     var diff = max(lam, 0.0);
