@@ -1,7 +1,8 @@
 // The interface over the world: where you are (breadcrumb), how big things are (the powers-of-ten ladder, a scale bar,
 // how much time has slowed), what's under the cursor (a tag) and what you chose (a card), the places to fly to, the
-// buttons (tour, fly, play, cutaway, microscope, sound, help) and the tour's captions. Plain DOM, written only when a
-// value changes.
+// buttons (tour, fly, play, cutaway, microscope, sound, help), the tour's captions, and the way back to ericlevin.dev
+// (home.ts, its mark before the name). Plain DOM, written only when a value changes.
+import { home } from './home';
 import type { Card } from './info';
 import type { Place } from './places';
 
@@ -81,6 +82,7 @@ export class Hud {
     this.root = parent;
     const brand = h('div', 'brand', '<div class="brand-name">Cell</div>');
     brand.append(this.crumbs);
+    home({ mount: brand, before: brand.firstElementChild, mark: true });
     const top = h('div', 'topbar');
     const btn = (id: string, label: string, title: string) => {
       const b = h('button', 'btn', label) as HTMLButtonElement;
