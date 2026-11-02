@@ -24,6 +24,8 @@ interface Flight {
 }
 
 const RHO = 1.42;
+/** a zoom's anchor no further than this many scales from the eye (zoomAt) */
+const ANCHOR_REACH = 3;
 const _controls_d = vec3.create();
 const _controls_m = vec3.create();
 const _controls_eye = vec3.create();
@@ -429,7 +431,17 @@ export class Controls {
       }
     }
     this.anchored = !!p;
-    if (p) vec3.copy(this.zoomAnchor, p.world);
+    if (p) {
+      // (the zoom keeps the anchor where it is on the screen by scaling the view about it, so the eye moves a share of
+      // its distance to it each step. Among molecules the pick can find something far past the one you're looking at,
+      // through a gap, hundreds of scales off: then each step would throw the eye forward many times its own view, and
+      // the next pick, near again, stop it — a judder. So an anchor further than a few scales is taken on the same
+      // ray, a few scales out: the same point stays under the cursor, the eye moves as the view does)
+      vec3.subtract(_controls_d, p.world, this.position);
+      const d = vec3.length(_controls_d), reach = this.scale * ANCHOR_REACH;
+      if (d > reach) vec3.scaleAndAdd(this.zoomAnchor, this.position, _controls_d, reach / d);
+      else vec3.copy(this.zoomAnchor, p.world);
+    }
     this.zoomTarget = Math.max(Math.log(this.minScale), Math.min(Math.log(this.maxScale), this.zoomTarget + amount));
   }
 
