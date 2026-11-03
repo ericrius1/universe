@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import { weft, filmSink } from '@ericrius1/weft/vite';
 import { resolve } from 'node:path';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import type { Plugin } from 'vite';
 
 // weft comes from npm (@ericrius1/weft). WEFT_LOCAL=1 compiles it from its source checkout instead (../../weft, a
 // sibling repo), so a change to the kit hot-reloads here like the app's own code while it's being worked on; publish
@@ -13,9 +15,28 @@ const HAVENS = process.env.HAVENS_LOCAL ? resolve(__dirname, '../../sevenhavens/
 
 // (built for ericlevin.dev/cell/: BASE=/cell/ npm run build. Films (?film=<name>, src/film.ts) post their frames to
 // the server, into ../film/<name>)
+// dev only: a device's reports (?report: src/ui/report.ts), one JSON line each, into logs/report.jsonl
+function reportSink(): Plugin {
+  return {
+    name: 'universe-report', apply: 'serve',
+    configureServer(s) {
+      s.middlewares.use((req, res, next) => {
+        if (!req.url?.endsWith('/__report') || req.method !== 'POST') return next();
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          mkdirSync(resolve(__dirname, 'logs'), { recursive: true });
+          appendFileSync(resolve(__dirname, 'logs/report.jsonl'), Buffer.concat(chunks).toString().replace(/\n/g, ' ') + '\n');
+          res.end('ok');
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: process.env.BASE ?? '/',
-  plugins: [weft(), filmSink({ dir: resolve(__dirname, '../film') })],
+  plugins: [weft(), filmSink({ dir: resolve(__dirname, '../film') }), reportSink()],
   resolve: {
     alias: [
       { find: /^@havens\//, replacement: `${HAVENS}/` },
@@ -26,6 +47,6 @@ export default defineConfig({
     ],
   },
   build: { target: 'esnext', chunkSizeWarningLimit: 4000 },
-  server: { host: '127.0.0.1', port: 5750, strictPort: true, allowedHosts: ['portal-windows.tail4a295a.ts.net'], fs: { allow: [__dirname, ...(local ? [WEFT] : []), ...(process.env.HAVENS_LOCAL ? [HAVENS] : [])] } },
+  server: { host: '127.0.0.1', port: 5750, strictPort: true, allowedHosts: ['portal-windows.tail4a295a.ts.net', '.ngrok-free.app', '.ngrok.app'], fs: { allow: [__dirname, ...(local ? [WEFT] : []), ...(process.env.HAVENS_LOCAL ? [HAVENS] : [])] } },
   preview: { allowedHosts: ['portal-windows.tail4a295a.ts.net'] },
 });

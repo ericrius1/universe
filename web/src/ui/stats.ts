@@ -11,7 +11,13 @@ const BYTES: Record<string, number> = {
 };
 const texelBytes = (f: string) => BYTES[f] ?? 4;
 
-export const gpuMemory = { bytes: 0, textures: 0, buffers: 0 };
+/** what's held, and by label (the biggest holders: `[...gpuMemory.by].sort((a, b) => b[1] - a[1])`) */
+export const gpuMemory = { bytes: 0, textures: 0, buffers: 0, by: new Map<string, number>() };
+const hold = (label: string | undefined, bytes: number) => {
+  const k = label || '?';
+  gpuMemory.bytes += bytes;
+  gpuMemory.by.set(k, (gpuMemory.by.get(k) ?? 0) + bytes);
+};
 
 /** count every texture and buffer the app makes (call before the device exists) */
 export function trackGpuMemory() {
@@ -24,18 +30,18 @@ export function trackGpuMemory() {
     const [w, h, l] = Array.isArray(s) ? [s[0], s[1] ?? 1, s[2] ?? 1] : [s.width, s.height ?? 1, s.depthOrArrayLayers ?? 1];
     const mips = (d.mipLevelCount ?? 1) > 1 ? 1.334 : 1;
     const bytes = Math.round(w * h * l * texelBytes(d.format) * mips * (d.sampleCount ?? 1));
-    gpuMemory.bytes += bytes; gpuMemory.textures++;
+    hold(d.label, bytes); gpuMemory.textures++;
     const destroy = t.destroy.bind(t);
     let gone = false;
-    t.destroy = () => { if (!gone) { gone = true; gpuMemory.bytes -= bytes; gpuMemory.textures--; } destroy(); };
+    t.destroy = () => { if (!gone) { gone = true; hold(d.label, -bytes); gpuMemory.textures--; } destroy(); };
     return t;
   };
   P.createBuffer = function (this: GPUDevice, d: GPUBufferDescriptor) {
     const b = buf.call(this, d);
-    gpuMemory.bytes += d.size; gpuMemory.buffers++;
+    hold(d.label, d.size); gpuMemory.buffers++;
     const destroy = b.destroy.bind(b);
     let gone = false;
-    b.destroy = () => { if (!gone) { gone = true; gpuMemory.bytes -= d.size; gpuMemory.buffers--; } destroy(); };
+    b.destroy = () => { if (!gone) { gone = true; hold(d.label, -d.size); gpuMemory.buffers--; } destroy(); };
     return b;
   };
 }

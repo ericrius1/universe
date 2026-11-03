@@ -22,6 +22,7 @@ import { Tour } from './ui/tour';
 import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
 import { StatsBox, trackGpuMemory } from './ui/stats';
+import { startReport } from './ui/report';
 import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS } from './gardens';
 import { TOUR } from './ui/tour';
 import { GAMES, type Game, type GameCtx } from './play/game';
@@ -116,6 +117,10 @@ async function boot() {
     gpuMs: () => (kit.profiler.active ? kit.profiler.frameMs : 0), scale: () => kit.renderScale,
   }, () => !params.has('film') && !document.body.classList.contains('ui-off') && !document.body.classList.contains('nochrome'));
   let fpsT = 0, fpsN = 0;
+  // (a device's report back to the dev server, and the dive flown by itself: ui/report.ts)
+  // (and on a page come through a tunnel to the dev server — a phone's: its query lost on the tunnel's warning page)
+  const tunnel = import.meta.env.DEV && /ngrok/.test(location.host);
+  if (params.has('report') || params.has('auto') || tunnel) startReport(kit, app, params.has('auto') || tunnel);
   kit.loop(({ dt }) => {
     pace?.update(kit); app.frame(dt);
     stats.update(performance.now());

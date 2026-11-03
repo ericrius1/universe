@@ -21,7 +21,7 @@ export interface HeightLevel { half: number; px: number; cx: number; cz: number 
  *  plaza's ground), each level's heights handed back as they come for the CPU's copy */
 export interface HeightSource {
   readonly levels: HeightLevel[];
-  fill(heights: Texture, level: (i: number, h: Float32Array) => void): Promise<void>;
+  fill(heights: Texture, level: (i: number, h: Float32Array) => void | Promise<void>): Promise<void>;
 }
 
 /** a level's heights on the CPU, as the GPU's sampler reads them: 16 bits a texel between the level's lowest and highest
@@ -45,6 +45,23 @@ export class HeightGrid {
     for (const v of h) { if (v < lo) lo = v; if (v > hi) hi = v; }
     this.keep(lo, hi);
     for (let k = 0; k < h.length; k++) this.put(k, h[k]);
+  }
+  /** the same, a few milliseconds at a time (the page's frames between: the levels come in while it runs) */
+  async setSliced(h: Float32Array, budget = 6) {
+    let lo = Infinity, hi = -Infinity;
+    let t = performance.now();
+    const yieldIf = async () => { if (performance.now() - t > budget) { await new Promise((r) => setTimeout(r)); t = performance.now(); } };
+    for (let k0 = 0; k0 < h.length; k0 += 1 << 18) {
+      const k1 = Math.min(h.length, k0 + (1 << 18));
+      for (let k = k0; k < k1; k++) { const v = h[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+      await yieldIf();
+    }
+    this.keep(lo, hi);
+    for (let k0 = 0; k0 < h.length; k0 += 1 << 17) {
+      const k1 = Math.min(h.length, k0 + (1 << 17));
+      for (let k = k0; k < k1; k++) this.put(k, h[k]);
+      await yieldIf();
+    }
   }
   /** texel k's height */
   at(k: number) { return this.min + this.q[k] * this.step; }
@@ -126,7 +143,7 @@ export class Terrain {
 
   /** every level's heights from a source (the same levels' layout), on the GPU and the CPU */
   async load(source: HeightSource) {
-    await source.fill(this.heightTex, (i, h) => this.levels[i].set(h));
+    await source.fill(this.heightTex, (i, h) => this.levels[i].setSliced(h));
     this.changed();
   }
 

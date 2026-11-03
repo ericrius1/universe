@@ -4,7 +4,7 @@
 // each level straight into the terrain's r32float height array and an rgba8 material array (ground.wgsl's `info`,
 // INFO_STEP times coarser) and hand the heights back for the CPU's copy (walking, placing things, the quadtree's
 // bounds). The buffers it fills through are one level's worth, reused level by level.
-import { RawItem, type Compute, type Kit, type RunItem, type StorageBuffer, type Texture } from '@ericrius1/weft';
+import { RawItem, type Compute, type Kit, type RunItem, type StorageBuffer, type Texture, type UniformBuffer } from '@ericrius1/weft';
 import fillShader from './fill.wgsl';
 import { canyonHeight } from './canyon';
 import { INFO_STEP, LEVELS, texelCentre, texelOf, type HeightLevelSpec } from './levels';
@@ -28,6 +28,9 @@ export function fillRows(L: HeightLevelSpec, r0: number, rows: number, out: Floa
 
 /** the canyon on the CPU, texel by texel (~1.5 s per million texels on one core: tools, tests and small refills; a
  *  whole 3072² level takes ~14 s, so the game fills on the GPU) */
+/** the rows of a level filled a frame's turn at a time (fillAll): ~5 ms of the GPU's at 3072 px on an M-series Mac */
+const BAND_ROWS = 256;
+
 export const canyonCpu: HeightSource = {
   levels: LEVELS,
   fill(level, out) { fillRows(LEVELS[level], 0, LEVELS[level].px, out); },
@@ -40,6 +43,9 @@ export class CanyonGpu implements HeightSource {
   readonly hints: StorageBuffer;
   readonly info: StorageBuffer;
   private fills: Compute[] = [];
+  private us: UniformBuffer<any>[] = [];
+  /** the rows a fill dispatch covers (all of a level, but for fillAll's slices) */
+  private rows = Infinity;
   private infos: Compute[] = [];
 
   constructor(readonly kit: Kit, readonly levels: HeightLevelSpec[] = LEVELS, readonly infoStep = INFO_STEP) {
@@ -49,9 +55,10 @@ export class CanyonGpu implements HeightSource {
     this.info = kit.storage({ label: 'canyon.info', size: ipx * ipx * 4 });
     levels.forEach((L, i) => {
       const u = kit.uniforms(fillShader.structs.CanyonFill, `canyon.fill${i}`);
-      u.set({ centre: [L.cx, L.cz], half: L.half, texel: texelOf(L), px: L.px, infoStep });
+      u.set({ centre: [L.cx, L.cz], half: L.half, texel: texelOf(L), px: L.px, infoStep, row0: 0 });
+      this.us.push(u);
       this.fills.push(kit.compute(fillShader, {
-        label: `canyon.fill${i}`, entry: 'fill', threads: [L.px, L.px],
+        label: `canyon.fill${i}`, entry: 'fill', threads: () => [L.px, Math.min(this.rows, L.px)],
         bind: { canyonFill: u, canyonHeights: this.heights, canyonHints: this.hints },
       }));
       this.infos.push(kit.compute(fillShader, {
@@ -88,15 +95,26 @@ export class CanyonGpu implements HeightSource {
 
   /** fill every level into the textures (heights and material), handing each level's heights to `onLevel` as they come
    *  back for the CPU's copy; resolves with the milliseconds the GPU took */
-  async fillAll(heightTex: Texture, infoTex: Texture | undefined, onLevel: (level: number, heights: Float32Array) => void): Promise<number> {
+  async fillAll(heightTex: Texture, infoTex: Texture | undefined, onLevel: (level: number, heights: Float32Array) => void | Promise<void>): Promise<number> {
     await this.kit.ready();
     let ms = 0;
     for (let i = 0; i < this.levels.length; i++) {
       const L = this.levels[i], t0 = performance.now();
-      this.kit.run(this.items(i, heightTex, infoTex));
+      // (the level's heights a band of rows at a time, a frame's turn between: a whole level at once held the page's
+      // frames up by its GPU time, ~80 ms each)
+      this.rows = BAND_ROWS;
+      for (let row0 = 0; row0 < L.px; row0 += BAND_ROWS) {
+        this.us[i].set({ row0 });
+        this.kit.run([this.fills[i]]);
+        await this.kit.queue.onSubmittedWorkDone();
+        await new Promise((r) => setTimeout(r));
+      }
+      this.rows = Infinity;
+      this.us[i].set({ row0: 0 });
+      this.kit.run(this.items(i, heightTex, infoTex).slice(1));
       const heights = new Float32Array(await this.heights.read(0, L.px * L.px * 4));
       ms += performance.now() - t0;
-      onLevel(i, heights);
+      await onLevel(i, heights);
     }
     return ms;
   }

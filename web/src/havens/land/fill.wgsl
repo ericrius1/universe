@@ -12,6 +12,7 @@ struct CanyonFill {
   texel: f32,        // its texel (m): 2 * half / px
   px: u32,           // texels per side
   infoStep: u32,     // height texels per info texel (1: the same grid)
+  row0: u32,         // the first row this dispatch fills (a band of the level at a time: source.ts fillAll's slices)
 }
 @group(2) @binding(0) var<uniform> canyonFill: CanyonFill;
 @group(2) @binding(1) var<storage, read_write> canyonHeights: array<f32>;
@@ -30,10 +31,11 @@ fn fillPos(i: u32, j: u32) -> vec2f {
 // distance in centimetres (16, held at 655 m)
 @compute @workgroup_size(8, 8) fn fill(@builtin(global_invocation_id) id: vec3u) {
   let n = canyonFill.px;
-  if (id.x >= n || id.y >= n) { return; }
-  let p = fillPos(id.x, id.y);
+  let y = id.y + canyonFill.row0;
+  if (id.x >= n || y >= n) { return; }
+  let p = fillPos(id.x, y);
   let s = canyonSample(p.x, p.y, canyonFill.texel);
-  let k = id.y * n + id.x;
+  let k = y * n + id.x;
   canyonHeights[k] = s.h;
   canyonHints[k] = u32(s.kind + 1) | (u32(s.zone) << 4u) | (u32(round(clamp(s.along, 0.0, 1.0) * 255.0)) << 8u)
     | (u32(round(min(s.river, 655.0) * 100.0)) << 16u);

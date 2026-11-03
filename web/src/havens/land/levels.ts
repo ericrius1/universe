@@ -43,6 +43,17 @@ export const LEVELS: HeightLevelSpec[] = tier.phone ? [
   { half: 65536, px: LEVEL_PX, cx: 0, cz: 0 },
 ];
 
+/** the levels for a phone that only looks at the canyon (embed.ts: Universe's dive), never walks it: 1536 px, 0.5 m
+ *  over the whole promontory and its gardens (768 m square round the temple), 2 m over the bowl and the city, 8 m to
+ *  ±6 km, 32 m to ±25 km, 85 m to the horizon — 63 MB of heights, not 112 */
+export const VIEW_LEVELS: HeightLevelSpec[] = [
+  { half: 384, px: 1536, cx: 0, cz: -760 },
+  { half: 1536, px: 1536, cx: 0, cz: -300 },
+  { half: 6144, px: 1536, cx: 0, cz: 0 },
+  { half: 24576, px: 1536, cx: 0, cz: 0 },
+  { half: 65536, px: 1536, cx: 0, cz: 0 },
+];
+
 /** height texels per material texel (fill.wgsl `info`): 2, so the material grid is 1536² per level */
 export const INFO_STEP = 2;
 

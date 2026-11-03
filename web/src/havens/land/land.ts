@@ -5,7 +5,7 @@
 import { Ref, TexView, type Kit, type RenderPass, type Texture } from '@ericrius1/weft';
 import shader from './land.wgsl';
 import { CanyonGpu } from './source';
-import { INFO_STEP, LEVELS, LEVEL_PX } from './levels';
+import { INFO_STEP, LEVELS, type HeightLevelSpec } from './levels';
 import type { HeightSource, Terrain } from '../world/terrain';
 import { loadImageArray, solidTexture } from '../util/textures';
 import { asset } from '../util/assets';
@@ -14,7 +14,6 @@ import { asset } from '../util/assets';
 const GROUND = ['sandstone_strata', 'cliff_flutes', 'desert_sand', 'canyon_floor'] as const;
 
 export class Land implements HeightSource {
-  readonly levels = LEVELS;
   /** the ground's material per level (rgba8: sand, damp, scree, zone) */
   readonly info: Texture;
   /** the painted textures are in (or given up on) */
@@ -23,17 +22,18 @@ export class Land implements HeightSource {
   ms = 0;
   private tex: Texture;
 
-  constructor(readonly kit: Kit) {
-    const ipx = LEVEL_PX / INFO_STEP;
-    this.info = kit.texture({ label: 'land.info', format: 'rgba8unorm', size: [ipx, ipx, LEVELS.length], view: '2d-array' });
+  /** levels: the game's (levels.ts LEVELS), or a host's that only looks (VIEW_LEVELS) */
+  constructor(readonly kit: Kit, readonly levels: HeightLevelSpec[] = LEVELS) {
+    const ipx = levels[0].px / INFO_STEP;
+    this.info = kit.texture({ label: 'land.info', format: 'rgba8unorm', size: [ipx, ipx, levels.length], view: '2d-array' });
     const none = this.tex = solidTexture(kit, [196, 120, 84, 255], GROUND.length, 'land.ground.none');
     this.textures = loadImageArray(kit, GROUND.map((n) => asset(`tex/${n}.webp`)), { srgb: true, mips: true, label: 'land.ground' })
       .then((t) => { this.tex = t; none.destroy(); }, (e) => console.warn('land: the ground textures did not load', e));
   }
 
   /** every level made on the GPU into the terrain's heights and the material beside them; the filling's buffers freed */
-  async fill(heights: Texture, level: (i: number, h: Float32Array) => void) {
-    const gpu = new CanyonGpu(this.kit);
+  async fill(heights: Texture, level: (i: number, h: Float32Array) => void | Promise<void>) {
+    const gpu = new CanyonGpu(this.kit, this.levels);
     this.ms = await gpu.fillAll(heights, this.info, level);
     gpu.release();
   }

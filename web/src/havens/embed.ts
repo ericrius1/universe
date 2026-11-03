@@ -14,6 +14,7 @@ import { Terrain } from './world/terrain';
 import { Env } from './world/env';
 import { buildPart, carveHaven, havenFloors, plantFlora } from './world/build';
 import { Land } from './land/land';
+import { VIEW_LEVELS } from './land/levels';
 import { Post } from './post/post';
 import { Slots } from './util/slots';
 import { tier } from './util/tier';
@@ -31,6 +32,10 @@ export { setAssetRoot } from './util/assets';
 export interface HavenOptions {
   /** the city in the bowl below the promontory (default true) */
   city?: boolean;
+  /** a phone's economies for a host that only looks at the canyon, never walks it (default true on a phone's profile):
+   *  coarser height levels away from the promontory (land/levels.ts VIEW_LEVELS), images at 1024 px at most, the
+   *  buildings' night light baked without refining their meshes round the lamps */
+  lean?: boolean;
 }
 
 export class Haven {
@@ -56,13 +61,15 @@ export class Haven {
 
   constructor(readonly kit: Kit, o: HavenOptions = {}) {
     const withCity = o.city ?? true;
+    const lean = o.lean ?? tier.phone;
+    if (lean) tier.maxImage = Math.min(tier.maxImage, 1024);
     this.hostGlobals = kit.globals;
     // the builders' work off the main thread from the start, as the game's (main.ts)
     const city = withCity ? buildPart('city') : null;
     const haven = buildPart('haven');
     const catalog = catalogInWorker();
 
-    const land = this.land = new Land(kit);
+    const land = this.land = new Land(kit, lean ? VIEW_LEVELS : undefined);
     const floors = havenFloors(land.levels);
     const terrain = this.terrain = Terrain.create(kit, land);
     const env = this.env = new Env(kit, terrain);
@@ -88,7 +95,7 @@ export class Haven {
 
     const arch = this.arch = new ArchRenderer(kit, env, scene, order);
     const carved = terrain.ready.then(async () => carveHaven(terrain, (await floors).carve));
-    const placed = (built: ReturnType<typeof buildPart> | null, slot: 'city' | 'haven') => built?.then(({ part }) => arch.add(part, slot)) ?? Promise.resolve();
+    const placed = (built: ReturnType<typeof buildPart> | null, slot: 'city' | 'haven') => built?.then(({ part }) => arch.add(part, slot, lean ? { rounds: 0 } : {})) ?? Promise.resolve();
     const parts = Promise.all([placed(city, 'city'), placed(haven, 'haven')]);
     const rocksIn = Promise.all([carved, catalog, land.textures]).then(async ([, cat]) => {
       const slopeAt = (x: number, z: number) => {
