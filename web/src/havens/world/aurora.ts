@@ -14,6 +14,7 @@ import { MipChain } from '@ericrius1/weft';
 import auroraShader from './aurora.wgsl';
 import { AURORA_DEFAULT, skyDay, type AuroraSettings, type ClockState } from './clock';
 import { WORLD_GROUP } from './group';
+import { tier } from '../util/tier';
 
 /** the dome map's size, the curtains (each drawn as two sheets), columns per ribbon (aurora.wgsl COLS) */
 const DOME = 512;
@@ -86,8 +87,10 @@ export class Aurora {
 
   /** the dome map and its mips (before the scene) */
   passes(): RunEntry[] {
-    return this.brightness > 0 ? [this.domePass, this.mips] : [];
+    // (a phone's every third frame (util/tier.ts cloudEvery): it drifts slowly, and the dome's a pass and nine mips)
+    return this.brightness > 0 && this.domeTick++ % tier.cloudEvery === 0 ? [this.domePass, this.mips] : [];
   }
+  private domeTick = 0;
 
   /** start the aurora's own clock and substorms afresh (a film's frames come out the same whatever ran before) */
   restart() {

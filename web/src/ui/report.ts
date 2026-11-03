@@ -62,6 +62,39 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
   if (auto) void dive(app, (s) => send('leg', { leg: s }));
 }
 
+/** at the gardens from above, what each part costs: the frame (the GPU's time where it can time itself, and the
+ *  frames' intervals) with each switched off in turn, the resolution held still meanwhile */
+async function experiment(app: App) {
+  const kit = (window as unknown as { kit: Kit }).kit, h = app.gardens?.haven;
+  if (!h) return {};
+  const auto = kit.autoRes, scale = kit.renderScale;
+  kit.autoRes = null;
+  kit.profiler.force = true;
+  const measure = async () => {
+    await new Promise((r) => setTimeout(r, 700));
+    const t0 = performance.now(), s0 = kit.profiler.serial;
+    let gpu = 0, n = 0, last = s0, frames = 0;
+    await new Promise<void>((r) => { const f = () => { frames++; if (kit.profiler.serial !== last) { last = kit.profiler.serial; gpu += kit.profiler.lastFrameMs; n++; } if (performance.now() - t0 < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); });
+    return `${(gpu / Math.max(1, n)).toFixed(1)}ms/${Math.round(frames / 2)}fps`;
+  };
+  const parts = (h.arch as unknown as { drawnParts: { name: string; hidden: boolean }[] }).drawnParts;
+  const env = h.env, aur = { ...env.aurora.settings };
+  const tries: [string, () => void, () => void][] = [
+    ['city', () => parts.filter((p) => p.name === 'city').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
+    ['haven', () => parts.filter((p) => p.name === 'haven').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
+    ['shadows', () => { env.shadows.count = 0; }, () => { env.shadows.count = 3; }],
+    ['clouds', () => { env.clouds.settings.enabled = false; }, () => { env.clouds.settings.enabled = true; }],
+    ['flora', () => { if (h.flora) h.flora.settings.quality = 0.001; }, () => { if (h.flora) h.flora.settings.quality = 0.5; }],
+    ['aurora', () => { env.sky.preset({ ...aur, intensity: 0, day: 0 }); }, () => { env.sky.preset(aur); }],
+    ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
+  ];
+  const out: Record<string, string> = { scale: scale.toFixed(2), base: await measure() };
+  for (const [k, off, on] of tries) { off(); out[k] = await measure(); on(); }
+  out.again = await measure();
+  kit.autoRes = auto;
+  return out;
+}
+
 /** the dive by itself: down to the gardens once they're in, her face, her eye; back up; again */
 async function dive(app: App, say: (s: string) => void) {
   const c = app.cosmos.controls;
@@ -72,6 +105,7 @@ async function dive(app: App, say: (s: string) => void) {
     say(`round ${round}: down`);
     await fly(7.3, -0.15); await hold(2);
     await fly(3.5, -0.42); say('gardens 3 km'); await hold(4);
+    if (round === 2 || round === 4) say(JSON.stringify(await experiment(app)));
     await fly(1.4, -0.6); say('temple 25 m'); await hold(4);
     await fly(0.35, -0.95); say('her 2 m'); await hold(5);
     await fly(-1.75, -1.1); say('her eye'); await hold(3);

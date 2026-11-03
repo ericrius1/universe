@@ -42,6 +42,8 @@ export class Figure {
   readonly pass: RenderPass;
   readonly u: UniformBuffer<any>;
   ready = false;
+  /** drawn at all (not while they'd be under a few pixels: the meadow and the gardens leave them out then) */
+  shown = true;
   /** drawn for Seven Havens' picture (levels/haven.ts): its display colours, not locked through the cosmos's grade */
   display = false;
   private loading = false;
@@ -62,7 +64,7 @@ export class Figure {
         { target: ms('figure.dist.ms', 'rgba16float'), resolve: this.dist, clear: [0, 0, 0, 0], store: false },
       ],
       depth: { target: ms('figure.depth', 'depth32float'), clear: 0, store: false },
-      enabled: ground.on,
+      enabled: () => ground.on() && this.shown,
     });
     const draw = {
       vertexBuffers: [{ layout: LAYOUT, buffer: new Ref(() => this.vb) }], indices: { buffer: new Ref(() => this.ib), format: 'uint32' as GPUIndexFormat },

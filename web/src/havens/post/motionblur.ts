@@ -22,10 +22,11 @@ export class MotionBlur {
   her: { x: number; y: number; r: number; d: number; vx: number; vy: number } | null = null;
 
   constructor(kit: Kit, hdr: Texture, depth: Texture) {
-    this.out = kit.texture({ label: 'hdr.blurred', format: 'rgba16float', size: 'render' });
+    this.out = kit.texture({ label: 'hdr.blurred', format: 'rgba16float', size: tier.motionBlur ? 'render' : [1, 1] });
     this.u = kit.uniforms(shader.structs.MotionU, 'motionblur');
     this.pass = kit.pass({ label: 'motionblur', color: [{ target: this.out, clear: false }] });
-    this.pass.fullscreen(shader, { label: 'motionblur', bind: { MU: this.u, src: hdr, depth } as never });
+    // (where the profile has none, nothing to draw: its pipeline not compiled)
+    if (tier.motionBlur) this.pass.fullscreen(shader, { label: 'motionblur', bind: { MU: this.u, src: hdr, depth } as never });
   }
 
   /** the panel's switch: off, none at all (and off from the start where the device's profile has none: util/tier.ts) */

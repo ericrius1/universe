@@ -61,27 +61,32 @@ export class PostFx {
 
     // ambient occlusion, half res
     const half = (label: string, format: GPUTextureFormat, mips: number | 'full' = 1) => kit.texture({ label, format, size: 'render', scale: 0.5, mips, usage: ['render', 'sample'] });
-    // (its first three mips are read; 'full' as the render's 1x1 before the canvas is sized can't have three, which
-    // WebGPU rejected at startup)
-    const zHalf = half('ao.z', 'r32float', 'full');
-    const aoRaw = half('ao.raw', 'rgba16float'), aoBlur = half('ao.blur', 'rgba16float');
-    const on = () => s.ao > 0;
-    const pass = (label: string, target: Texture | ReturnType<Texture['mip']>, enabled: () => boolean, clear: GPUColor | false = [0, 0, 0, 0]) => {
-      const p = kit.pass({ label, color: [{ target, clear }], enabled });
-      this.aoPasses.push(p);
-      return p;
-    };
-    pass('ao.prep', zHalf.mip(0), on).fullscreen(aoShader, { label: 'ao.prep', fragment: 'prep', bind: { sceneZ: this.sceneZ } as never });
-    for (let m = 1; m < 3; m++) pass(`ao.z${m}`, zHalf.mip(m), on).fullscreen(aoShader, { label: `ao.z${m}`, fragment: 'zdown', bind: { texA: zHalf.mip(m - 1) } as never });
-    pass('ao', aoRaw, on).fullscreen(aoShader, { label: 'ao', fragment: 'ao', bind: { FX: this.u, sceneZ: this.sceneZ, zHalf } as never });
-    pass('ao.blur', aoBlur, on).fullscreen(aoShader, { label: 'ao.blur', fragment: 'blur', bind: { FX: this.u, zHalf, texA: aoRaw, hdrTex: hdr } as never });
-    // (multiplied into the scene)
-    const multiply: GPUBlendState = { color: { srcFactor: 'dst', dstFactor: 'zero', operation: 'add' }, alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' } };
+    // (none of it where the profile has no occlusion: no targets, its pipelines not even compiled: util/tier.ts)
     this.overlay = kit.pass({ label: 'overlay', color: [{ target: hdr, clear: false }] });
-    this.overlay.fullscreen(aoShader, { label: 'ao.apply', fragment: 'apply', blend: multiply, bind: { FX: this.u, sceneZ: this.sceneZ, zHalf, texA: aoBlur } as never, enabled: on });
+    if (tier.ao) {
+      // (its first three mips are read; 'full' as the render's 1x1 before the canvas is sized can't have three, which
+      // WebGPU rejected at startup)
+      const zHalf = half('ao.z', 'r32float', 'full');
+      const aoRaw = half('ao.raw', 'rgba16float'), aoBlur = half('ao.blur', 'rgba16float');
+      const on = () => s.ao > 0;
+      const pass = (label: string, target: Texture | ReturnType<Texture['mip']>, enabled: () => boolean, clear: GPUColor | false = [0, 0, 0, 0]) => {
+        const p = kit.pass({ label, color: [{ target, clear }], enabled });
+        this.aoPasses.push(p);
+        return p;
+      };
+      pass('ao.prep', zHalf.mip(0), on).fullscreen(aoShader, { label: 'ao.prep', fragment: 'prep', bind: { sceneZ: this.sceneZ } as never });
+      for (let m = 1; m < 3; m++) pass(`ao.z${m}`, zHalf.mip(m), on).fullscreen(aoShader, { label: `ao.z${m}`, fragment: 'zdown', bind: { texA: zHalf.mip(m - 1) } as never });
+      pass('ao', aoRaw, on).fullscreen(aoShader, { label: 'ao', fragment: 'ao', bind: { FX: this.u, sceneZ: this.sceneZ, zHalf } as never });
+      pass('ao.blur', aoBlur, on).fullscreen(aoShader, { label: 'ao.blur', fragment: 'blur', bind: { FX: this.u, zHalf, texA: aoRaw, hdrTex: hdr } as never });
+      // (multiplied into the scene)
+      const multiply: GPUBlendState = { color: { srcFactor: 'dst', dstFactor: 'zero', operation: 'add' }, alpha: { srcFactor: 'zero', dstFactor: 'one', operation: 'add' } };
+      this.overlay.fullscreen(aoShader, { label: 'ao.apply', fragment: 'apply', blend: multiply, bind: { FX: this.u, sceneZ: this.sceneZ, zHalf, texA: aoBlur } as never, enabled: on });
+    }
 
-    this.shaftB = kit.texture({ label: 'rays.b', format: 'r16float', size: 'render', scale: 0.25, usage: ['render', 'sample'] });
-    this.dofTex = half('dof', 'rgba16float');
+    // (where the profile has no shafts, a texel each for the final pass to read: util/tier.ts)
+    this.shaftB = tier.rays ? kit.texture({ label: 'rays.b', format: 'r16float', size: 'render', scale: 0.25, usage: ['render', 'sample'] })
+      : kit.texture({ label: 'rays.b', format: 'r16float', size: [1, 1], usage: ['render', 'sample'] });
+    this.dofTex = tier.rays ? half('dof', 'rgba16float') : kit.texture({ label: 'dof', format: 'rgba16float', size: [1, 1], usage: ['render', 'sample'] });
   }
 
   /** the passes after the bloom: they read the smudged scene */
@@ -92,6 +97,8 @@ export class PostFx {
     const shaftA = quarter('rays.a');
     const measure = kit.compute(raysShader, { label: 'fx.measure', entry: 'measure', workgroups: [1], bind: { FX: this.u, sceneZ: this.sceneZ, hdrTex: this.hdr, fxState: this.state } as never });
     const rays = () => s.rays > 0;
+    // (no shafts or depth of field where the profile has none: their pipelines not compiled)
+    if (!tier.rays) { this.after = [measure]; return; }
     const pm = kit.pass({ label: 'rays.mask', color: [{ target: mask, clear: [0, 0, 0, 0] }], enabled: rays });
     pm.fullscreen(raysShader, { label: 'rays.mask', fragment: 'skymask', bind: { sceneZ: this.sceneZ, hdrTex: this.hdr } as never });
     const p0 = kit.pass({ label: 'rays.0', color: [{ target: shaftA, clear: [0, 0, 0, 0] }], enabled: rays });

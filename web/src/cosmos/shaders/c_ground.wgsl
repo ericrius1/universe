@@ -13,7 +13,7 @@
 struct GroundU {
   near: vec4f,      // the near window: x its half (m), y z its heights' range (m), w -
   far: vec4f,       // the far one
-  spot: vec4f,      // x the spot's height above the sea (km), y the Earth's radius there (m)
+  spot: vec4f,      // x the spot's height above the sea (km), y the Earth's radius there (m), z 1: the figure drawn
 }
 @group(2) @binding(1) var nearH: texture_2d<f32>;
 @group(2) @binding(2) var nearC: texture_2d<f32>;
@@ -152,7 +152,7 @@ struct Hit { t: f32, kind: i32, tint: f32 }
   // them need be found)
   let px = vec2i(in.pos.xy);
   let fc = textureLoad(figCol, px, 0);
-  let cov = fc.a;
+  let cov = fc.a * G.spot.z;
   let tFig = select(1e9, cov / max(textureLoad(figDist, px, 0).r, 1e-12), cov > 0.004);
   let whole = cov > 0.996;
   let tHand = select(1e9, tFig, whole);

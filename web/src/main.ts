@@ -118,8 +118,8 @@ async function boot() {
   }, () => !params.has('film') && !document.body.classList.contains('ui-off') && !document.body.classList.contains('nochrome'));
   let fpsT = 0, fpsN = 0;
   // (a device's report back to the dev server, and the dive flown by itself: ui/report.ts)
-  // (and on a page come through a tunnel to the dev server — a phone's: its query lost on the tunnel's warning page)
-  const tunnel = import.meta.env.DEV && /ngrok/.test(location.host);
+  // (and on a page come through a tunnel to this machine — a phone's: its query lost on the tunnel's warning page)
+  const tunnel = /ngrok/.test(location.host);
   if (params.has('report') || params.has('auto') || tunnel) startReport(kit, app, params.has('auto') || tunnel);
   kit.loop(({ dt }) => {
     pace?.update(kit); app.frame(dt);

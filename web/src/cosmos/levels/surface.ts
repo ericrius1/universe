@@ -46,11 +46,13 @@ export class Surface {
     const sun = this.ladder.sunGround;
     this.night = 1 - Math.max(0, Math.min(1, (sun[1] + 0.12) / 0.2));
     const l = Math.log10(S);
+    // (whoever lies there drawn once they'd be more than a few pixels: from ~400 m)
+    this.figure.shown = l < 2.6;
     // blades of grass once a few metres away or nearer
     const grass = Math.max(0, Math.min(1, (1.4 - l) / 0.6));
     this.ground.L.set({ sun, a: [EXPOSURE, 0, this.night, grass] });
     const m = this.data.manifest;
-    if (m) this.G.set({ near: [m.near.half, m.near.min, m.near.max, 0], far: [m.far.half, m.far.min, m.far.max, 0], spot: [this.ladder.earthR - 6360, this.ladder.earthR * 1000, 0, 0] });
+    if (m) this.G.set({ near: [m.near.half, m.near.min, m.near.max, 0], far: [m.far.half, m.far.min, m.far.max, 0], spot: [this.ladder.earthR - 6360, this.ladder.earthR * 1000, this.figure.shown ? 1 : 0, 0] });
     // the cornea's living cells, as the cell's world comes near
     const cells = Math.max(0, Math.min(1, (-3.1 - l) / 0.6));
     this.figure.update(cells, this.night, EXPOSURE);

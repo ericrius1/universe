@@ -2,12 +2,12 @@
 // screen takes it), with whoever lies there (figure.wgsl, drawn in display colours for it) laid in where they're
 // nearer than what the canyon drew (its distances along the view axis, Seven Havens' sceneZ: the nearest of a pixel's
 // samples) — the flowers in front of them in front — and the whole blended over what the cosmos drew by how much the
-// gardens show (HV.a.x). Read at the frame's own uv: the canyon's targets are the render's size, the screen the
+// gardens show (HV.a.x; wholly, over nothing, while they fill the frame). Read at the frame's own uv: the canyon's targets are the render's size, the screen the
 // canvas's.
 #include "./cosmos/shaders/cosmos.wgsl"
 #include "weft/fullscreen"
 
-struct HavenU { a: vec4f }    // x how much shows (0..1)
+struct HavenU { a: vec4f }    // x how much shows (0..1), y 1: the figure drawn
 @group(2) @binding(1) var<uniform> HV: HavenU;
 @group(2) @binding(2) var havenTex: texture_2d<f32>;
 @group(2) @binding(3) var sceneZ: texture_2d<f32>;
@@ -18,7 +18,7 @@ struct HavenU { a: vec4f }    // x how much shows (0..1)
   var c = textureSampleLevel(havenTex, samp_linear, in.uv, 0.0).rgb;
   let px = vec2i(in.uv * vec2f(textureDimensions(figCol)));
   let fc = textureLoad(figCol, px, 0);
-  let cov = fc.a;
+  let cov = fc.a * HV.a.y;
   if (cov > 0.004) {
     let rd = rayDir(in.uv);
     let tFig = cov / max(textureLoad(figDist, px, 0).r, 1e-12);

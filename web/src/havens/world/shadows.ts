@@ -79,7 +79,8 @@ export class Shadows {
       cam.ortho = { halfWidth: 10, halfHeight: 10 };
       const v = kit.view(cam, [SHADOW_PX, SHADOW_PX], `cascade${i}`);
       this.views.push(v);
-      this.passes.push(kit.pass({ label: `shadow${i}`, depth: { target: this.map.layer(i), clear: 0 }, view: v, shared: { [WORLD_GROUP]: { shadowMap: this.dummy } }, enabled: () => i < this.count && this.due[i] }));
+      // (the cascades past the profile's count never drawn: no pass, so nothing drawn into it compiles: util/tier.ts)
+      if (i < tier.cascades) this.passes.push(kit.pass({ label: `shadow${i}`, depth: { target: this.map.layer(i), clear: 0 }, view: v, shared: { [WORLD_GROUP]: { shadowMap: this.dummy } }, enabled: () => i < this.count && this.due[i] }));
       this.matrices.push(mat4());
     }
     for (let i = 0; i < this.levels; i++) {

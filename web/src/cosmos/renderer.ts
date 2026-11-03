@@ -55,6 +55,9 @@ export class CosmosRenderer {
   last: () => RunEntry[] = () => [];
   /** over the cell's frame (the hand-over) rather than in place of it */
   over = false;
+  /** wholly covered by a host's picture (Universe's gardens): only the work before the scene (the figure, the air's
+   *  tables) and the host's, not the scene, its bloom or its final pass */
+  covered = false;
   private items: RunEntry[];
   private bloomLv: UniformBuffer<any>[] = [];
   private readonly qi: Quat = quat.create();
@@ -177,7 +180,10 @@ export class CosmosRenderer {
   }
 
   /** this frame's GPU work, for a host that runs it with its own */
-  run(): RunEntry[] { return [...this.first(), ...this.before, this.scene, ...this.items, ...this.last()]; }
+  run(): RunEntry[] {
+    if (this.covered) return [...this.first(), ...this.before, ...this.last()];
+    return [...this.first(), ...this.before, this.scene, ...this.items, ...this.last()];
+  }
 
   frame() { this.kit.run(this.run()); }
 }

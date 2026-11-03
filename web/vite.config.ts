@@ -15,11 +15,10 @@ const HAVENS = process.env.HAVENS_LOCAL ? resolve(__dirname, '../../sevenhavens/
 
 // (built for ericlevin.dev/cell/: BASE=/cell/ npm run build. Films (?film=<name>, src/film.ts) post their frames to
 // the server, into ../film/<name>)
-// dev only: a device's reports (?report: src/ui/report.ts), one JSON line each, into logs/report.jsonl
+// the dev server's and the local preview's: a device's reports (?report: src/ui/report.ts), one JSON line each, into
+// logs/report.jsonl
 function reportSink(): Plugin {
-  return {
-    name: 'universe-report', apply: 'serve',
-    configureServer(s) {
+  const use = (s: { middlewares: { use: (f: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void) => void } }) => {
       s.middlewares.use((req, res, next) => {
         if (!req.url?.endsWith('/__report') || req.method !== 'POST') return next();
         const chunks: Buffer[] = [];
@@ -30,8 +29,8 @@ function reportSink(): Plugin {
           res.end('ok');
         });
       });
-    },
   };
+  return { name: 'universe-report', configureServer: use, configurePreviewServer: use };
 }
 
 export default defineConfig({
@@ -48,5 +47,5 @@ export default defineConfig({
   },
   build: { target: 'esnext', chunkSizeWarningLimit: 4000 },
   server: { host: '127.0.0.1', port: 5750, strictPort: true, allowedHosts: ['portal-windows.tail4a295a.ts.net', '.ngrok-free.app', '.ngrok.app'], fs: { allow: [__dirname, ...(local ? [WEFT] : []), ...(process.env.HAVENS_LOCAL ? [HAVENS] : [])] } },
-  preview: { allowedHosts: ['portal-windows.tail4a295a.ts.net'] },
+  preview: { allowedHosts: ['portal-windows.tail4a295a.ts.net', '.ngrok-free.app', '.ngrok.app'] },
 });

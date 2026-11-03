@@ -44,6 +44,25 @@ const UTC_OFFSET = -7;
  *  skin is in view there, and the meadow lays her in as the gardens do) */
 const BAND: Band = [4.4, 3.7, -1.7, -1.75];
 
+/** pipelines compiled one at a time, a frame between each (weft's compile scheduler hook): asked for all at once, a
+ *  phone's GPU process compiles them back to back and shows no frame for seconds (10 s on an iPhone 16e) */
+function oneAtATime(kit: Kit) {
+  let chain: Promise<unknown> = Promise.resolve();
+  const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+  return {
+    holding: false,
+    compile(_rec: unknown, start: () => Promise<unknown>) {
+      const p = chain.then(frame).then(start);
+      chain = p.catch(() => {});
+      return p;
+    },
+    now(rec: { shader: never; makeNow: ((m: GPUShaderModule) => unknown) | null; pipeline: unknown }) {
+      const m = kit.moduleNow(rec.shader);
+      if (m && rec.makeNow) rec.pipeline = rec.makeNow(m);
+    },
+  };
+}
+
 export class Gardens {
   haven: Haven | null = null;
   /** built and compiled */
@@ -73,17 +92,31 @@ export class Gardens {
       const t0 = performance.now();
       const kit = this.kit, R = this.cosmos.r, fig = this.cosmos.surface.figure;
       const { Haven, setAssetRoot } = await import('@havens/embed');
+      // (its pipelines a frame apart while it's built, the host's own compiled as before once it's in)
+      const was = kit.compiler;
+      kit.compiler = oneAtATime(kit) as never;
+      const say = (what: string) => console.log(`gardens: ${what} at ${Math.round(performance.now() - t0)} ms`);
+      say('code in');
       setAssetRoot(`${this.base}havens`);
       const h = this.haven = new Haven(kit);
       await h.built;
+      say('built');
       // (a clearing round her in the bed: no tree or shrub over her, the flowers left)
       if (h.flora) h.flora.clearing = { x: SPOT[0], z: SPOT[2], radius: 3, height: 0.9 };
       const ground = this.cosmos.surface.ground;
-      const lay = kit.pass({ label: 'gardens', color: [{ target: 'screen', clear: false }], enabled: () => this.drawing });
-      lay.fullscreen(shader, { label: 'gardens', blend: 'alpha', bind: { L: ground.L, HV: this.u, havenTex: h.out, sceneZ: h.sceneZ, figCol: fig.col, figDist: fig.dist } as never });
+      // (over the cosmos's frame while they cross-fade; while they fill it, alone: the cosmos's scene, bloom and final
+      // pass not run at all, cosmos/renderer.ts covered)
+      const bind = { L: ground.L, HV: this.u, havenTex: h.out, sceneZ: h.sceneZ, figCol: fig.col, figDist: fig.dist } as never;
+      const lay = kit.pass({ label: 'gardens', color: [{ target: 'screen', clear: false }] });
+      lay.fullscreen(shader, { label: 'gardens', blend: 'alpha', bind });
+      const whole = kit.pass({ label: 'gardens.whole', color: [{ target: 'screen', clear: [0, 0, 0, 1] }] });
+      whole.fullscreen(shader, { label: 'gardens.whole', bind });
       R.first = () => (this.drawing ? h.passes() : []);
-      R.last = () => (this.drawing ? [lay] : []);
-      await kit.ready();
+      R.last = () => (this.drawing ? [R.covered ? whole : lay] : []);
+      const c0 = performance.now();
+      const compiled = await kit.ready();
+      kit.compiler = was;
+      say(`compiled (${compiled.pipelines} pipelines, ${Math.round(performance.now() - c0)} ms)`);
       this.ready = true;
       console.log(`gardens: in ${Math.round(performance.now() - t0)} ms`);
     })().catch((e) => console.warn('gardens: failed to build', e));
@@ -97,9 +130,11 @@ export class Gardens {
     const was = this.drawing;
     this.drawing = this.weight > 0.002;
     c.surface.hidden = this.weight > 0.998;
+    c.r.covered = this.weight > 0.998 && !c.r.over;
     c.surface.figure.display = this.drawing;
     if (!this.drawing || !h) {
       if (was && h) { h.unuse(); kit.camera.viewOverride = null; kit.camera.near = this.near; }
+      c.r.covered = false;
       return;
     }
     if (!was) this.near = kit.camera.near;
@@ -121,7 +156,7 @@ export class Gardens {
     // the flowers parted round her: her head, her middle, her legs
     const a = this.along, push: Pusher[] = [0.1, -0.55, -1.15].map((k) => ({ at: [SPOT[0] + a[0] * k, SPOT[1] + 0.1, SPOT[2] + a[2] * k], radius: 0.6, strength: 1.5 }));
     h.update(dt, push);
-    this.u.set({ a: [this.weight, 0, 0, 0] });
+    this.u.set({ a: [this.weight, c.surface.figure.shown ? 1 : 0, 0, 0] });
   }
 
   /** once the frame is sent */

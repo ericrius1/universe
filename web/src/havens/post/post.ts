@@ -41,12 +41,12 @@ export class Post {
     this.u = kit.uniforms(postShader.structs.Post, 'post');
     this.fx = new PostFx(kit, hdrIn, depth);
     // contour smudging of distant silhouettes, before everything else reads the image
-    this.smudged = kit.texture({ label: 'hdr.smudged', format: 'rgba16float', size: 'render' });
+    this.smudged = kit.texture({ label: 'hdr.smudged', format: 'rgba16float', size: tier.smudge ? 'render' : [1, 1] });
     this.smudgeU = kit.uniforms(smudgeShader.structs.SmudgeU, 'smudge');
     this.smudgePass = kit.pass({ label: 'smudge', color: [{ target: this.smudged, clear: [0, 0, 0, 0] }] });
     this.motionBlur = new MotionBlur(kit, hdrIn, depth);
     const blurred = new Ref(() => (this.motionBlur.active ? this.motionBlur.out : hdrIn), 'post.src');
-    this.smudgePass.fullscreen(smudgeShader, { label: 'smudge', bind: { SU: this.smudgeU, src: blurred, depth } as never });
+    if (tier.smudge) this.smudgePass.fullscreen(smudgeShader, { label: 'smudge', bind: { SU: this.smudgeU, src: blurred, depth } as never });
     // (without the smudge (a phone: util/tier.ts) the chain reads the scene itself, and the motion blur, off there, too)
     const hdr = tier.smudge ? this.smudged : hdrIn;
     let src: Texture = hdr;
