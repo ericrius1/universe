@@ -67,8 +67,10 @@ node web/tools/keepchrome.mjs                 # a headless GPU Chrome for the to
 node web/tools/shoot.mjs out.png "place=dna"  # a frame (UI=1 adds the interface)
 ```
 
-weft comes from npm. To work on the kit alongside the app, clone it beside this repo (../weft) and run with
-`WEFT_LOCAL=1 npm run dev`: its source is compiled in and hot-reloads. Publish it and bump the version here when done.
+weft comes from GitHub (its `dist/weft` branch, built from weft's main on every push). `npm run dev`, `npm run build`
+and the Vercel install first put it at the branch's tip (web/tools/engine-latest.mjs, as in every project; commit the
+lockfile it moves). To work on the kit alongside the app, clone it beside this repo (../weft) and run with
+`WEFT_LOCAL=1 npm run dev`: its source is compiled in and hot-reloads. Push it to weft's main when done.
 
 ## Film and deploy
 

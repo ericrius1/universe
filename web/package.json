@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node tools/engine-latest.mjs",
     "dev": "vite --host 127.0.0.1 --port 5750 --strictPort",
+    "prebuild": "node tools/engine-latest.mjs --strict",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5751 --strictPort",
     "typecheck": "tsc --noEmit",
-    "havens": "node tools/havens-sync.mjs"
+    "havens": "node tools/havens-sync.mjs",
+    "weft": "node tools/engine-latest.mjs --strict"
   },
   "dependencies": {
     "@ericrius1/weft": "git+https://github.com/ericrius1/weft.git#dist/weft",

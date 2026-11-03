@@ -7,6 +7,8 @@
 #   bash web/tools/deploy.sh --prod     production
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# (weft at its dist/weft tip here for the typecheck; the Vercel build takes it again: installCommand in vercel.json)
+node tools/engine-latest.mjs --strict
 npx tsc --noEmit
 git -C .. diff --quiet HEAD -- web || echo "note: Universe has uncommitted changes in web/, and this deployment has them too"
 # (the CLI as it is now: an old global one is refused by the API)

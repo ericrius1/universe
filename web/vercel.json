@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm ci",
+  "installCommand": "npm ci && node tools/engine-latest.mjs --strict",
   "buildCommand": "npx tsc --noEmit && npx vite build --base /universe/ --outDir dist/universe --emptyOutDir",
   "outputDirectory": "dist",
   "redirects": [
