@@ -16,6 +16,7 @@ import { Controls, type Pick } from './engine/camera';
 import { FramePace } from './engine/pace';
 import { Hud } from './ui/hud';
 import { controls as interfaceToggle } from './ui/controls';
+import { picture } from './ui/picture';
 import { buildPlaces, type Place } from './ui/places';
 import { cardFor, type Card } from './ui/info';
 import { Tour } from './ui/tour';
@@ -229,6 +230,13 @@ export class App {
     this.hud = new Hud(ui, [...COSMOS_PLACES.map(asPlace), ...placeList], BASE);
     // the interface's toggle, top right (and / anywhere), as in every project on the site: it shows unless folded away
     interfaceToggle({ name: 'cell', label: 'the interface', phone: true, onChange: (open) => document.body.classList.toggle('ui-off', !open) });
+    // a picture of the view (G, or the camera beside the toggle): the frame as drawn, none of the page's interface; a
+    // game has the keys while it's on
+    let capture: Capture | null = null;
+    picture({
+      name: 'universe', letter: () => !this.game, sound: () => this.score.out,
+      grab: () => (capture ??= new Capture(this.kit)).blob('image/jpeg', 0.92),
+    });
     this.gamePanel = document.createElement('div');
     this.gamePanel.className = 'gamepanel';
     ui.append(this.gamePanel);

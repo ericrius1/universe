@@ -489,6 +489,8 @@ export class Score {
   private top = 0.55;
 
   get muted() { return this._muted; }
+  /** where a one-off sound plays (the master: the volume holds); none before the score starts, nor muted */
+  get out(): AudioNode | null { return this._muted ? null : this.engine?.master ?? null; }
   get started() { return !!this.ctx; }
 
   setMuted(m: boolean) {
