@@ -9,6 +9,7 @@ import { INFO_STEP, LEVELS, type HeightLevelSpec } from './levels';
 import type { HeightSource, Terrain } from '../world/terrain';
 import { loadImageArray, solidTexture } from '../util/textures';
 import { asset } from '../util/assets';
+import { tier } from '../util/tier';
 
 /** the ground's painted textures, in ground.wgsl's layer order (GROUND_STRATA, GROUND_FLUTES, GROUND_SAND, GROUND_FLOOR) */
 const GROUND = ['sandstone_strata', 'cliff_flutes', 'desert_sand', 'canyon_floor'] as const;
@@ -45,6 +46,7 @@ export class Land implements HeightSource {
 
   /** the ground into a pass, painted */
   draw(terrain: Terrain, pass: RenderPass) {
-    return terrain.draw(pass, shader, { groundTex: new Ref(() => this.tex), groundInfo: this.info });
+    // (a phone's ground painted lighter: ground.wgsl LAND_LITE)
+    return terrain.draw(pass, shader, { groundTex: new Ref(() => this.tex), groundInfo: this.info }, { LAND_LITE: tier.phone ? 1 : 0 });
   }
 }

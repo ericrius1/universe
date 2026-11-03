@@ -257,9 +257,9 @@ export class Terrain {
 
   /** the ground drawn into a pass by `shader` (one including terrainpatch.wgsl) with its own bindings besides T and
    *  nodes */
-  draw(pass: RenderPass, shader: Shader, bind: Record<string, unknown> = {}) {
+  draw(pass: RenderPass, shader: Shader, bind: Record<string, unknown> = {}, constants: Record<string, number> = {}) {
     return pass.draw(shader, {
-      label: 'terrain', count: QUADS * 6, instances: () => this.nodeCount,
+      label: 'terrain', count: QUADS * 6, instances: () => this.nodeCount, constants,
       indices: { buffer: this.ibuf, format: 'uint32' }, cull: 'back', bind: { T: this.u, nodes: this.nodes, ...bind } as never,
     });
   }

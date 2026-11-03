@@ -54,7 +54,10 @@ fn finestTexel(xz: vec2f) -> f32 {
   // never shows in the sand's and the scree's edges)
   var levels: array<vec4f, 5>;
   for (var k = 0; k < 5; k++) { let L = world.terrainLevels[k]; levels[k] = vec4f(L.zw, L.x, 0.0); }
-  let warp = (vec2f(grFbm(vec3f(p.xz * 0.021, 0.0)), grFbm(vec3f(p.xz * 0.021, 7.3))) - 0.47) * clamp(dist * 0.009, 0.8, 90.0);
+  var wn = vec2f(0.0);
+  if (LAND_LITE) { wn = vec2f(grNoise(vec3f(p.xz * 0.021, 0.0)), grNoise(vec3f(p.xz * 0.021, 7.3))) * 0.94; }
+  else { wn = vec2f(grFbm(vec3f(p.xz * 0.021, 0.0)), grFbm(vec3f(p.xz * 0.021, 7.3))); }
+  let warp = (wn - 0.47) * clamp(dist * 0.009, 0.8, 90.0);
   let g = canyonGround(p, ng, canyonInfoAt(p.xz + warp, levels), dist);
   let n = g.nrm;
 
@@ -71,8 +74,8 @@ fn finestTexel(xz: vec2f) -> f32 {
   let bounce = sunE * max(l.y, 0.0) * vec3f(0.5, 0.25, 0.15) * (0.5 - 0.5 * n.y) / PI;
   let shaded = mix(g.albedo, dot(g.albedo, LAND_LUMA) * LAND_GLAZE, 0.4 * shade * LAND_LEAN);
   var c = g.albedo * (sunE * lit + outdoorLamps(p, n)) / PI + shaded * (sky + bounce);
-  // a dry sheen toward the sun, glossier where it's damp
-  c += sunE * vis * ggx(n, v, l, g.rough, vec3f(0.03)) * 0.4;
+  // a dry sheen toward the sun, glossier where it's damp (not a phone's: ground.wgsl LAND_LITE)
+  if (!LAND_LITE) { c += sunE * vis * ggx(n, v, l, g.rough, vec3f(0.03)) * 0.4; }
   c = wetLook(c, p, n, v, vis, dist, 0.0);
   return vec4f(applyAerial(c, i.curved), 1.0);
 }

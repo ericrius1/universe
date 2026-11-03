@@ -31,6 +31,10 @@ const GROUND_FLOOR = 3;
 struct GroundSample { albedo: vec3f, rough: f32, nrm: vec3f, wet: f32 }
 
 // ------------------------------------------------------------------ small helpers (named gr*: world.wgsl has its own)
+// a phone's ground (util/tier.ts, land.ts): one octave of noise where the painting has four, and each texture at one
+// scale — on an iPhone the ground was most of a frame from above
+override LAND_LITE: bool = false;
+
 fn grHash(p: vec3f) -> f32 {
   var q = fract(p * vec3f(0.1031, 0.1030, 0.0973));
   q += dot(q, q.yzx + 33.33);
@@ -137,9 +141,11 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   let strata = mix(textureSample(groundTex, samp_repeat, uvZ / 26.0, GROUND_STRATA).rgb, textureSample(groundTex, samp_repeat, uvX / 26.0, GROUND_STRATA).rgb, ax);
   let flutes = mix(textureSample(groundTex, samp_repeat, uvZ / 18.0, GROUND_FLUTES).rgb, textureSample(groundTex, samp_repeat, uvX / 18.0, GROUND_FLUTES).rgb, ax);
   let floorA = textureSample(groundTex, samp_repeat, p.xz / 7.0, GROUND_FLOOR).rgb;
-  let floorB = textureSample(groundTex, samp_repeat, mat2x2f(0.8, 0.6, -0.6, 0.8) * p.xz / 31.0, GROUND_FLOOR).rgb;
+  var floorB = floorA;
+  if (!LAND_LITE) { floorB = textureSample(groundTex, samp_repeat, mat2x2f(0.8, 0.6, -0.6, 0.8) * p.xz / 31.0, GROUND_FLOOR).rgb; }
   let sandA = textureSample(groundTex, samp_repeat, p.xz / 6.0, GROUND_SAND).rgb;
-  let sandB = textureSample(groundTex, samp_repeat, mat2x2f(0.8, -0.6, 0.6, 0.8) * p.xz / 27.0, GROUND_SAND).rgb;
+  var sandB = sandA;
+  if (!LAND_LITE) { sandB = textureSample(groundTex, samp_repeat, mat2x2f(0.8, -0.6, 0.6, 0.8) * p.xz / 27.0, GROUND_SAND).rgb; }
   // (each texture's own colour, normalized to its mean, carries detail; the palette carries the colour)
   let lum = vec3f(0.299, 0.587, 0.114);
   let strataD = dot(strata, lum) / 0.42;
@@ -164,10 +170,15 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   // desert varnish: dark streaks down the steep faces, strongest just under a ledge
   let b = grBed(p.y);
   let underLedge = 1.0 - smoothstep(0.0, 14.0, b.top - p.y);
-  let streak = smoothstep(0.55, 0.82, grFbm(vec3f(p.x * 0.35, p.y * 0.018, p.z * 0.35) + vec3f(0.0, f32(b.i) * 0.37, 0.0)));
+  let sq = vec3f(p.x * 0.35, p.y * 0.018, p.z * 0.35) + vec3f(0.0, f32(b.i) * 0.37, 0.0);
+  var streakN = 0.0;
+  if (LAND_LITE) { streakN = grNoise(sq) * 0.94; } else { streakN = grFbm(sq); }
+  let streak = smoothstep(0.55, 0.82, streakN);
   rock = mix(rock, GR_VARNISH, streak * steep * (0.25 + 0.55 * underLedge) * 0.75);
   // big soft mottling (paler where the rain washes, redder in the hollows)
-  rock *= mix(0.86, 1.08, grFbm(p * 0.035));
+  var mottle = 0.0;
+  if (LAND_LITE) { mottle = grNoise(p * 0.035) * 0.94; } else { mottle = grFbm(p * 0.035); }
+  rock *= mix(0.86, 1.08, mottle);
 
   // the flats: bare slickrock (its bed's colour, paler and gritty, the floor texture's cracks and pebbles in it) or the
   // canyon floor's cracked earth down on a floor, scree at the cliffs' feet, sand where it lies
@@ -177,7 +188,9 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   // (its edge wanders in the world's metres, so the material's coarse texels far off never show as blocks: wider and
   // wandering on a broader scale the farther off it is, where those texels are 4 to 40 m)
   let far = smoothstep(250.0, 2500.0, dist);
-  let wander = (grFbm(p * 0.045) - 0.47) * 0.35 + (grFbm(p * 0.0061) - 0.47) * 0.5 * far;
+  var wander = 0.0;
+  if (LAND_LITE) { wander = (grNoise(p * 0.0061) * 0.94 - 0.47) * mix(0.35, 0.5, far); }
+  else { wander = (grFbm(p * 0.045) - 0.47) * 0.35 + (grFbm(p * 0.0061) - 0.47) * 0.5 * far; }
   let sandAmount = clamp(info.r * mix(0.55, 1.0, flat) + (1.0 - steep) * 0.08 + wander, 0.0, 1.0);
   ground = mix(ground, sandTex, smoothstep(0.3 - 0.25 * far, 0.8 + 0.2 * far, sandAmount));
   var albedo = mix(rock, ground, flat * (1.0 - info.b * 0.3) + (1.0 - flat) * (1.0 - steep) * 0.5);
