@@ -106,6 +106,10 @@ export class Terrain {
   private ibuf: StorageBuffer;
   private nodeData = new Float32Array(MAX_NODES * 4);
   nodeCount = 0;
+  /** parts of the ground's shading left out, to measure what each costs on a device (land.wgsl LAND_SKIP_*: 1 the
+   *  painting, 2 the normal, 4 the sun's shadow, 8 the sky's light and the lamps, 16 the air) */
+  debug = 0;
+  private debugWas = -1;
   range0 = LEAF * 2.6;
   morphStart = 0.62;
   private bounds = new Map<string, [number, number]>();
@@ -251,6 +255,7 @@ export class Terrain {
     };
     visit(-ROOT / 2, -ROOT / 2, ROOT, this.levelsCount);
     this.nodeCount = n;
+    if (this.debug !== this.debugWas) { this.debugWas = this.debug; this.u.set({ debug: [this.debug, 0, 0, 0] }); }
     this.nodes.write(data.subarray(0, n * 4));
     return n;
   }

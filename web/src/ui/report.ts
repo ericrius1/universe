@@ -93,31 +93,25 @@ async function experiment(app: App) {
     return Math.round(iv[iv.length >> 1]);
   };
   const parts = (h.arch as unknown as { drawnParts: { name: string; hidden: boolean }[] }).drawnParts;
-  const env = h.env, aur = { ...env.aurora.settings };
-  const tries: [string, () => void, () => void][] = [
-    ['city', () => parts.filter((p) => p.name === 'city').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
-    ['haven', () => parts.filter((p) => p.name === 'haven').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
-    ['shadows', () => { env.shadows.count = 0; }, () => { env.shadows.count = 3; }],
-    ['clouds', () => { env.clouds.settings.enabled = false; }, () => { env.clouds.settings.enabled = true; }],
-    ['flora', () => { if (h.flora) h.flora.settings.quality = 0.001; }, () => { if (h.flora) h.flora.settings.quality = 0.5; }],
-    ['aurora', () => { env.sky.preset({ ...aur, intensity: 0, day: 0 }); }, () => { env.sky.preset(aur); }],
-    ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
-  ];
   // (what's drawn or worked out every frame whatever the view: off by stubbing it for the measure)
   const stub = <T extends object, K extends keyof T>(o: T | null | undefined, k: K, v: T[K]): [() => void, () => void] => {
     const was = o?.[k];
     return [() => { if (o) o[k] = v; }, () => { if (o) o[k] = was as T[K]; }];
   };
   const any = h as unknown as Record<string, any>;
-  const air = app.cosmos.air as unknown as Record<string, any>;
-  tries.push(
+  // (the ground's shading a part at a time: Seven Havens' Terrain.debug, land.wgsl LAND_SKIP_*)
+  const land = (bits: number): [() => void, () => void] => [() => { any.terrain.debug = bits; }, () => { any.terrain.debug = 0; }];
+  const tries: [string, () => void, () => void][] = [
     ['terrain', ...stub(any.terrain, 'select', () => { any.terrain.nodeCount = 0; return 0; })],
-    ['rocks', ...stub(any.rocks, 'update', () => { for (const l of any.rocks.lists) l.length = 0; })],
-    ['water', ...stub(any.water, 'count', 0)],
-    ['atmosphere', ...stub(any.env.atmo, 'passes', () => [])],
-    ['flora sort', ...stub(any.flora, 'passes', () => [])],
-    ['universe air', () => { Object.defineProperty(air, 'on', { get: () => false, set: () => {}, configurable: true }); }, () => { delete air.on; air.on = false; }],
-  );
+    ['land paint', ...land(1)],
+    ['land normal', ...land(2)],
+    ['land shadow', ...land(4)],
+    ['land sky', ...land(8)],
+    ['land air', ...land(16)],
+    ['land all', ...land(31)],
+    ['city', () => parts.filter((p) => p.name === 'city').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
+    ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
+  ];
   const out: Record<string, string | number> = { scale: scale.toFixed(2), base: await measure() };
   for (const [k, off, on] of tries) { off(); out[k] = await measure(); on(); }
   out.again = await measure();
@@ -132,6 +126,8 @@ async function dive(app: App, say: (s: string) => void) {
   const fly = (logS: number, pitch: number, duration?: number) => new Promise<void>((r) => c.flyTo(logS, { pitch, duration, done: r }));
   const hold = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
   while (!app.gardens?.ready) await hold(0.5);
+  // (a touch doesn't stop it: the flights' camera is the dive's)
+  c.driven = true;
   for (let round = 1; ; round++) {
     say(`round ${round}: down`);
     await fly(7.3, -0.15); await hold(2);

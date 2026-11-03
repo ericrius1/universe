@@ -66,6 +66,7 @@ export interface WeatherU {
 }
 export interface TerrainU {
   grid: Vec4;
+  debug: Vec4;
 }
 export interface VOut {
   pos: Vec4;

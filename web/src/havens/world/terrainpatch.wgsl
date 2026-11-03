@@ -11,6 +11,7 @@
 
 struct TerrainU {
   grid: vec4f,          // x quads per patch side, y range of level 0 (m), z morph start (fraction of range), w earth radius (m)
+  debug: vec4f,         // x: parts of the ground's shading left out, to measure them (Terrain.debug: land.wgsl LAND_SKIP_*)
 }
 @group(2) @binding(0) var<uniform> T: TerrainU;
 @group(2) @binding(1) var<storage, read> nodes: array<vec4f>;    // x0, z0, size, lod level
