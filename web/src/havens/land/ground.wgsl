@@ -22,6 +22,10 @@
 
 @group(2) @binding(20) var groundTex: texture_2d_array<f32>;
 @group(2) @binding(21) var groundInfo: texture_2d_array<f32>;
+// the strata (tables.wgsl's CN_STRATA_Y and _K: a knot's ground height, its segment's kind) in a buffer, searched per
+// pixel: a constant array indexed at run time is copied whole on each read by some shader compilers (WebKit's: on an
+// iPhone the ground's painting took most of a frame), a buffer never is
+@group(2) @binding(22) var<storage, read> groundStrata: array<vec2f>;
 
 const GROUND_STRATA = 0;
 const GROUND_FLUTES = 1;
@@ -65,11 +69,13 @@ struct GrBed { i: i32, kind: i32, t: f32, top: f32, bottom: f32 }
 fn grBed(y: f32) -> GrBed {
   var b: GrBed;
   let n = CN_STRATA_N;
-  if (y <= CN_STRATA_Y[0]) { b.i = -1; b.kind = 1; b.t = 0.0; b.top = CN_STRATA_Y[0]; b.bottom = y - 1.0; return b; }
-  if (y >= CN_STRATA_Y[n - 1]) {
+  let y0 = groundStrata[0].x;
+  let yn = groundStrata[n - 1].x;
+  if (y <= y0) { b.i = -1; b.kind = 1; b.t = 0.0; b.top = y0; b.bottom = y - 1.0; return b; }
+  if (y >= yn) {
     // (past the table: beds of ~24 m, a cliff each)
-    let k = floor((y - CN_STRATA_Y[n - 1]) / 24.0);
-    b.i = n + i32(k); b.kind = 2; b.bottom = CN_STRATA_Y[n - 1] + k * 24.0; b.top = b.bottom + 24.0; b.t = (y - b.bottom) / 24.0;
+    let k = floor((y - yn) / 24.0);
+    b.i = n + i32(k); b.kind = 2; b.bottom = yn + k * 24.0; b.top = b.bottom + 24.0; b.t = (y - b.bottom) / 24.0;
     return b;
   }
   var lo = 0;
@@ -77,12 +83,12 @@ fn grBed(y: f32) -> GrBed {
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (CN_STRATA_Y[m] <= y) { lo = m; } else { hi = m - 1; }
+    if (groundStrata[m].x <= y) { lo = m; } else { hi = m - 1; }
   }
   b.i = lo;
-  b.kind = i32(CN_STRATA_K[lo]);
-  b.bottom = CN_STRATA_Y[lo];
-  b.top = CN_STRATA_Y[lo + 1];
+  b.kind = i32(groundStrata[lo].y);
+  b.bottom = groundStrata[lo].x;
+  b.top = groundStrata[lo + 1].x;
   b.t = (y - b.bottom) / max(b.top - b.bottom, 1e-3);
   return b;
 }
@@ -217,13 +223,15 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
 }
 
 /** the material info at xz from the info array, the finest level holding the point, handed over to the next coarser in
- *  each level's outer 15% (as world.wgsl's terrainHeight hands over the heights). levels[i] = (centre x, centre z, half
- *  extent, -): levels.ts LEVELS */
-fn canyonInfoAt(xz: vec2f, levels: array<vec4f, 5>) -> vec4f {
-  var lv = levels;
-  var v = textureSampleLevel(groundInfo, samp_linear, (xz - lv[4].xy + lv[4].z) / (2.0 * lv[4].z), 4, 0.0);
+ *  each level's outer 15% (as world.wgsl's terrainHeight hands over the heights) */
+fn canyonInfoAt(xz: vec2f) -> vec4f {
+  // (each level's centre and half extent from the World uniform's table — world.terrainLevels: half, texel, centre — read
+  // where they're needed, not copied into an array of the shader's own: a phone's compiler spills such an array)
+  let L4 = world.terrainLevels[4];
+  var v = textureSampleLevel(groundInfo, samp_linear, (xz - L4.zw + L4.x) / (2.0 * L4.x), 4, 0.0);
   for (var i = 3; i >= 0; i--) {
-    let L = lv[i];
+    let T4 = world.terrainLevels[i];
+    let L = vec4f(T4.zw, T4.x, 0.0);
     let d = abs(xz - L.xy);
     let e = max(d.x, d.y) / L.z;
     if (e < 1.0) {
@@ -235,7 +243,8 @@ fn canyonInfoAt(xz: vec2f, levels: array<vec4f, 5>) -> vec4f {
   // blended between neighbours or levels — between a zone 3 and a 5, a blend would read 4)
   let dim = vec2f(textureDimensions(groundInfo));
   for (var i = 0; i < 5; i++) {
-    let uv = (xz - lv[i].xy + lv[i].z) / (2.0 * lv[i].z);
+    let Li = world.terrainLevels[i];
+    let uv = (xz - Li.zw + Li.x) / (2.0 * Li.x);
     if (all(uv >= vec2f(0.0)) && all(uv < vec2f(1.0))) {
       v.a = textureLoad(groundInfo, vec2i(uv * dim), i, 0).a;
       break;

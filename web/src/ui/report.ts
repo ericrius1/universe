@@ -4,7 +4,8 @@
 // over 50 ms, with where the zoom was), the render scale, the GPU memory held (and its biggest holders every few
 // seconds), where the dive is and whether the gardens are in, and any errors. A page that dies (a phone's tab killed
 // for its memory) just stops reporting; the reload starts a new session. ?auto flies the dive by itself, round and
-// round: down from the top to the gardens, her face, her eye, and back up to the Earth.
+// round: down from the top to the gardens, her face, her eye, and back up to the Earth. A reporting page reloads itself
+// when the server has a new build (no one need be at the phone).
 import type { Kit } from '@ericrius1/weft';
 import type { App } from '../main';
 import { gpuMemory } from './stats';
@@ -72,6 +73,14 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
   addEventListener('pagehide', () => send('gone', {}));
 
   if (auto) void dive(app, (s) => send('leg', { leg: s }));
+  // (a new build on the server: the page takes it by itself, every few seconds asking which script the page is now)
+  const mine = [...document.scripts].map((x) => x.src).find((x) => /\/assets\/index-/.test(x));
+  if (mine) setInterval(() => {
+    void fetch(`${import.meta.env.BASE_URL}?build=${Date.now()}`, { cache: 'no-store' }).then((r) => r.text()).then((html) => {
+      const now = /\/assets\/index-[^"']+\.js/.exec(html)?.[0];
+      if (now && !mine.endsWith(now)) { send('reload', { from: mine.split('/').pop(), to: now.split('/').pop() }); setTimeout(() => location.reload(), 300); }
+    }).catch(() => {});
+  }, 5000);
 }
 
 /** at the gardens from above, what each part costs: the frame (the GPU's time where it can time itself, and the

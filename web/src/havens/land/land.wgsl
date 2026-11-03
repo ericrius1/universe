@@ -58,18 +58,15 @@ const LAND_SKIP_AIR = 16u;
   let eps = clamp(max(max(dist * 0.002, i.spacing * 0.5), finestTexel(p.xz)), 0.25, 32.0);
   var ng = vec3f(0.0, 1.0, 0.0);
   if ((skip & LAND_SKIP_NORMAL) == 0u) { ng = terrainNormalAt(p.xz, eps, i.spacing); }
-  // (the levels as ground.wgsl's lookup takes them: centre, half extent; the material read a little off the point, by
-  // a wander about as wide as its texels are at that distance — half a metre near, tens of metres far — so their grid
+  // (the material read a little off the point, by a wander about as wide as its texels are at that distance — half a metre near, tens of metres far — so their grid
   // never shows in the sand's and the scree's edges)
   var g: GroundSample;
   if ((skip & LAND_SKIP_PAINT) == 0u) {
-    var levels: array<vec4f, 5>;
-    for (var k = 0; k < 5; k++) { let L = world.terrainLevels[k]; levels[k] = vec4f(L.zw, L.x, 0.0); }
     var wn = vec2f(0.0);
     if (LAND_LITE) { wn = vec2f(grNoise(vec3f(p.xz * 0.021, 0.0)), grNoise(vec3f(p.xz * 0.021, 7.3))) * 0.94; }
     else { wn = vec2f(grFbm(vec3f(p.xz * 0.021, 0.0)), grFbm(vec3f(p.xz * 0.021, 7.3))); }
     let warp = (wn - 0.47) * clamp(dist * 0.009, 0.8, 90.0);
-    g = canyonGround(p, ng, canyonInfoAt(p.xz + warp, levels), dist);
+    g = canyonGround(p, ng, canyonInfoAt(p.xz + warp), dist);
   } else { g.albedo = vec3f(0.42, 0.2, 0.12); g.nrm = ng; g.rough = 0.9; g.wet = 0.0; }
   let n = g.nrm;
 
