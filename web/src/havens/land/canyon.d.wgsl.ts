@@ -20,5 +20,5 @@ export interface CanyonSample {
   u: number;
 }
 
-declare const shader: Shader<{ CnWedge: CnWedge; CanyonSample: CanyonSample }, never>;
+declare const shader: Shader<{ CnWedge: CnWedge; CanyonSample: CanyonSample }, 'canyonTables'>;
 export default shader;

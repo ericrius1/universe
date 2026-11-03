@@ -99,5 +99,5 @@ export interface GrBed {
   bottom: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; TerrainU: TerrainU; VOut: VOut; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'T' | 'skyIrradiance' | 'nodes' | 'groundStrata' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; TerrainU: TerrainU; VOut: VOut; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'T' | 'skyIrradiance' | 'nodes' | 'canyonTables' | 'groundStrata' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

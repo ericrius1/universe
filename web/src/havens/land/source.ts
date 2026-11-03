@@ -8,6 +8,7 @@ import { RawItem, type Compute, type Kit, type RunItem, type StorageBuffer, type
 import fillShader from './fill.wgsl';
 import { canyonHeight } from './canyon';
 import { INFO_STEP, LEVELS, texelCentre, texelOf, type HeightLevelSpec } from './levels';
+import { CANYON_TABLES } from './tables.data';
 
 export interface HeightSource {
   levels: HeightLevelSpec[];
@@ -42,6 +43,7 @@ export class CanyonGpu implements HeightSource {
   readonly heights: StorageBuffer;
   readonly hints: StorageBuffer;
   readonly info: StorageBuffer;
+  readonly tables: StorageBuffer;
   private fills: Compute[] = [];
   private us: UniformBuffer<any>[] = [];
   /** the rows a fill dispatch covers (all of a level, but for fillAll's slices) */
@@ -53,17 +55,19 @@ export class CanyonGpu implements HeightSource {
     this.heights = kit.storage({ label: 'canyon.heights', size: px * px * 4 });
     this.hints = kit.storage({ label: 'canyon.hints', size: px * px * 4 });
     this.info = kit.storage({ label: 'canyon.info', size: ipx * ipx * 4 });
+    // (the canyon's tables, read per texel from a buffer: tables.wgsl canyonTables)
+    this.tables = kit.storage({ label: 'canyon.tables', data: CANYON_TABLES, usage: ['storage'] });
     levels.forEach((L, i) => {
       const u = kit.uniforms(fillShader.structs.CanyonFill, `canyon.fill${i}`);
       u.set({ centre: [L.cx, L.cz], half: L.half, texel: texelOf(L), px: L.px, infoStep, row0: 0 });
       this.us.push(u);
       this.fills.push(kit.compute(fillShader, {
         label: `canyon.fill${i}`, entry: 'fill', threads: () => [L.px, Math.min(this.rows, L.px)],
-        bind: { canyonFill: u, canyonHeights: this.heights, canyonHints: this.hints },
+        bind: { canyonFill: u, canyonHeights: this.heights, canyonHints: this.hints, canyonTables: this.tables },
       }));
       this.infos.push(kit.compute(fillShader, {
         label: `canyon.info${i}`, entry: 'info', threads: [L.px / infoStep, L.px / infoStep],
-        bind: { canyonFill: u, canyonHeights: this.heights, canyonHints: this.hints, canyonInfo: this.info },
+        bind: { canyonFill: u, canyonHeights: this.heights, canyonHints: this.hints, canyonInfo: this.info, canyonTables: this.tables },
       }));
     });
   }
@@ -120,5 +124,5 @@ export class CanyonGpu implements HeightSource {
   }
 
   /** its buffers and passes freed (once the levels are in: a level's worth of each, ~85 MB at 3072²) */
-  release() { this.kit.release(this.heights, this.hints, this.info, ...this.fills, ...this.infos); }
+  release() { this.kit.release(this.heights, this.hints, this.info, this.tables, ...this.fills, ...this.infos); }
 }

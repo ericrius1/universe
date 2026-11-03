@@ -28,5 +28,5 @@ export interface CanyonFill {
   row0: number;
 }
 
-declare const shader: Shader<{ CnWedge: CnWedge; CanyonSample: CanyonSample; CanyonFill: CanyonFill }, 'canyonFill' | 'canyonHeights' | 'canyonHints' | 'canyonInfo'>;
+declare const shader: Shader<{ CnWedge: CnWedge; CanyonSample: CanyonSample; CanyonFill: CanyonFill }, 'canyonFill' | 'canyonTables' | 'canyonHeights' | 'canyonHints' | 'canyonInfo'>;
 export default shader;

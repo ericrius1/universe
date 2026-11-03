@@ -49,5 +49,5 @@ export interface GrBed {
   bottom: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'groundStrata' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'canyonTables' | 'groundStrata' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

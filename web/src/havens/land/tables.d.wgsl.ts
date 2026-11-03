@@ -12,5 +12,5 @@ export interface CnWedge {
   short: number;
 }
 
-declare const shader: Shader<{ CnWedge: CnWedge }, never>;
+declare const shader: Shader<{ CnWedge: CnWedge }, 'canyonTables'>;
 export default shader;

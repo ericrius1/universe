@@ -76,33 +76,33 @@ var<private> cnTerraceKind: i32;
 var<private> cnTerraceAlong: f32;
 fn cnTerrace(H: f32) -> f32 {
   if (H <= 0.0) { cnTerraceKind = -1; return H; }
-  let top = CN_STRATA_F[CN_STRATA_N - 1];
-  if (H >= top) { cnTerraceKind = -1; return CN_STRATA_Y[CN_STRATA_N - 1] + (H - top); }
+  let top = cnStrataF(CN_STRATA_N - 1);
+  if (H >= top) { cnTerraceKind = -1; return cnStrataY(CN_STRATA_N - 1) + (H - top); }
   var lo = 0;
   var hi = CN_STRATA_N - 2;
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (CN_STRATA_F[m] <= H) { lo = m; } else { hi = m - 1; }
+    if (cnStrataF(m) <= H) { lo = m; } else { hi = m - 1; }
   }
-  let t = (H - CN_STRATA_F[lo]) / (CN_STRATA_F[lo + 1] - CN_STRATA_F[lo]);
-  cnTerraceKind = i32(CN_STRATA_K[lo]);
+  let t = (H - cnStrataF(lo)) / (cnStrataF(lo + 1) - cnStrataF(lo));
+  cnTerraceKind = i32(cnStrataK(lo));
   cnTerraceAlong = t;
-  return CN_STRATA_Y[lo] + (CN_STRATA_Y[lo + 1] - CN_STRATA_Y[lo]) * t;
+  return cnStrataY(lo) + (cnStrataY(lo + 1) - cnStrataY(lo)) * t;
 }
 fn cnUnterrace(Y: f32) -> f32 {
   if (Y <= 0.0) { return Y; }
-  let top = CN_STRATA_Y[CN_STRATA_N - 1];
-  if (Y >= top) { return CN_STRATA_F[CN_STRATA_N - 1] + (Y - top); }
+  let top = cnStrataY(CN_STRATA_N - 1);
+  if (Y >= top) { return cnStrataF(CN_STRATA_N - 1) + (Y - top); }
   var lo = 0;
   var hi = CN_STRATA_N - 2;
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (CN_STRATA_Y[m] <= Y) { lo = m; } else { hi = m - 1; }
+    if (cnStrataY(m) <= Y) { lo = m; } else { hi = m - 1; }
   }
-  let t = (Y - CN_STRATA_Y[lo]) / (CN_STRATA_Y[lo + 1] - CN_STRATA_Y[lo]);
-  return CN_STRATA_F[lo] + (CN_STRATA_F[lo + 1] - CN_STRATA_F[lo]) * t;
+  let t = (Y - cnStrataY(lo)) / (cnStrataY(lo + 1) - cnStrataY(lo));
+  return cnStrataF(lo) + (cnStrataF(lo + 1) - cnStrataF(lo)) * t;
 }
 
 // ------------------------------------------------------------------ curves and small shapes
@@ -113,23 +113,23 @@ const CN_SOUTH = 3u;
 /** the slope of the last cnCurve */
 var<private> cnCurveD: f32;
 fn cnCurve(c: u32, x: f32) -> f32 {
-  let i0 = CN_CURVE_OFF[c];
-  let last = CN_CURVE_OFF[c + 1u] - 1u;
-  if (x <= CN_CURVE_T[i0]) { cnCurveD = 0.0; return CN_CURVE_V[i0]; }
-  if (x >= CN_CURVE_T[last]) { cnCurveD = 0.0; return CN_CURVE_V[last]; }
+  let i0 = cnCurveOff(c);
+  let last = cnCurveOff(c + 1u) - 1u;
+  if (x <= cnCurveT(i0)) { cnCurveD = 0.0; return cnCurveV(i0); }
+  if (x >= cnCurveT(last)) { cnCurveD = 0.0; return cnCurveV(last); }
   var i = i0;
   loop {
-    if (i >= last - 1u || x < CN_CURVE_T[i + 1u]) { break; }
+    if (i >= last - 1u || x < cnCurveT(i + 1u)) { break; }
     i++;
   }
-  let h = CN_CURVE_T[i + 1u] - CN_CURVE_T[i];
-  let s = (x - CN_CURVE_T[i]) / h;
+  let h = cnCurveT(i + 1u) - cnCurveT(i);
+  let s = (x - cnCurveT(i)) / h;
   let s2 = s * s;
   let s3 = s2 * s;
-  let v0 = CN_CURVE_V[i];
-  let v1 = CN_CURVE_V[i + 1u];
-  let m0 = CN_CURVE_M[i];
-  let m1 = CN_CURVE_M[i + 1u];
+  let v0 = cnCurveV(i);
+  let v1 = cnCurveV(i + 1u);
+  let m0 = cnCurveM(i);
+  let m1 = cnCurveM(i + 1u);
   cnCurveD = ((6.0 * s2 - 6.0 * s) * (v0 - v1)) / h + (3.0 * s2 - 4.0 * s + 1.0) * m0 + (3.0 * s2 - 2.0 * s) * m1;
   return (2.0 * s3 - 3.0 * s2 + 1.0) * v0 + (s3 - 2.0 * s2 + s) * h * m0 + (-2.0 * s3 + 3.0 * s2) * v1 + (s3 - s2) * h * m1;
 }
@@ -151,7 +151,7 @@ var<private> cnAlongOut: f32;
 fn cnAcross(c: u32, along: f32, across: f32, wander: f32, wanderD: f32) -> f32 {
   let mid = cnCurve(c, along) + wander;
   let slope = cnCurveD + wanderD;
-  cnAlongOut = max(max(CN_CURVE_T[CN_CURVE_OFF[c]] - along, along - CN_CURVE_T[CN_CURVE_OFF[c + 1u] - 1u]), 0.0);
+  cnAlongOut = max(max(cnCurveT(cnCurveOff(c)) - along, along - cnCurveT(cnCurveOff(c + 1u) - 1u)), 0.0);
   return abs(across - mid) / sqrt(1.0 + slope * slope);
 }
 var<private> cnMeanderD: f32;
@@ -200,7 +200,7 @@ fn cnGardenSurface(x: f32, z: f32) -> f32 {
   var inS = top;
   var inW = 0.0;
   for (var i = 0; i < CN_WEDGE_N; i++) {
-    let w = CN_WEDGES[i];
+    let w = cnWedge(i);
     let c0 = w.d0.x * dz - w.d0.y * dx;
     let c1 = dx * w.d1.y - dz * w.d1.x;
     let lat = min(c0, c1);
@@ -248,22 +248,22 @@ fn cnPromontory(x: f32, z: f32, wn: f32) -> f32 {
 
 // ------------------------------------------------------------------ the grand stair's corridor
 fn cnStairProfile(z: f32) -> f32 {
-  if (z <= CN_STAIR_Z[0].x) { return CN_STAIR_Z[0].y; }
-  if (z >= CN_STAIR_Z[CN_STAIR_N - 1].x) { return CN_STAIR_Z[CN_STAIR_N - 1].y; }
+  if (z <= cnStairZ(0).x) { return cnStairZ(0).y; }
+  if (z >= cnStairZ(CN_STAIR_N - 1).x) { return cnStairZ(CN_STAIR_N - 1).y; }
   var i = 0;
   loop {
-    if (i >= CN_STAIR_N - 2 || z < CN_STAIR_Z[i + 1].x) { break; }
+    if (i >= CN_STAIR_N - 2 || z < cnStairZ(i + 1).x) { break; }
     i++;
   }
-  let a = CN_STAIR_Z[i];
-  let b = CN_STAIR_Z[i + 1];
+  let a = cnStairZ(i);
+  let b = cnStairZ(i + 1);
   return a.y + ((z - a.x) / (b.x - a.x)) * (b.y - a.y);
 }
 fn cnCorridorTarget(x: f32, z: f32) -> f32 {
   var y = 1e9;
   for (var i = 0; i < CN_STAIR_N - 1; i++) {
-    let a = CN_LANDINGS[i];
-    let b = CN_LANDINGS[i + 1];
+    let a = cnLanding(i);
+    let b = cnLanding(i + 1);
     let ex = b.x - a.x;
     let ez = b.y - a.y;
     let len = sqrt(ex * ex + ez * ez);
@@ -274,7 +274,7 @@ fn cnCorridorTarget(x: f32, z: f32) -> f32 {
     y = min(y, a.z + (b.z - a.z) * t + (max(lat - (CN_STAIR_W / 2.0 + 2.0), 0.0) + over) * 4.0);
   }
   for (var i = 0; i < CN_STAIR_N; i++) {
-    let L = CN_LANDINGS[i];
+    let L = cnLanding(i);
     let dx = x - L.x;
     let dz = z - L.y;
     y = min(y, L.z + max(sqrt(dx * dx + dz * dz) - CN_LANDING_R, 0.0) * 4.0);
@@ -290,8 +290,8 @@ fn cnCorridor(x: f32, z: f32, h: f32) -> f32 {
   let gap = min(min(CN_GAP_A.x * dz - CN_GAP_A.y * dx, dx * CN_GAP_B.y - dz * CN_GAP_B.x), CN_PROM_R + CN_CLEFT_OUT - r);
   var zig = 1e9;
   for (var i = 0; i < CN_STAIR_N - 1; i++) {
-    let a = CN_LANDINGS[i];
-    let b = CN_LANDINGS[i + 1];
+    let a = cnLanding(i);
+    let b = cnLanding(i + 1);
     let ex = b.x - a.x;
     let ez = b.y - a.y;
     let t = clamp(((x - a.x) * ex + (z - a.y) * ez) / (ex * ex + ez * ez), 0.0, 1.0);
@@ -300,7 +300,7 @@ fn cnCorridor(x: f32, z: f32, h: f32) -> f32 {
     zig = min(zig, sqrt(qx * qx + qz * qz));
   }
   let foot = CN_STAIR_W / 2.0 + 2.0 - zig;
-  let inside = min(max(gap, foot), z - (CN_STAIR_Z[0].x - 8.0));
+  let inside = min(max(gap, foot), z - (cnStairZ(0).x - 8.0));
   if (inside < -200.0) { return h; }
   let goal = cnCorridorTarget(x, z);
   let below = 2.0 + 5.0 * cnSmooth(0.0, 20.0, -foot) + 1.5 * cnNoise(x, z, 23.0, CN_S_STAIR);

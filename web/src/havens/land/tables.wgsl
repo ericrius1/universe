@@ -46,100 +46,41 @@ const CN_S_PROM: u32 = 141u;
 const CN_S_STAIR: u32 = 151u;
 const CN_S_GULLY: u32 = 161u;
 
-// the curves (river, west slot, east slot, south canyon): knots, values, slopes; CN_CURVE_OFF[c] is curve c's first
-const CN_CURVE_OFF = array<u32, 5>(
-  0u, 13u, 20u, 28u, 36u,
-);
-const CN_CURVE_T = array<f32, 36>(
-  -9000.0, -4200.0, -3000.0, -2100.0, -1300.0, -700.0,
-  0.0, 650.0, 1250.0, 2000.0, 2900.0, 4200.0,
-  9000.0, -3900.0, -3200.0, -2300.0, -1600.0, -1100.0,
-  -600.0, -450.0, 450.0, 620.0, 1150.0, 1700.0,
-  2400.0, 3300.0, 3900.0, 4150.0, 380.0, 520.0,
-  1100.0, 1700.0, 2500.0, 3400.0, 4600.0, 6200.0,
-);
-const CN_CURVE_V = array<f32, 36>(
-  950.0, 900.0, 1150.0, 820.0, 980.0, 760.0,
-  820.0, 690.0, 980.0, 760.0, 1060.0, 880.0,
-  850.0, 820.0, 380.0, 140.0, 240.0, 60.0,
-  120.0, 120.0, 100.0, 100.0, -80.0, 60.0,
-  -160.0, 40.0, 650.0, 860.0, 0.0, 0.0,
-  -120.0, 220.0, -60.0, 300.0, -150.0, 350.0,
-);
-const CN_CURVE_M = array<f32, 36>(
-  0.0, 0.0989583358, -0.0791666657, -0.0833333358, -0.0833333358, -0.140476197,
-  -0.0571428575, 0.141666666, 0.0949999988, 0.0199999996, 0.0974358991, -0.0723557696,
-  0.0, 0.0, -0.447619051, -0.0619047619, -0.108571425, -0.119999997,
-  0.0599999987, 0.0, 0.0, -0.169811323, -0.0425385945, -0.0298701301,
-  -0.046031747, 0.61944443, 0.928333342, 0.0, 0.0, -0.103448279,
-  0.17988506, 0.108333334, 0.0250000004, 0.0125000002, -0.03125, 0.0,
-);
+// where each table starts in canyonTables
+const CN_T_CURVE_OFF: u32 = 0u;
+const CN_T_CURVE_T: u32 = 5u;
+const CN_T_CURVE_V: u32 = 41u;
+const CN_T_CURVE_M: u32 = 77u;
+const CN_T_STRATA_F: u32 = 113u;
+const CN_T_STRATA_Y: u32 = 193u;
+const CN_T_STRATA_K: u32 = 273u;
+const CN_T_STAIR_Z: u32 = 352u;
+const CN_T_LANDINGS: u32 = 370u;
+const CN_T_WEDGES: u32 = 397u;
+@group(2) @binding(30) var<storage, read> canyonTables: array<f32>;
+
+// the curves (river, west slot, east slot, south canyon): knots, values, slopes; cnCurveOff(c) is curve c's first
+fn cnCurveOff(c: u32) -> u32 { return u32(canyonTables[CN_T_CURVE_OFF + c]); }
+fn cnCurveT(i: u32) -> f32 { return canyonTables[CN_T_CURVE_T + i]; }
+fn cnCurveV(i: u32) -> f32 { return canyonTables[CN_T_CURVE_V + i]; }
+fn cnCurveM(i: u32) -> f32 { return canyonTables[CN_T_CURVE_M + i]; }
 
 // the strata: base height, ground height and segment kind (0 bench, 1 scree, 2 cliff) per knot
 const CN_STRATA_N: i32 = 80;
-const CN_STRATA_F = array<f32, 80>(
-  0.0, 11.359026, 21.2981739, 28.3975658, 30.7640305, 49.6957397,
-  52.5354958, 55.0202827, 56.7951317, 59.398243, 72.4137955, 74.7802582,
-  76.850914, 78.3299561, 80.6964188, 91.3455048, 94.185257, 96.6700439,
-  98.4448929, 101.521301, 122.819473, 125.185936, 127.256592, 128.735626,
-  131.102097, 142.934418, 145.77417, 148.258957, 150.033813, 152.281952,
-  166.480728, 168.847198, 170.917847, 172.396896, 175.0, 201.031097,
-  203.870865, 206.355652, 208.130493, 210.496964, 224.69574, 227.06221,
-  229.132858, 230.611893, 233.215012, 245.047333, 247.413788, 249.484451,
-  250.963486, 253.92157, 266.937134, 269.776886, 272.261658, 274.036499,
-  277.349548, 291.54834, 294.388092, 296.872894, 298.647736, 302.197418,
-  316.39621, 319.235962, 321.720764, 323.495605, 327.281952, 341.480743,
-  344.320496, 346.805267, 348.580109, 352.721436, 368.103455, 370.943207,
-  373.427979, 375.20285, 379.699127, 395.081146, 397.920898, 400.40567,
-  402.180542, 407.150116,
-);
-const CN_STRATA_Y = array<f32, 80>(
-  0.0, 1.60000002, 4.4000001, 8.0, 24.0, 24.6000004,
-  25.8799992, 28.1200008, 31.0, 50.0, 50.5, 51.5999985,
-  53.5250015, 56.0, 73.0, 73.5, 74.8000031, 77.0749969,
-  80.0, 104.0, 104.599998, 105.68, 107.57, 110.0,
-  127.0, 127.5, 128.800003, 131.074997, 134.0, 150.0,
-  150.5, 151.600006, 153.524994, 156.0, 175.0, 175.600006,
-  177.080002, 179.669998, 183.0, 200.0, 200.5, 201.800003,
-  204.074997, 207.0, 229.0, 229.5, 230.800003, 233.074997,
-  236.0, 262.0, 262.5, 264.0, 266.625, 270.0,
-  300.0, 300.600006, 302.279999, 305.220001, 309.0, 343.0,
-  343.600006, 345.200012, 348.0, 351.600006, 389.600006, 390.200012,
-  392.079987, 395.369995, 399.600006, 444.600006, 445.200012, 447.079987,
-  450.369995, 454.600006, 504.600006, 505.200012, 507.200012, 510.700012,
-  515.200012, 575.200012,
-);
-const CN_STRATA_K = array<u32, 79>(
-  1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u,
-  1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u,
-  0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u,
-  1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u,
-  2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u,
-  1u, 1u, 1u, 2u, 0u, 1u, 1u, 1u, 2u, 0u, 1u, 1u,
-  1u, 2u, 0u, 1u, 1u, 1u, 2u,
-);
+fn cnStrataF(i: i32) -> f32 { return canyonTables[CN_T_STRATA_F + u32(i)]; }
+fn cnStrataY(i: i32) -> f32 { return canyonTables[CN_T_STRATA_Y + u32(i)]; }
+fn cnStrataK(i: i32) -> u32 { return u32(canyonTables[CN_T_STRATA_K + u32(i)]); }
 
 // the grand stair: (z, y) going north, and the landings (x, z, y) in the layout's order
 const CN_STAIR_N: i32 = 9;
-const CN_STAIR_Z = array<vec2f, 9>(
-  vec2f(-640.0, 172.0), vec2f(-588.0, 150.0), vec2f(-560.0, 128.0),
-  vec2f(-520.0, 106.0), vec2f(-490.0, 84.0), vec2f(-468.0, 62.0),
-  vec2f(-420.0, 40.0), vec2f(-392.0, 22.0), vec2f(-300.0, 0.0),
-);
-const CN_LANDINGS = array<vec3f, 9>(
-  vec3f(0.0, -300.0, 0.0), vec3f(0.0, -392.0, 22.0), vec3f(-52.0, -420.0, 40.0),
-  vec3f(-52.0, -468.0, 62.0), vec3f(0.0, -490.0, 84.0), vec3f(52.0, -520.0, 106.0),
-  vec3f(52.0, -560.0, 128.0), vec3f(0.0, -588.0, 150.0), vec3f(0.0, -640.0, 172.0),
-);
+fn cnStairZ(i: i32) -> vec2f { let k = CN_T_STAIR_Z + u32(i) * 2u; return vec2f(canyonTables[k], canyonTables[k + 1u]); }
+fn cnLanding(i: i32) -> vec3f { let k = CN_T_LANDINGS + u32(i) * 3u; return vec3f(canyonTables[k], canyonTables[k + 1u], canyonTables[k + 2u]); }
 
 // the garden wedges: their sides' directions from the temple, radii, steps, drop, band width, ending on the top
 struct CnWedge { d0: vec2f, d1: vec2f, r0: f32, r1: f32, steps: f32, drop: f32, w: f32, short: f32 }
 const CN_WEDGE_N: i32 = 6;
-const CN_WEDGES = array<CnWedge, 6>(
-  CnWedge(vec2f(0.98480773, -0.173648179), vec2f(0.898794055, 0.438371152), 92.0, 330.0, 7.0, 7.5, 34.0, 0.0),
-  CnWedge(vec2f(0.829037547, 0.559192896), vec2f(0.207911685, 0.978147626), 92.0, 330.0, 8.0, 8.0, 29.75, 0.0),
-  CnWedge(vec2f(-0.207911685, 0.978147626), vec2f(-0.829037547, 0.559192896), 92.0, 330.0, 8.0, 8.0, 29.75, 0.0),
-  CnWedge(vec2f(-0.898794055, 0.438371152), vec2f(-0.98480773, -0.173648179), 92.0, 330.0, 7.0, 7.5, 34.0, 0.0),
-  CnWedge(vec2f(-0.939692616, -0.342020154), vec2f(-0.559192896, -0.829037547), 92.0, 200.0, 4.0, 5.0, 27.0, 1.0),
-  CnWedge(vec2f(0.559192896, -0.829037547), vec2f(0.939692616, -0.342020154), 92.0, 200.0, 4.0, 5.0, 27.0, 1.0),
-);
+fn cnWedge(i: i32) -> CnWedge {
+  let k = CN_T_WEDGES + u32(i) * 10u;
+  let t = array<f32, 10>(canyonTables[k], canyonTables[k + 1u], canyonTables[k + 2u], canyonTables[k + 3u], canyonTables[k + 4u], canyonTables[k + 5u], canyonTables[k + 6u], canyonTables[k + 7u], canyonTables[k + 8u], canyonTables[k + 9u]);
+  return CnWedge(vec2f(t[0], t[1]), vec2f(t[2], t[3]), t[4], t[5], t[6], t[7], t[8], t[9]);
+}
