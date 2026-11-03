@@ -132,7 +132,8 @@ export class Cosmos {
     // (and whoever lies in the meadow, once it comes within a few kilometres)
     if (c.logS < 4) void sf.figure.load().catch((e) => console.warn('cosmos: the figure failed to load', e));
     this.earth.update(S);
-    this.air.on = this.earth.lv.weight > 0.002 || sf.ground.weight > 0.002;
+    // (not under a host's picture that fills the frame: its own air, not this one's, is what's seen)
+    this.air.on = (this.earth.lv.weight > 0.002 || sf.ground.weight > 0.002) && !this.r.covered;
     if (this.air.on) this.air.update(this.earth.lv, this.earth.sun);
     this.r.over = alpha < 1;
     this.r.P.set({ alpha });

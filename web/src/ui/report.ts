@@ -36,7 +36,7 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
   send('boot', {
     ua: navigator.userAgent, screen: [screen.width, screen.height], dpr: devicePixelRatio, css: kit.size.css, render: kit.size.render,
     limits: { maxBufferSize: lim.maxBufferSize, maxStorage: lim.maxStorageBufferBindingSize, maxTex2D: lim.maxTextureDimension2D },
-    timestamps: kit.profiler.available, auto,
+    timestamps: kit.profiler.available, auto, weft: (kit as unknown as { version?: string }).version ?? null,
   });
 
   // the frames: their intervals this second, and the stalls
@@ -59,6 +59,7 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
     const med = (a: number[]) => { const s = a.splice(0).sort((x, y) => x - y); return s.length ? +s[s.length >> 1].toFixed(1) : 0; };
     const [cc, cg, cr, ct, he, ht, hr] = cpu.map(med);
     send('second', {
+      trusted: (kit.profiler as unknown as { trusted?: boolean }).trusted ?? null,
       cpu: { total: ct, cosmos: cc, gardens: cg, run: cr, env: he, terrain: ht, rocks: hr }, gpu: kit.profiler.available ? +kit.profiler.frameMs.toFixed(1) : null,
       fps: iv.length, p50: +q(0.5).toFixed(1), p95: +q(0.95).toFixed(1), max: Math.round(q(1)), stalls: stalls.splice(0),
       scale: +kit.renderScale.toFixed(2), render: kit.size.render, vramMB: MB(gpuMemory.bytes), logS: +app.cosmos.controls.logS.toFixed(2),
@@ -84,10 +85,12 @@ async function experiment(app: App) {
   kit.profiler.force = true;
   const measure = async () => {
     await new Promise((r) => setTimeout(r, 700));
-    const t0 = performance.now(), s0 = kit.profiler.serial;
-    let gpu = 0, n = 0, last = s0, frames = 0;
-    await new Promise<void>((r) => { const f = () => { frames++; if (kit.profiler.serial !== last) { last = kit.profiler.serial; gpu += kit.profiler.lastFrameMs; n++; } if (performance.now() - t0 < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); });
-    return `${(gpu / Math.max(1, n)).toFixed(1)}ms/${Math.round(frames / 2)}fps`;
+    // (the frames' own intervals, their median: a phone's GPU timestamps don't add up)
+    const t0 = performance.now(), iv: number[] = [];
+    let last = t0;
+    await new Promise<void>((r) => { const f = (t: number) => { iv.push(t - last); last = t; if (t - t0 < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); });
+    iv.sort((a, b) => a - b);
+    return Math.round(iv[iv.length >> 1]);
   };
   const parts = (h.arch as unknown as { drawnParts: { name: string; hidden: boolean }[] }).drawnParts;
   const env = h.env, aur = { ...env.aurora.settings };
@@ -100,7 +103,22 @@ async function experiment(app: App) {
     ['aurora', () => { env.sky.preset({ ...aur, intensity: 0, day: 0 }); }, () => { env.sky.preset(aur); }],
     ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
   ];
-  const out: Record<string, string> = { scale: scale.toFixed(2), base: await measure() };
+  // (what's drawn or worked out every frame whatever the view: off by stubbing it for the measure)
+  const stub = <T extends object, K extends keyof T>(o: T | null | undefined, k: K, v: T[K]): [() => void, () => void] => {
+    const was = o?.[k];
+    return [() => { if (o) o[k] = v; }, () => { if (o) o[k] = was as T[K]; }];
+  };
+  const any = h as unknown as Record<string, any>;
+  const air = app.cosmos.air as unknown as Record<string, any>;
+  tries.push(
+    ['terrain', ...stub(any.terrain, 'select', () => { any.terrain.nodeCount = 0; return 0; })],
+    ['rocks', ...stub(any.rocks, 'update', () => { for (const l of any.rocks.lists) l.length = 0; })],
+    ['water', ...stub(any.water, 'count', 0)],
+    ['atmosphere', ...stub(any.env.atmo, 'passes', () => [])],
+    ['flora sort', ...stub(any.flora, 'passes', () => [])],
+    ['universe air', () => { Object.defineProperty(air, 'on', { get: () => false, set: () => {}, configurable: true }); }, () => { delete air.on; air.on = false; }],
+  );
+  const out: Record<string, string | number> = { scale: scale.toFixed(2), base: await measure() };
   for (const [k, off, on] of tries) { off(); out[k] = await measure(); on(); }
   out.again = await measure();
   kit.autoRes = auto;
@@ -118,7 +136,7 @@ async function dive(app: App, say: (s: string) => void) {
     say(`round ${round}: down`);
     await fly(7.3, -0.15); await hold(2);
     await fly(3.5, -0.42); say('gardens 3 km'); await hold(4);
-    if (round === 2 || round === 4) say(JSON.stringify(await experiment(app)));
+    if (round === 1 || round === 3) say(JSON.stringify(await experiment(app)));
     await fly(1.4, -0.6); say('temple 25 m'); await hold(4);
     await fly(0.35, -0.95); say('her 2 m'); await hold(5);
     await fly(-1.75, -1.1); say('her eye'); await hold(3);
