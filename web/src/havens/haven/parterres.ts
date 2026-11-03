@@ -27,11 +27,16 @@ export function bay(s: Shapes, haul: Haul, y: Bay) {
   const a = ra + KERB, b = rb - KERB, l: Lim = (r) => lo(r) + KERB / r, h: Lim = (r) => hi(r) - KERB / r;
   const pal = (k: number) => PALETTES[(y.palette + k) % PALETTES.length];
   const wide = (r: number) => (h(r) - l(r)) * r;
+  // (a pattern that insets its outline needs the room for it at both ends: in a narrower bay the inset outline crossed
+  // itself, its faces folded over against their winding — such a bay is a lawn)
+  const room = Math.min(wide(a), wide(b), wide((a + b) / 2));
+  const fits: Record<BayKind, number> = { lawn: 2 * 1.5 + 1, pool: 2 * 2.3 + 3, quad: 4, stripes: 1, orchard: 2 * 1.2 + 1 };
+  if (room < fits[y.kind]) { lawn(s, haul, a, b, l, h, bed); return; }
   switch (y.kind) {
     case 'lawn': {
       const bw = 1.5;
-      border(s, haul, a, b, l, h, bw, bed, MAT.SOIL, 'flowers', 0.85, pal(0));
-      lawn(s, haul, a + bw, b - bw, inset(l, bw), inset(h, -bw), bed);
+      // (the lawn laid in the border's own inner outline: drawn afresh, its arcs cut at other points crossed the border's)
+      lawnIn(s, haul, border(s, haul, a, b, l, h, bw, bed, MAT.SOIL, 'flowers', 0.85, pal(0)), bed);
       const mid = (a + b) / 2, n = Math.max(1, Math.round(wide(mid) / 9));
       for (let i = 0; i < n; i++) tree(haul, pt(mid, l(mid) + ((i + 0.5) / n) * (h(mid) - l(mid))), bed, 'blossom', 1.6);
       corners(haul, b, l, h, bed, 1.4);
@@ -73,8 +78,7 @@ export function bay(s: Shapes, haul: Haul, y: Bay) {
     }
     case 'orchard': {
       const bw = 1.2;
-      border(s, haul, a, b, l, h, bw, bed, MAT.SOIL, 'shrubs', 0.7);
-      lawn(s, haul, a + bw, b - bw, inset(l, bw), inset(h, -bw), bed);
+      lawnIn(s, haul, border(s, haul, a, b, l, h, bw, bed, MAT.SOIL, 'shrubs', 0.7), bed);
       const rows = Math.max(1, Math.round((b - a - 2 * bw) / 6.5));
       for (let j = 0; j < rows; j++) {
         const r = a + bw + ((j + 0.5) / rows) * (b - a - 2 * bw);
@@ -107,7 +111,11 @@ function outline(ra: number, rb: number, lo: Lim, hi: Lim): V2[] {
 function lawn(s: Shapes, haul: Haul, ra: number, rb: number, lo: Lim, hi: Lim, y: number, ring = 0) {
   if (rb - ra < 0.4) return;
   if (ring > 0) { border(s, haul, ra, rb, lo, hi, ring, y, MAT.LAWN, 'lawn', 1); return; }
-  const p = outline(ra, rb, lo, hi);
+  lawnIn(s, haul, outline(ra, rb, lo, hi), y);
+}
+
+/** a lawn over an outline */
+function lawnIn(s: Shapes, haul: Haul, p: V2[], y: number) {
   s.slab(p, y, MAT.LAWN);
   haul.beds.push({ poly: p, y, kind: 'lawn', density: 1 });
 }
@@ -120,8 +128,9 @@ function beds(s: Shapes, haul: Haul, ra: number, rb: number, lo: Lim, hi: Lim, y
   haul.beds.push({ poly: p, y, kind, density, ...(palette ? { palette } : {}) });
 }
 
-/** a border of width w round the sector's inside, modelled as a ring and handed over as its four sides */
-function border(s: Shapes, haul: Haul, ra: number, rb: number, lo: Lim, hi: Lim, w: number, y: number, mat: Mat, kind: GardenBed['kind'], density: number, palette?: GardenBed['palette']) {
+/** a border of width w round the sector's inside, modelled as a ring and handed over as its four sides; its inner
+ *  outline (what's inside it is laid in that, edge to edge) */
+function border(s: Shapes, haul: Haul, ra: number, rb: number, lo: Lim, hi: Lim, w: number, y: number, mat: Mat, kind: GardenBed['kind'], density: number, palette?: GardenBed['palette']): V2[] {
   const [o, i] = sectorPair(ra, rb, lo, hi, w);
   s.flat([...i, i[0]], [...o, o[0]], y, y, mat);
   const li = inset(lo, w), hi2 = inset(hi, -w);
@@ -130,6 +139,7 @@ function border(s: Shapes, haul: Haul, ra: number, rb: number, lo: Lim, hi: Lim,
     outline(ra + w, rb - w, lo, li), outline(ra + w, rb - w, hi2, hi),
   ];
   for (const p of parts) haul.beds.push({ poly: p, y, kind, density, ...(palette ? { palette } : {}) });
+  return i;
 }
 
 /** a lotus pool: a cream coping round mosaic, the water, and its lilies */

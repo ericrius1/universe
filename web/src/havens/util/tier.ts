@@ -1,15 +1,20 @@
 // The renderer's construction-time knobs, read once as things are built (shadows.ts, clouds.ts, main.ts, post.ts,
-// fx.ts, textures.ts): the device's profile, as boulder picks them (its util/profiles.ts: the same names, the same
-// guess at the device), with the knobs Seven Havens has. A phone draws without MSAA, ambient occlusion, shafts, the
-// contour smudge or motion blur, its shadows smaller and fewer and the flora's levels nearer, at a lower resolution
-// held to its frame budget (AutoResolution); a desktop GPU draws all of it. ?profile=iphone16|m1pro16|m5air|rtx5090
-// picks one.
+// fx.ts, textures.ts, arch.ts, flora.ts, the fluid): the device's profile, as boulder picks them (its
+// util/profiles.ts: the same names, the same guess at the device), with the knobs Seven Havens has. A phone draws
+// without MSAA (on a tile GPU the post chain's read of a multisampled depth buffer has it written out every frame:
+// boulder ran 11-15 fps with it, 30 without; the final pass blends edges instead, post.ts EDGE_AA), ambient occlusion,
+// shafts, the contour smudge or motion blur, its shadows smaller and fewer, the buildings' textures at 512 px and the
+// flora's levels nearer, at 30 fps and a lower resolution held to its frame budget (util/autores.ts); and no backdrop
+// blur on the interface (WebKit blurs what's under every blurred element each frame: 13 ms of boulder's 55 ms frame on
+// the 16e). A desktop GPU draws all of it. ?profile=iphone16|m1pro16|m5air|rtx5090 picks one (phone and desktop too:
+// the iPhone's and the M5's); ?msaa=0|4 the scene's samples.
 
 export type ProfileName = 'iphone16' | 'm1pro16' | 'm5air' | 'rtx5090';
 
 export interface Profile {
   label: string;
-  /** a phone: the phone-only economies on (prints' reach, post's edge AA, clouds' cadence) */
+  /** a phone: the phone-only economies on (prints' reach, post's edge AA, clouds' cadence) and the touch controls'
+   *  defaults */
   phone: boolean;
   /** the scene's samples a pixel: 4 (MSAA, resolved) or 1 */
   msaa: 1 | 4;
@@ -33,17 +38,20 @@ export interface Profile {
   sceneDepthFormat: 'rgba16float' | 'rgba32float';
   /** the temporal upscaler in the post chain */
   temporalUpscale: boolean;
-  /** an image's largest side kept on the GPU (px) */
+  /** an image's largest side kept on the GPU (px); the buildings' material textures (px a side) */
   maxImage: number;
+  archTexPx: number;
   /** the flora's levels' distances, scaled (flora.ts settings.quality); the cascades it casts into */
   floraReach: number;
   floraShadows: number;
   /** the canvas's device pixels a CSS pixel at most; the render's share of them to begin with and at least; the GPU's
-   *  frame budget (ms) AutoResolution holds them to (0: fixed) */
+   *  frame budget (ms) the resolution is held to (util/autores.ts; 0: fixed); the frame rate held (0: every animation
+   *  frame) */
   maxPixelRatio: number;
   startScale: number;
   minScale: number;
   budget: number;
+  frameCap: number;
 }
 
 export const PROFILES: Record<ProfileName, Profile> = {
@@ -51,34 +59,34 @@ export const PROFILES: Record<ProfileName, Profile> = {
     label: 'iPhone 16', phone: true, msaa: 1,
     shadowPx: 1024, terrainShadowPx: 512, cascades: 3, staggerFarCascades: true, terrainEvery: 12, cloudEvery: 3,
     bloomLevels: 4, smudge: false, ao: false, rays: false, motionBlur: false,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 2048,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 2048, archTexPx: 512,
     floraReach: 0.5, floraShadows: 1,
-    maxPixelRatio: 2, startScale: 0.7, minScale: 0.45, budget: 24,
+    maxPixelRatio: 2, startScale: 0.7, minScale: 0.45, budget: 24, frameCap: 30,
   },
   m1pro16: {
     label: 'M1 Pro · 16 GB', phone: false, msaa: 4,
     shadowPx: 1024, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: true, terrainEvery: 8, cloudEvery: 2,
     bloomLevels: 5, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024,
     floraReach: 0.75, floraShadows: 2,
-    maxPixelRatio: 1.5, startScale: 0.8, minScale: 0.5, budget: 14,
+    maxPixelRatio: 1.5, startScale: 0.8, minScale: 0.5, budget: 14, frameCap: 0,
   },
   m5air: {
     label: 'M5 Air', phone: false, msaa: 4,
     shadowPx: 1280, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: true, terrainEvery: 6, cloudEvery: 2,
     bloomLevels: 5, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024,
     floraReach: 0.85, floraShadows: 2,
-    maxPixelRatio: 1.5, startScale: 0.9, minScale: 0.5, budget: 14,
+    maxPixelRatio: 1.5, startScale: 0.9, minScale: 0.5, budget: 14, frameCap: 0,
   },
   // (what Seven Havens drew everywhere before it had profiles)
   rtx5090: {
     label: 'RTX 5090 · Maximum', phone: false, msaa: 4,
     shadowPx: 2048, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: false, terrainEvery: 1, cloudEvery: 1,
     bloomLevels: 6, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 8192,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 8192, archTexPx: 1024,
     floraReach: 1, floraShadows: 2,
-    maxPixelRatio: 1.5, startScale: 1, minScale: 1, budget: 0,
+    maxPixelRatio: 1.5, startScale: 1, minScale: 1, budget: 0, frameCap: 0,
   },
 };
 
@@ -95,15 +103,25 @@ function rendererName() {
   } catch { return ''; }
 }
 
+/** a phone (or a tablet), by its user agent, or by a coarse pointer on a small screen (in a worker: by its user agent
+ *  alone) */
+export function looksLikePhone() {
+  if (typeof navigator === 'undefined') return false;
+  if (/iPhone|iPod|iPad|Android/i.test(navigator.userAgent)) return true;
+  if (typeof screen === 'undefined' || typeof matchMedia === 'undefined') return false;
+  return Math.min(screen.width, screen.height) < 600 && matchMedia('(pointer: coarse)').matches;
+}
+
 /** the nearest profile to this device (boulder's detectProfile): a phone by its browser and screen, a desktop GPU by
  *  its name, an unknown one the middle */
 export function detectProfile(): { name: ProfileName; renderer: string; reason: string } {
-  const asked = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('profile');
+  const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
+  const asked = params.get('profile') ?? params.get('tier');
   if (asked && asked in PROFILES) return { name: asked as ProfileName, renderer: '', reason: '?profile' };
+  if (asked === 'phone') return { name: 'iphone16', renderer: '', reason: '?profile=phone' };
+  if (asked === 'desktop' || asked === 'full') return { name: 'm5air', renderer: '', reason: '?profile=desktop' };
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
-  const phone = /iPhone|iPod|iPad|Android/i.test(ua)
-    || (typeof screen !== 'undefined' && typeof matchMedia !== 'undefined' && Math.min(screen.width, screen.height) < 600 && matchMedia('(pointer: coarse)').matches);
-  if (phone) return { name: 'iphone16', renderer: '', reason: 'mobile browser and compact coarse-pointer screen' };
+  if (looksLikePhone()) return { name: 'iphone16', renderer: '', reason: 'mobile browser and compact coarse-pointer screen' };
   const renderer = rendererName();
   if (/RTX\s*(?:5090|4090|5080|4080)\b/i.test(renderer)) return { name: 'rtx5090', renderer, reason: 'a high-end NVIDIA card' };
   if (/Apple M[2-9]\b/i.test(renderer)) return { name: 'm5air', renderer, reason: 'Apple M2 or later' };
@@ -116,3 +134,14 @@ export function detectProfile(): { name: ProfileName; renderer: string; reason: 
 
 export const detected = detectProfile();
 export const tier: Profile = { ...PROFILES[detected.name] };
+{
+  const msaa = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('msaa');
+  if (msaa === '0' || msaa === '4') tier.msaa = msaa === '4' ? 4 : 1;
+}
+
+if (tier.phone && typeof document !== 'undefined') {
+  document.documentElement.classList.add('tier-phone');
+  const st = document.createElement('style');
+  st.textContent = 'html.tier-phone *, html.tier-phone *::before, html.tier-phone *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }';
+  document.head.appendChild(st);
+}

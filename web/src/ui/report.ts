@@ -129,6 +129,34 @@ async function experiment(app: App) {
   return out;
 }
 
+/** at her eye (the gardens off: the meadow's shader and her figure draw it), what each part costs, as experiment does */
+async function eyeExperiment(app: App) {
+  const kit = (window as unknown as { kit: Kit }).kit, sf = app.cosmos.surface as unknown as Record<string, any>;
+  const auto = kit.autoRes, scale = kit.renderScale;
+  kit.autoRes = null;
+  const measure = async () => {
+    await new Promise((r) => setTimeout(r, 700));
+    const t0 = performance.now(), iv: number[] = [];
+    let last = t0;
+    await new Promise<void>((r) => { const f = (t: number) => { iv.push(t - last); last = t; if (t - t0 < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); });
+    iv.sort((a, b) => a - b);
+    return Math.round(iv[iv.length >> 1]);
+  };
+  // (a value the frame sets each time held as given, then let go)
+  const pin = (o: Record<string, any>, k: string, v: unknown): [() => void, () => void] =>
+    [() => { Object.defineProperty(o, k, { get: () => v, set: () => {}, configurable: true }); }, () => { delete o[k]; }];
+  const tries: [string, () => void, () => void][] = [
+    ['figure', ...pin(sf.figure, 'shown', false)],
+    ['meadow', ...pin(sf, 'hidden', true)],
+    ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
+  ];
+  const out: Record<string, string | number> = { scale: scale.toFixed(2), base: await measure() };
+  for (const [k, off, on] of tries) { off(); out[k] = await measure(); on(); }
+  out.again = await measure();
+  kit.autoRes = auto;
+  return out;
+}
+
 /** the dive by itself: down to the gardens once they're in, her face, her eye; back up; again */
 async function dive(app: App, say: (s: string) => void) {
   const c = app.cosmos.controls;
@@ -145,6 +173,7 @@ async function dive(app: App, say: (s: string) => void) {
     await fly(1.4, -0.6); say('temple 25 m'); await hold(4);
     await fly(0.35, -0.95); say('her 2 m'); await hold(5);
     await fly(-1.75, -1.1); say('her eye'); await hold(3);
+    if (round === 1 || round === 3) say(JSON.stringify({ eye: await eyeExperiment(app) }));
     say('up');
     await fly(3.5, -0.42); await hold(2);
     await fly(7.3, -0.15, 6); await hold(2);

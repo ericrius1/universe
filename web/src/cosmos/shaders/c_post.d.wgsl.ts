@@ -35,19 +35,15 @@ export interface Cell3 {
   id: Vec3;
   c: Vec3;
 }
-export interface CPost {
-  bloom: number;
-  exposure: number;
-  vignette: number;
-  grain: number;
-  saturation: number;
-  contrast: number;
-  alpha: number;
-  encode: number;
-  disc: number;
-  pad0: number;
-  pad1: number;
-  pad2: number;
+export interface FilmU {
+  a: Vec4;
+  glow: Vec4;
+  look: Vec4;
+  tone: Vec4;
+  vig: Vec4;
+  grade: Vec4;
+  sun: Vec4;
+  out: Vec4;
 }
 export interface Lvl {
   texel: Vec2;
@@ -55,5 +51,5 @@ export interface Lvl {
   last: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Cell3: Cell3; CPost: CPost; Lvl: Lvl }, 'frame' | 'P' | 'B' | 'srcTex' | 'bloomTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Cell3: Cell3; FilmU: FilmU; Lvl: Lvl }, 'frame' | 'F' | 'B' | 'srcTex' | 'bloomTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

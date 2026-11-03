@@ -9,7 +9,7 @@
 // they're sent; `unuse()` gives the host its globals back. `overlay` is the pass right after the scene (its colour the
 // scene's HDR, `sceneZ` its distances) for what the host draws into the canyon itself.
 import { type Kit, type RenderPass, type RunEntry, type Texture } from '@ericrius1/weft';
-import { SCENE_ORDER, type SceneSlot } from './app';
+import { SCENE_ORDER, type SceneSlot } from './world/order';
 import { Terrain } from './world/terrain';
 import { Env } from './world/env';
 import { buildPart, carveHaven, havenFloors, plantFlora } from './world/build';
@@ -69,7 +69,7 @@ export class Haven {
     const haven = buildPart('haven');
     const catalog = catalogInWorker();
 
-    const land = this.land = new Land(kit, lean ? VIEW_LEVELS : undefined);
+    const land = this.land = new Land(kit, undefined, lean ? VIEW_LEVELS : undefined);
     const floors = havenFloors(land.levels);
     const terrain = this.terrain = Terrain.create(kit, land);
     const env = this.env = new Env(kit, terrain);
@@ -117,6 +117,8 @@ export class Haven {
       order.into('flora', () => flora.draw(scene, samples));
       flora.drawShadows(env.shadows.passes);
     });
+    // (what the first view doesn't need — the Milky Way — asked for once the world's made, as the game does)
+    void parts.then(() => env.later());
     this.built = Promise.all([parts, rocksIn, floraIn, env.loaded]).then(() => {
       const water = this.water = new Water(kit, arch.parts.flatMap((p) => p.water));
       order.into('water', () => water.draw(scene));

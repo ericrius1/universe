@@ -30,6 +30,9 @@ struct World {
                                         // (its outward facing, an angle from +x toward +z) or 9 (all round)
   glow: vec4f,                          // the city's glow on the night sky: xz the unit way toward it (level), y how much it's
                                         // that way (0 all round: inside it), w its strength
+  cave: array<vec4f, 8>,                // the caverns under the Haven (caverns/plan.ts caveUniform): two boxes, four each — the
+                                        // low corner and its open face's fade (m), the high corner and 1 if used, the open face's
+                                        // outward normal, the land's carve under it (x0, z0, x1, z1)
 }
 @group(0) @binding(1) var<uniform> world: World;
 
@@ -290,7 +293,18 @@ fn cascadeOf(viewDist: f32) -> i32 {
   return -1;
 }
 
-fn shadowTap(c: i32, p: vec3f) -> f32 {
+/** how the receiving surface's depth in cascade c changes a texel across (x, y in the map): its plane, from its normal
+ *  through the cascade's matrix (rows a rotation's, each scaled), held short of edge-on (a surface that steep to the
+ *  light is barely lit anyway) */
+fn receiverSlope(c: i32, n: vec3f, dim: f32) -> vec2f {
+  let M = world.cascades[c];
+  let len = sqrt(M[0].xyz * M[0].xyz + M[1].xyz * M[1].xyz + M[2].xyz * M[2].xyz);
+  let nl = (M * vec4f(n, 0.0)).xyz / len;
+  let nz = select(-1.0, 1.0, nl.z >= 0.0) * max(abs(nl.z), 0.2);
+  return vec2f(-nl.x, nl.y) * (2.0 * len.z / (len.x * dim * nz));
+}
+
+fn shadowTap(c: i32, p: vec3f, n: vec3f) -> f32 {
   let lc = world.cascades[c] * vec4f(p, 1.0);
   let uv = vec2f(lc.x * 0.5 + 0.5, 0.5 - lc.y * 0.5);
   if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0)) || lc.z < 0.0 || lc.z > 1.0) { return 1.0; }
@@ -301,10 +315,14 @@ fn shadowTap(c: i32, p: vec3f) -> f32 {
   // (the far cascades a 5x5 tent: a small caster a few texels across, rasterized a little differently as its shadow
   // slides over the texel grid, blinked under a 3x3)
   let R = select(1, 2, c >= 2);
+  // (each tap against the surface's own depth there, not the middle's: lit at a slant — the moon low, the sun at
+  // evening — the outer taps of a plane fell behind it, and it shadowed itself in rings that crawled as the light moved)
+  let g = receiverSlope(c, n, dim.x);
   for (var y = -R; y <= R; y++) {
     for (var x = -R; x <= R; x++) {
       let k = f32(R + 1 - abs(x)) * f32(R + 1 - abs(y));
-      s += k * textureSampleCompareLevel(shadowMap, samp_shadow, uv + vec2f(f32(x), f32(y)) / dim, c, lc.z + world.shadowParams.y);
+      let z = lc.z + world.shadowParams.y + dot(g, vec2f(f32(x), f32(y)));
+      s += k * textureSampleCompareLevel(shadowMap, samp_shadow, uv + vec2f(f32(x), f32(y)) / dim, c, z);
       w += k;
     }
   }
@@ -344,12 +362,12 @@ fn sunShadow(p: vec3f, n: vec3f) -> f32 {
   if (c >= 0) {
     let texel = world.shadowParams.x * pow(world.splits[c] / world.splits[0], 1.0);
     let off = n * texel * world.shadowParams.z * (1.0 - abs(dot(n, world.sunDir)) * 0.5);
-    vis = shadowTap(c, p + off);
+    vis = shadowTap(c, p + off, n);
     // blend into the next cascade over the last tenth of this one
     let edge = world.splits[c] * 0.9;
     if (d > edge && c + 1 < i32(world.shadowParams.w)) {
       let texel2 = world.shadowParams.x * (world.splits[c + 1] / world.splits[0]);
-      vis = mix(vis, shadowTap(c + 1, p + n * texel2 * world.shadowParams.z), (d - edge) / (world.splits[c] - edge));
+      vis = mix(vis, shadowTap(c + 1, p + n * texel2 * world.shadowParams.z, n), (d - edge) / (world.splits[c] - edge));
     }
   }
   return vis * terrainSunVisibility(p);
@@ -429,8 +447,11 @@ fn terrainNormalAt(xz: vec2f, eps: f32, spacing: f32) -> vec3f {
 }
 
 // the heightfield's own shadow (ray-marched toward the sun per texel when the sun moves), from the finest level holding
-// the point
-fn terrainSunVisibility(p: vec3f) -> f32 {
+// the point. Over the caverns' carve (the land dug out under them, roofed by the ring's paving and the temple) the
+// ground's shadow is the pit floor's, not the paving's: read it just past the carve's edge on the sun's side instead
+fn terrainSunVisibility(p0: vec3f) -> f32 {
+  var p = p0;
+  if (caveCarveNear(p0.xz)) { p = vec3f(caveCarveOut(p0.xz), p0.y); }
   // (finest first, as terrainHeight: the coarser levels read only in its hand-over)
   let last = TERRAIN_LEVELS - 1;
   var f = 0;
@@ -447,6 +468,60 @@ fn terrainSunVisibility(p: vec3f) -> f32 {
     }
   }
   return mix(vf, v, tf);
+}
+
+// ------------------------------------------------------------------ the caverns under the Haven (caverns/plan.ts)
+// how far a point is inside them (0 out .. 1 in): each box hard at its faces but its open one (the stair's mouth),
+// faded in over the box's fade from that one. Neither the sun nor the sky reaches in; the crystals light it
+fn underground(p: vec3f) -> f32 {
+  var k = 0.0;
+  for (var i = 0u; i < 2u; i++) {
+    let lo = world.cave[i * 4u];
+    let hi = world.cave[i * 4u + 1u];
+    if (hi.w <= 0.0) { continue; }
+    let d = world.cave[i * 4u + 2u].xyz;
+    let a = smoothstep(lo.xyz - 0.3, lo.xyz + 0.3, p) * (1.0 - smoothstep(hi.xyz - 0.3, hi.xyz + 0.3, p));
+    // (how far in from the open face)
+    let face = dot(d, select(lo.xyz, hi.xyz, d > vec3f(0.0)));
+    let open = select(1.0, smoothstep(0.0, lo.w, face - dot(d, p)), lo.w > 0.0);
+    k = max(k, a.x * a.y * a.z * open);
+  }
+  return k;
+}
+
+// the caverns' own dim light, the crystals' glow come back off the stone from all round (irradiance over pi, as
+// skyAmbient's): set on screen, over the exposure, as every glow is — the same at noon as at midnight
+const CAVE_AMBIENT = vec3f(0.055, 0.16, 0.14);
+fn caveAmbient(n: vec3f) -> vec3f { return CAVE_AMBIENT * (0.8 + 0.2 * n.y) / max(world.exposure, 1e-6); }
+
+// a plan point moved out of the caverns' carve toward the sun (itself where it's outside it): where the ground's own
+// shadow is the one the surface over the carve would have
+// is a plan point over the caverns' carve (either box, a metre round it)
+fn caveCarveNear(xz: vec2f) -> bool {
+  var near = false;
+  for (var i = 0u; i < 2u; i++) {
+    let c = world.cave[i * 4u + 3u] + vec4f(-1.0, -1.0, 1.0, 1.0);
+    near = near || (world.cave[i * 4u + 1u].w > 0.0 && all(xz >= c.xy) && all(xz <= c.zw));
+  }
+  return near;
+}
+fn caveCarveOut(xz0: vec2f) -> vec2f {
+  var xz = xz0;
+  let s = world.sunDir.xz;
+  let sl = length(s);
+  for (var r = 0u; r < 2u; r++) {
+    for (var i = 0u; i < 2u; i++) {
+      if (world.cave[i * 4u + 1u].w <= 0.0) { continue; }
+      let c = world.cave[i * 4u + 3u] + vec4f(-1.0, -1.0, 1.0, 1.0);
+      if (any(xz < c.xy) || any(xz > c.zw)) { continue; }
+      if (sl < 1e-4) { return c.xy - vec2f(1.0); }
+      let d = s / sl;
+      let edge = select(c.xy, c.zw, d > vec2f(0.0));
+      let t = select(vec2f(1e9), (edge - xz) / d, abs(d) > vec2f(1e-5));
+      xz += d * (min(t.x, t.y) + 0.75);
+    }
+  }
+  return xz;
 }
 
 // ------------------------------------------------------------------ misc

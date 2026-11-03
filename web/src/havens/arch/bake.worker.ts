@@ -25,7 +25,7 @@ scope.onmessage = (e) => {
     const packed = pack(fine, light);
     const t3 = performance.now();
     const done: BakeDone = { id, packed, refined: fine.idx.length / 3, ms: { refine: t1 - t0, light: t2 - t1, pack: t3 - t2 } };
-    scope.postMessage(done, [packed.pos.buffer, packed.attr.buffer, packed.idx.buffer, packed.chunks.buffer, packed.boxes.buffer, packed.draws.buffer]);
+    scope.postMessage(done, [packed.pos.buffer, packed.attr.buffer, packed.idx.buffer, packed.chunks.buffer, packed.boxes.buffer, packed.draws.buffer, packed.cells.buffer]);
   } catch (err) {
     scope.postMessage({ id, error: String((err as Error)?.stack ?? err) });
   }

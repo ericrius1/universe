@@ -6,25 +6,33 @@
 import { buildCity } from '../city/city';
 import { buildHaven, havenGround } from '../haven/haven';
 import { terraceFloor } from '../haven/plan';
+import { cavernGround } from '../caverns/plan';
 import { growFlora } from '../flora/species';
 import { meshHeights, scatterBeds } from '../flora/scatter';
 import { floraBuffers, type FloraBuffers } from '../flora/buffers';
-import type { ArchPart, GardenBed } from '../arch/types';
+import type { ArchMesh, ArchPart, GardenBed } from '../arch/types';
+import { splitMesh } from '../arch/split';
 import { FLOOR_Y } from './layout';
 import type { HeightLevel } from './terrain';
 
-export type BuildJob = { job: 'city' | 'haven' } | { job: 'carve'; levels: HeightLevel[]; box: [number, number, number, number] } | { job: 'flora'; beds: GardenBed[] };
+export type BuildJob = { job: 'city' | 'haven'; regions?: number }
+  | { job: 'carve'; levels: HeightLevel[]; box: [number, number, number, number]; part?: number; of?: number }
+  | { job: 'flora'; beds: GardenBed[] };
 
 /** one level's texels in the box: the first column and row, the width and height, the Haven's floor at each (NaN where
- *  it leaves the ground alone) */
-export interface CarveGrid { c0: number; r0: number; w: number; h: number; floor: Float32Array }
+ *  it leaves the ground alone). A share of it (`of` workers side by side, this one `part`): only its rows, part, part +
+ *  of, part + 2·of…, packed one after another */
+export interface CarveGrid { c0: number; r0: number; w: number; h: number; floor: Float32Array; part?: number; of?: number }
 
 export type BuildDone = { part: ArchPart; ms: number } | { carve: CarveGrid[]; ms: number } | { flora: FloraBuffers; count: number; ms: number };
+
+// (in: the page starts the rest of its workers now, this script in its cache: build.ts run)
+self.postMessage({ loaded: true });
 
 self.onmessage = (e: MessageEvent<BuildJob>) => {
   const t0 = performance.now(), j = e.data;
   if (j.job === 'carve') {
-    const carve = j.levels.map((L) => grid(L, j.box));
+    const carve = j.levels.map((L) => grid(L, j.box, j.part ?? 0, j.of ?? 1));
     self.postMessage({ carve, ms: performance.now() - t0 } satisfies BuildDone, { transfer: carve.map((g) => g.floor.buffer) });
     return;
   }
@@ -39,21 +47,33 @@ self.onmessage = (e: MessageEvent<BuildJob>) => {
     self.postMessage({ flora, count: plants.length, ms: performance.now() - t0 } satisfies BuildDone, { transfer: moved });
     return;
   }
-  const part = j.job === 'city' ? buildCity() : buildHaven(), m = part.mesh;
-  const moved = new Set([m.pos.buffer, m.nrm.buffer, m.uv.buffer, m.mat.buffer, m.tint.buffer, m.ao.buffer, m.glow.buffer, m.idx.buffer]);
+  const part = j.job === 'city' ? buildCity() : buildHaven();
+  // (cut into regions to bake side by side, here where the arrays already are)
+  const regions = splitMesh(part.mesh, j.regions ?? 1);
+  if (regions.length > 1) {
+    part.regions = regions;
+    const none = new Float32Array(0), nothing = new Uint8Array(0);
+    part.mesh = { pos: none, nrm: none, uv: none, mat: nothing, tint: nothing, ao: nothing, glow: nothing, idx: new Uint32Array(0), bounds: part.mesh.bounds };
+  }
+  const moved = new Set(regions.flatMap((m: ArchMesh) => [m.pos.buffer, m.nrm.buffer, m.uv.buffer, m.mat.buffer, m.tint.buffer, m.ao.buffer, m.glow.buffer, m.idx.buffer]));
   self.postMessage({ part, ms: performance.now() - t0 } satisfies BuildDone, { transfer: [...moved] as ArrayBuffer[] });
 };
 
-/** the Haven's floor at a level's texel centres inside the box (terrain.ts's texel layout) */
-function grid(L: HeightLevel, box: [number, number, number, number]): CarveGrid {
+/** the Haven's floor at a level's texel centres inside the box (terrain.ts's texel layout), and under it the caverns'
+ *  carve (caverns/plan.ts cavernGround) */
+function grid(L: HeightLevel, box: [number, number, number, number], part: number, of: number): CarveGrid {
   const texel = (2 * L.half) / L.px;
   const col = (x: number) => (x - L.cx + L.half) / texel - 0.5, row = (z: number) => (z - L.cz + L.half) / texel - 0.5;
   const c0 = Math.max(0, Math.floor(col(box[0]))), c1 = Math.min(L.px - 1, Math.ceil(col(box[2])));
   const r0 = Math.max(0, Math.floor(row(box[1]))), r1 = Math.min(L.px - 1, Math.ceil(row(box[3])));
-  const w = Math.max(0, c1 - c0 + 1), h = Math.max(0, r1 - r0 + 1), floor = new Float32Array(w * h);
-  for (let r = 0; r < h; r++) {
+  const w = Math.max(0, c1 - c0 + 1), h = Math.max(0, r1 - r0 + 1), floor = new Float32Array(w * Math.max(0, Math.ceil((h - part) / of)));
+  for (let r = part, k = 0; r < h; r += of, k++) {
     const z = L.cz + (r0 + r + 0.5) * texel - L.half;
-    for (let c = 0; c < w; c++) floor[r * w + c] = havenGround(L.cx + (c0 + c + 0.5) * texel - L.half, z) ?? NaN;
+    for (let c = 0; c < w; c++) {
+      const x = L.cx + (c0 + c + 0.5) * texel - L.half, h = havenGround(x, z), cave = cavernGround(x, z);
+      // (the caverns under the temple: the land dug out below their floors, whatever the Haven lays over them)
+      floor[k * w + c] = cave !== null ? Math.min(cave, h ?? cave) : h ?? NaN;
+    }
   }
-  return { c0, r0, w, h, floor };
+  return { c0, r0, w, h, floor, part, of };
 }

@@ -1,5 +1,4 @@
-// motionblur.wgsl's body, for the scene drawn with MSAA (motionblur.wgsl) or without (motionblur1.wgsl): they differ only
-// in how they declare the depth.
+// motionblur.wgsl's body (the depth declared there).
 // Camera motion blur (after the waterbending game's): each pixel reprojected into the last frame — the world taken as
 // still — and blurred along that screen motion over a fraction of the frame (the shutter). What's within a few metres
 // of the lens is kept sharp, and so is the heroine: inside her circle on screen a pixel moves as she does across it

@@ -1,4 +1,4 @@
-// Fills one level of the canyon's nested heights on the GPU (source.ts dispatches it at load, a level in a few
+// Fills one level of the land's nested heights on the GPU (source.ts dispatches it at load, a level in a few
 // milliseconds): `fill` runs canyon.wgsl once per texel of the level's px x px grid (texel k's centre at
 // (k + 0.5) * texel - half from the level's centre, as boulder's levels lie) into a buffer of f32 heights, row-major
 // with rows going south (+z), and what each texel was into a buffer of packed hints; `info` then reads the heights round
@@ -12,7 +12,6 @@ struct CanyonFill {
   texel: f32,        // its texel (m): 2 * half / px
   px: u32,           // texels per side
   infoStep: u32,     // height texels per info texel (1: the same grid)
-  row0: u32,         // the first row this dispatch fills (a band of the level at a time: source.ts fillAll's slices)
 }
 @group(2) @binding(0) var<uniform> canyonFill: CanyonFill;
 @group(2) @binding(1) var<storage, read_write> canyonHeights: array<f32>;
@@ -27,15 +26,14 @@ fn fillPos(i: u32, j: u32) -> vec2f {
   return corner + along;
 }
 
-// a texel's hints in a u32: the strata kind + 1 (4 bits), the zone (4), how far along the segment (8), the river's
-// distance in centimetres (16, held at 655 m)
+// a texel's hints in a u32: the strata kind + 1 (4 bits), the zone (4), how far along the segment (8), the water's
+// channel's distance in centimetres (16, held at 655 m)
 @compute @workgroup_size(8, 8) fn fill(@builtin(global_invocation_id) id: vec3u) {
   let n = canyonFill.px;
-  let y = id.y + canyonFill.row0;
-  if (id.x >= n || y >= n) { return; }
-  let p = fillPos(id.x, y);
+  if (id.x >= n || id.y >= n) { return; }
+  let p = fillPos(id.x, id.y);
   let s = canyonSample(p.x, p.y, canyonFill.texel);
-  let k = y * n + id.x;
+  let k = id.y * n + id.x;
   canyonHeights[k] = s.h;
   canyonHints[k] = u32(s.kind + 1) | (u32(s.zone) << 4u) | (u32(round(clamp(s.along, 0.0, 1.0) * 255.0)) << 8u)
     | (u32(round(min(s.river, 655.0) * 100.0)) << 16u);
@@ -47,8 +45,9 @@ fn fillHeight(i: i32, j: i32) -> f32 {
 }
 
 // the ground's material (canyonInfo in canyon.ts, from the filled heights): sand on the flats and in hollows, less on
-// scree; damp within ~70 m of the river; scree on the soft beds' slopes under the cliffs; the zone, so the gardens'
-// terraces, the stair's corridor and the city's floor can be told apart
+// scree; damp within ~70 m of the channel; scree on the soft beds' slopes under the cliffs; the zone, so the gardens'
+// terraces, the stair's corridor, the town's floor, the water's beds, the ridges, the rim and the plateau's fissures can
+// be told apart (zone * 17 / 255: up to 15 codes)
 @compute @workgroup_size(8, 8) fn info(@builtin(global_invocation_id) id: vec3u) {
   let step = canyonFill.infoStep;
   let n = canyonFill.px / step;
@@ -72,11 +71,12 @@ fn fillHeight(i: i32, j: i32) -> f32 {
   var talus = 0.0;
   if (kind == 1) { talus = cnSmooth(0.1, 0.5, slope) * (1.0 - cliff); }
   let p = fillPos(u32(i), u32(j));
-  // (sand settles on the canyons' floors, less on the benches, least on the plateau's slickrock; in broad soft patches
-  // and in every hollow)
+  // (sand settles deep on the plain, less on the benches and the town's floor, least on the slickrock; in broad soft
+  // patches and in every hollow; none on the gardens' soil or in the water, a little on the rock of the plateau, the
+  // ridges and the rim)
   let settles = select(select(0.08, 0.2, kind == 0), 0.62, kind == -1);
   var sand = clamp(flat * (settles + 0.55 * cnFbm(p.x, p.y, 140.0, 3, CN_S_SAND + 1u, 0.001)) + hollow * 0.5 - talus * 0.3, 0.0, 1.0);
-  if (zone == 4u || zone == 6u) { sand = 0.0; }
-  let damp = 1.0 - cnSmooth(CN_RIVER_HW, CN_RIVER_HW + 70.0, river);
-  canyonInfo[id.y * n + id.x] = pack4x8unorm(vec4f(sand, damp, talus, f32(zone) * 36.0 / 255.0));
+  if (zone == 4u || zone == 6u) { sand = 0.0; } else if (zone == 5u || zone == 7u || zone == 8u || zone == 9u) { sand = min(sand, 0.15); }
+  let damp = 1.0 - cnSmooth(CN_CHANNEL_HW, CN_CHANNEL_HW + 70.0, river);
+  canyonInfo[id.y * n + id.x] = pack4x8unorm(vec4f(sand, damp, talus, f32(zone) * 17.0 / 255.0));
 }

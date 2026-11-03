@@ -50,6 +50,7 @@ export interface World {
   aurora3: Vec4;
   lamps: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  cave: ArrayLike<number> | Vec4[];
 }
 export interface CloudSky {
   e1: Vec4;
@@ -75,6 +76,16 @@ export interface VOut {
   morph: number;
   spacing: number;
 }
+export interface CnRidge {
+  a: Vec4;
+  b: Vec4;
+  c: Vec4;
+  h: number;
+}
+export interface CnPool {
+  p: Vec4;
+  q: Vec4;
+}
 export interface CnWedge {
   d0: Vec2;
   d1: Vec2;
@@ -99,5 +110,5 @@ export interface GrBed {
   bottom: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; TerrainU: TerrainU; VOut: VOut; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'T' | 'skyIrradiance' | 'nodes' | 'canyonTables' | 'groundStrata' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; TerrainU: TerrainU; VOut: VOut; CnRidge: CnRidge; CnPool: CnPool; CnWedge: CnWedge; GroundSample: GroundSample; GrBed: GrBed }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'T' | 'skyIrradiance' | 'nodes' | 'canyonTables' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'groundTex' | 'groundInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

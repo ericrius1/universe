@@ -17,6 +17,8 @@ struct Post {
 @group(2) @binding(0) var<uniform> P: Post;
 @group(2) @binding(1) var hdr: texture_2d<f32>;
 @group(2) @binding(2) var bloom: texture_2d<f32>;
+/** a phone without MSAA: the scene's edges blended here instead (fx.wgsl fxEdgeAA; post.ts) */
+override EDGE_AA = 0.0;
 
 fn agxContrast(x: vec3f) -> vec3f {
   let x2 = x * x;
@@ -59,7 +61,7 @@ fn agxLook(c: vec3f) -> vec3f {
 const NIGHT_HUE = vec3f(0.74, 0.92, 2.36);
 
 @fragment fn fs(i: FullscreenOut) -> @location(0) vec4f {
-  var c = fxScene(i.uv);
+  var c = fxScene(i.uv, EDGE_AA > 0.5);
   let b = textureSampleLevel(bloom, samp_linear, i.uv, 0.0).rgb * FX.grade.y;
   c = mix(c, b, P.ev.y);
   // the glow: the bloom of what's brighter on the screen than the knee, added (its own colour: gold glows gold)
@@ -75,7 +77,8 @@ const NIGHT_HUE = vec3f(0.74, 0.92, 2.36);
   let lum = dot(c, vec3f(0.2126, 0.7152, 0.0722));
   let land = textureLoad(fxSceneZ, vec2i(i.uv * vec2f(textureDimensions(fxSceneZ))), 0).x < 6e4;
   // (it comes on as the twilight fails, from the sun 8 degrees down: the dusk keeps its warmth on the land)
-  let scot = smoothstep(-0.139, -0.276, world.sunTrue.y) * P.look.z * (1.0 - smoothstep(0.03, 0.4, lum)) * select(0.0, 1.0, land);
+  // (not in the caverns under the Haven: the eye is set by their crystals there, night or day)
+  let scot = smoothstep(-0.139, -0.276, world.sunTrue.y) * P.look.z * (1.0 - smoothstep(0.03, 0.4, lum)) * select(0.0, 1.0, land) * (1.0 - underground(frame.camPos));
   c = mix(c, lum * NIGHT_HUE, scot);
   // warmth (white balance shift) before the curve
   c *= vec3f(1.0 + P.grade.z * 0.08, 1.0, 1.0 - P.grade.z * 0.08);

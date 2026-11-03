@@ -1,16 +1,19 @@
 // The nested height levels the canyon is filled into. Boulder's terrain reads square levels from one r32float
 // texture_2d_array (every layer the same pixel size), the finest holding a point winning, each handed over to the next
-// coarser in its outer 15% (world.wgsl terrainHeight). Five levels (world.wgsl's TERRAIN_LEVELS), 3072 px each:
-//   0  0.5 m  1536 m square, centred between the city and the temple: the promontory, every garden terrace, the stair,
-//             the arms and the city's north two-thirds (the gardens' 0.5 m retaining-wall steps need it)
-//   1  1 m    3 km: the whole bowl and city, the ridge to the river, the north rim, the slots' first kilometre
-//   2  4 m    12 km: the slots to their ends, the river's canyon, the south canyon
-//   3  16 m   49 km: the near desert and its mesas
+// coarser in its outer 15% (world.wgsl terrainHeight). Five levels (world.wgsl's TERRAIN_LEVELS), 3072 px each, all
+// centred on the star's centre (the origin):
+//   0  0.5 m  1536 m square: the plateau, every garden terrace, the stair, the town to its points' outer halves (the
+//             gardens' 0.5 m retaining-wall steps need it)
+//   1  1 m    3 km: the whole star, its tips and its cliffs, the plain round it, the hoodoos, the east cascade
+//   2  4 m    12 km: the plain's channel's first reaches, the outcrops
+//   3  16 m   49 km: the far desert and its mesas
 //   4  42.7 m 131 km: out to the horizon (±65 km)
-// Unlike boulder's, levels 0 and 1 are not centred on the origin (cx, cz): the terrain's level lookup must add the
-// centre (uv = (xz - c + half) / (2 half), and the hand-over measured from c). GPU memory: heights 5 x 3072² x 4 B =
+// A level's centre (cx, cz) needn't be the origin: the terrain's level lookup adds it (uv = (xz - c + half) / (2 half),
+// and the hand-over measured from c). GPU memory: heights 5 x 3072² x 4 B =
 // 189 MB; the ground's material (fill.wgsl `info`, rgba8 every other texel) 5 x 1536² x 4 B = 47 MB; with boulder's
 // r8 heightfield shadow at 2048² (21 MB) about 257 MB. The CPU's copy as boulder keeps it (u16 per texel) is 94 MB.
+// A phone's (util/tier.ts) are 2048 px: the same 0.5 m over the plateau and its gardens (1 km square), 1.5 m over the
+// whole star, then 4 m, 16 m and 64 m — 84 MB of heights, not 189.
 
 import { tier } from '../util/tier';
 
@@ -26,29 +29,26 @@ export interface HeightLevelSpec {
 
 export const LEVEL_PX = tier.phone ? 2048 : 3072;
 
-// (a phone's (util/tier.ts): 2048 px levels, 112 MB of heights not 252, the same texels where it's walked — 0.5 m over
-// the promontory, its gardens and the stair's top (1 km square), 1 m over the bowl and the city (2 km) — and coarser
-// beyond: 4 m to ±4 km, 16 m to ±16 km, 64 m to the horizon)
 export const LEVELS: HeightLevelSpec[] = tier.phone ? [
-  { half: 512, px: LEVEL_PX, cx: 0, cz: -620 },
-  { half: 1024, px: LEVEL_PX, cx: 0, cz: -300 },
+  { half: 512, px: LEVEL_PX, cx: 0, cz: 0 },
+  { half: 1536, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 4096, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 16384, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 65536, px: LEVEL_PX, cx: 0, cz: 0 },
 ] : [
-  { half: 768, px: LEVEL_PX, cx: 0, cz: -560 },
-  { half: 1536, px: LEVEL_PX, cx: 0, cz: -300 },
+  { half: 768, px: LEVEL_PX, cx: 0, cz: 0 },
+  { half: 1536, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 6144, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 24576, px: LEVEL_PX, cx: 0, cz: 0 },
   { half: 65536, px: LEVEL_PX, cx: 0, cz: 0 },
 ];
 
-/** the levels for a phone that only looks at the canyon (embed.ts: Universe's dive), never walks it: 1536 px, 0.5 m
- *  over the whole promontory and its gardens (768 m square round the temple), 2 m over the bowl and the city, 8 m to
- *  ±6 km, 32 m to ±25 km, 85 m to the horizon — 63 MB of heights, not 112 */
+/** the levels for a phone that only looks at the land (embed.ts: Universe's dive), never walks it: 1536 px, under
+ *  0.6 m over the plateau, its ring and its gardens (896 m square round the temple), 2 m over the star, 8 m to ±6 km,
+ *  32 m to ±25 km, 85 m to the horizon — 47 MB of heights */
 export const VIEW_LEVELS: HeightLevelSpec[] = [
-  { half: 384, px: 1536, cx: 0, cz: -760 },
-  { half: 1536, px: 1536, cx: 0, cz: -300 },
+  { half: 448, px: 1536, cx: 0, cz: 0 },
+  { half: 1536, px: 1536, cx: 0, cz: 0 },
   { half: 6144, px: 1536, cx: 0, cz: 0 },
   { half: 24576, px: 1536, cx: 0, cz: 0 },
   { half: 65536, px: 1536, cx: 0, cz: 0 },

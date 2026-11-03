@@ -4,8 +4,8 @@
 // final pass (post.wgsl, through fx.wgsl) adds them with the glare and the lens's ghosts, chromatic aberration,
 // sharpening, the time-of-day grade, halation and grain.
 import type { Kit, RenderPass, RunEntry, StorageBuffer, Texture, UniformBuffer } from '@ericrius1/weft';
-import sceneZ4 from './scenez.wgsl';
-import sceneZ1 from './scenez1.wgsl';
+import sceneZShader from './scenez.wgsl';
+import sceneZ1Shader from './scenez1.wgsl';
 import aoShader from './ao.wgsl';
 import raysShader from './rays.wgsl';
 import { tier } from '../util/tier';
@@ -49,15 +49,16 @@ export class PostFx {
   private dofTex: Texture;
   private frame = 0;
 
-  /** depth: the scene's depth buffer (multisampled with MSAA: util/tier.ts msaa) */
+  /** depth: the scene's depth buffer (multisampled, or a phone's single sample) */
   constructor(readonly kit: Kit, readonly hdr: Texture, readonly depth: Texture) {
     const s = this.settings;
+    if (!tier.ao) s.ao = 0;
     this.u = kit.uniforms(raysShader.structs.FXU, 'fx');
     this.state = kit.storage({ label: 'fx.state', size: 16, usage: ['storage', 'copy-dst', 'copy-src'] });
     this.state.write(new Float32Array([1, 10, 0, 0]));
     this.sceneZ = kit.texture({ label: 'sceneZ', format: tier.sceneDepthFormat, size: 'render', usage: ['render', 'sample'] });
     this.zPass = kit.pass({ label: 'sceneZ', color: [{ target: this.sceneZ, clear: [0, 0, 0, 0] }] });
-    this.zPass.fullscreen(tier.msaa === 4 ? sceneZ4 : sceneZ1, { label: 'sceneZ', bind: { depth } as never });
+    this.zPass.fullscreen(depth.samples > 1 ? sceneZShader : sceneZ1Shader, { label: 'sceneZ', bind: { depth } as never });
 
     // ambient occlusion, half res
     const half = (label: string, format: GPUTextureFormat, mips: number | 'full' = 1) => kit.texture({ label, format, size: 'render', scale: 0.5, mips, usage: ['render', 'sample'] });

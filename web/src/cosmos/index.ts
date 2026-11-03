@@ -136,6 +136,6 @@ export class Cosmos {
     this.air.on = (this.earth.lv.weight > 0.002 || sf.ground.weight > 0.002) && !this.r.covered;
     if (this.air.on) this.air.update(this.earth.lv, this.earth.sun);
     this.r.over = alpha < 1;
-    this.r.P.set({ alpha });
+    this.r.alpha = alpha;
   }
 }

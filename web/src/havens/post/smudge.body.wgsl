@@ -1,5 +1,4 @@
-// smudge.wgsl's body, for the scene drawn with MSAA (smudge.wgsl) or without (smudge1.wgsl): they differ only
-// in how they declare the depth.
+// smudge.wgsl's body (the depth declared there).
 // Contour smudging (after Florian Hoenig's distant forests): far away, the outline of every crown against what's behind
 // it — another ridge, the sky — is a hard, aliased, level-of-detail edge the eye picks out. Where the depth jumps and
 // the nearer side is far, blend the pixel toward its neighbourhood across the edge, a little more the farther it is,

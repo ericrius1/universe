@@ -20,9 +20,10 @@ import { advance, skyState, MOON_FULL, type ClockState } from './clock';
 import { airAt, cardFor, cloudPaintAt, DAYLIGHT_DEFAULT } from './daylight';
 import { dayOfYear, type Place } from './sun';
 import { TERRAIN_LEVELS, type Terrain } from './terrain';
-import { BASIN } from './layout';
+import { STAR } from './layout';
 import { loadImageTexture, solidTexture } from '../util/textures';
 import { asset } from '../util/assets';
+import { caveUniform } from '../caverns/plan';
 
 import { WORLD_GROUP } from './group';
 export { WORLD_GROUP };
@@ -37,6 +38,9 @@ export const DAY = { year: 2026, doy: dayOfYear(2026, 8, 28), hour: 16, seconds:
 
 type Sky4 = [number, number, number, number];
 
+/** the caverns under the Haven: where neither the sun nor the sky reaches (world.wgsl underground()) */
+const CAVE = caveUniform();
+
 export class Env {
   readonly world: UniformBuffer<any>;
   readonly atmo: Atmosphere;
@@ -50,8 +54,10 @@ export class Env {
   /** the clock: the date and the hour; hours per real second (the day's pace) and days per second */
   readonly time: ClockState = { year: DAY.year, doy: DAY.doy, hour: DAY.hour, hourSpeed: 24 / DAY.seconds, daySpeed: 0 };
   /** the air (mie haze — the desert's dust, times the day's own — and the rayleigh scattering, both remaking the
-   *  atmosphere's tables), the ambient's and the sun's strength, the wind (m/s) */
-  readonly look = { haze: 1.0, rayleigh: 1.4, ambient: 1.0, sun: 1.0, wind: 3.5 };
+   *  atmosphere's tables), the ambient's and the sun's strength, the wind (m/s). The haze at 0.6: at 1 the middle
+   *  distance (the city from the Haven, the canyon from the air) went under a flat mauve veil; at 0.4 the golden hour
+   *  lost its glow */
+  readonly look = { haze: 0.6, rayleigh: 1.4, ambient: 1.0, sun: 1.0, wind: 3.5 };
   /** the light over the day (world/daylight.ts): the sky's havens-ness, the dust, the exposure's white card by day and
    *  by night */
   readonly daylight = { ...DAYLIGHT_DEFAULT };
@@ -66,12 +72,17 @@ export class Env {
   /** the eye's exposure (scene radiance -> the screen), eased toward what the light calls for; jumped there on a cut */
   exposure = 8;
   resetExposure = true;
+  /** the eye opened wider than the light calls for (a factor: indoors, room/room.ts — a room's dimmer light read as
+   *  the eye would after a moment in it) */
+  exposureGain = 1;
   /** this frame's sky (the sun, the moon, the key light, how dark it is) */
   state = skyState(this.time, SITE);
   private milky: Ref<ReturnType<typeof solidTexture>>;
   private starsLoad: Promise<StarField>;
   /** the night sky's files are in (the Milky Way, the stars' catalogue), or given up on */
   readonly loaded: Promise<void>;
+  /** what the first view doesn't need fetched from now on (the Milky Way): call once the world's made */
+  later: () => void = () => {};
   /** the CPU copies the exposure reads: the transmittance table (whenever the air's tables are rebuilt: its version),
    *  the sky's light straight up (every few frames) */
   private tLut: Float32Array | null = null;
@@ -104,11 +115,13 @@ export class Env {
     this.aurora.init();
     // (the ground's shadow drawn again once its heights change)
     terrain.onChange.push(() => this.shadows.invalidate());
-    // (the Milky Way drawn as soon as it's in; the stars' catalogue, or a bright list and a made-up field)
+    // (the Milky Way drawn as soon as it's in — asked for once the world's made (later()), its 2.5 MB not in the way of
+    // what the first view needs; the stars' catalogue, or a bright list and a made-up field)
     const none = solidTexture(kit, [0, 0, 0, 0], 1, 'milkyway.none');
     let milky = none;
     this.milky = new Ref(() => milky);
-    const milkyLoad = loadImageTexture(kit, asset('sky/milkyway.webp'), { mips: true, label: 'milkyway' }).then((t) => { milky = t; }, (e) => console.warn('sky: no milky way', e));
+    const asked = new Promise<void>((r) => { this.later = r; });
+    const milkyLoad = asked.then(() => loadImageTexture(kit, asset('sky/milkyway.webp'), { mips: true, label: 'milkyway' })).then((t) => { milky = t; }, (e) => console.warn('sky: no milky way', e));
     this.starsLoad = StarField.load(kit);
     this.loaded = Promise.all([milkyLoad, this.starsLoad]).then(() => {});
   }
@@ -147,7 +160,7 @@ export class Env {
     const E = this.clouds.light(keyL * Math.max(key.dir[1], 0) / Math.PI, Math.max(this.skyUp, 0) * this.look.ambient) + this.night.ambient * 0.6 * night + this.aurora.light;
     // (world/daylight.ts: night is night, but the land still reads)
     const Ec = Math.max(E, 1e-7);
-    const goal = cardFor(Ec, night, this.daylight) / Ec;
+    const goal = (cardFor(Ec, night, this.daylight) / Ec) * this.exposureGain;
     // (while the clock is moved by hand the eye keeps up with it, so a scrub into the night, or back into the day,
     // doesn't go black, or white, first)
     const keepUp = performance.now() - this.lastScrub < 400;
@@ -157,10 +170,12 @@ export class Env {
     this.aurora.update(dt, t, night, this.exposure);
     const lamps: Sky4[] = Array.from({ length: 16 }, () => [0, 0, 0, 0]);
     this.lamps.slice(0, 16).forEach((l, i) => { lamps[i] = l; });
-    // (the city's glow on the night sky and the clouds' bases: toward the city from outside it, all round inside it)
-    const dx = BASIN.cx - cam.position[0], dz = BASIN.cz - cam.position[2], dc = Math.hypot(dx, dz);
+    // (the town's glow on the night sky and the clouds' bases: toward the star's centre from outside the town, all
+    // round inside it — the town fills the star out to its tips, 800 m, so the glow gathers toward its middle only
+    // from past about 650 m out, and all of it from out on the plain)
+    const dx = STAR.cx - cam.position[0], dz = STAR.cz - cam.position[2], dc = Math.hypot(dx, dz);
     const moonR = 0.00455 * this.night.moonSize;
-    const focus = Math.min(1, Math.max(0, (dc - 300) / 900));
+    const focus = Math.min(1, Math.max(0, (dc - 650) / 850));
     this.world.set({
       sunDir: key.dir, sunCos: key.dir[1], moonDir: sky.moon.dir, exposure: this.exposure,
       wind: [this.windDir[0], this.windDir[1], this.look.wind, kit.time], cascades: this.shadows.matrices as never, splits: this.shadows.splits,
@@ -174,6 +189,7 @@ export class Env {
       ...this.aurora.world,
       lamps: lamps as never,
       glow: [dc > 1 ? dx / dc : 0, focus, dc > 1 ? dz / dc : 0, 1],
+      cave: CAVE as never,
     });
   }
 

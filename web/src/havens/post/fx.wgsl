@@ -1,5 +1,5 @@
 // The newer effects in the final pass (post.wgsl includes this; post/fx.ts drives them):
-//   fxScene   the scene through the lens: chromatic aberration (red out, blue in, toward the frame's edge), contrast-
+//   fxScene   the scene through the lens (a phone's edges blended first: fxEdgeAA): chromatic aberration (red out, blue in, toward the frame's edge), contrast-
 //             adaptive sharpening (AMD's CAS, on the exposed, compressed luminance), the depth of field over it
 //   fxLight   light added in the air and the lens (scene radiance, before the exposure): crepuscular shafts; round the
 //             sun or moon a glow, a diffraction starburst and an optional anamorphic streak; the lens's ghosts strung
@@ -24,8 +24,33 @@ fn fxCoc(z: f32) -> f32 {
   return min(FX.dof.z * abs(1.0 - focus / max(z, 0.05)), FX.dof.w) * frame.res.y / 1080.0;
 }
 
-fn fxScene(uv: vec2f) -> vec3f {
-  let g = textureSampleLevel(hdr, samp_linear, uv, 0.0).rgb;
+// a phone's antialiasing (it renders without MSAA: on a tile GPU the post chain's multisampled depth halved boulder's
+// frame rate): FXAA's edge blend (Lottes) on the scene, by its exposed, compressed luminance — the four diagonal
+// neighbours find an edge and its direction, two or four taps along it blend it, and a blend that overshoots the
+// neighbourhood's range keeps the nearer two. The final pass's EDGE_AA (post.ts); nothing changes without it.
+fn fxEdgeLuma(c: vec3f) -> f32 { let l = fxLuma(c) * world.exposure; return l / (1.0 + l); }
+fn fxEdgeAA(uv: vec2f, g: vec3f) -> vec3f {
+  let t = 1.0 / vec2f(textureDimensions(hdr));
+  let nw = fxEdgeLuma(textureSampleLevel(hdr, samp_linear, uv + vec2f(-t.x, -t.y), 0.0).rgb);
+  let ne = fxEdgeLuma(textureSampleLevel(hdr, samp_linear, uv + vec2f(t.x, -t.y), 0.0).rgb);
+  let sw = fxEdgeLuma(textureSampleLevel(hdr, samp_linear, uv + vec2f(-t.x, t.y), 0.0).rgb);
+  let se = fxEdgeLuma(textureSampleLevel(hdr, samp_linear, uv + vec2f(t.x, t.y), 0.0).rgb);
+  let m = fxEdgeLuma(g);
+  let lo = min(m, min(min(nw, ne), min(sw, se)));
+  let hi = max(m, max(max(nw, ne), max(sw, se)));
+  if (hi - lo < max(0.03, hi * 0.12)) { return g; }
+  var dir = vec2f(-((nw + ne) - (sw + se)), (nw + sw) - (ne + se));
+  let reduce = max((nw + ne + sw + se) * 0.03125, 1.0 / 128.0);
+  dir = clamp(dir / (min(abs(dir.x), abs(dir.y)) + reduce), vec2f(-8.0), vec2f(8.0)) * t;
+  let a = 0.5 * (textureSampleLevel(hdr, samp_linear, uv + dir * (1.0 / 3.0 - 0.5), 0.0).rgb + textureSampleLevel(hdr, samp_linear, uv + dir * (2.0 / 3.0 - 0.5), 0.0).rgb);
+  let b = a * 0.5 + 0.25 * (textureSampleLevel(hdr, samp_linear, uv - dir * 0.5, 0.0).rgb + textureSampleLevel(hdr, samp_linear, uv + dir * 0.5, 0.0).rgb);
+  let lb = fxEdgeLuma(b);
+  return select(b, a, lb < lo || lb > hi);
+}
+
+fn fxScene(uv: vec2f, edgeAA: bool) -> vec3f {
+  var g = textureSampleLevel(hdr, samp_linear, uv, 0.0).rgb;
+  if (edgeAA) { g = fxEdgeAA(uv, g); }
   var c = g;
   if (FX.lens.x > 0.0) {
     let q = uv - 0.5;

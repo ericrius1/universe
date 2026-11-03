@@ -20,9 +20,9 @@ import type { Place } from './cosmos/frames';
 import type { SpotWords } from './cosmos/places';
 
 /** where on Earth: Seven Havens' own site (its world/env.ts SITE, the Sonoran desert's red rock east of Phoenix), its
- *  ground the spot's (the canyon's plaza 1.1 km above the sea, the promontory 173 m over it); the ground round it, from
- *  the canyon itself (tools/ground-from-havens.mjs) */
-export const HAVENS: Place = { lat: 33.2, lon: -111.6, name: 'Seven Havens', km: 1.273 };
+ *  ground the spot's (the canyon's floor 1.1 km above the sea, the star mesa's plateau 31 m over it); the ground round
+ *  it, from the canyon itself (tools/ground-from-havens.mjs) */
+export const HAVENS: Place = { lat: 33.2, lon: -111.6, name: 'Seven Havens', km: 1.132 };
 export const HAVENS_DATA = 'data/earth-havens/';
 export const HAVENS_WORDS: SpotWords = {
   name: 'Seven Havens', short: 'Seven Havens', line: 'A walled city in a red canyon, and on its promontory a golden temple in terraced gardens.',
@@ -35,9 +35,10 @@ export const HAVENS_CAPTIONS = {
   journeySpot: 'Seven Havens · the temple and its gardens',
 };
 
-/** where the spot's ground is in the canyon (its metres): the pink flower bed beside the temple's colonnade on its
- *  east (Seven Havens' haven builder's raised bed, 217 m², its soil at 173.15 m), the petals over her */
-export const SPOT: Vec3 = [78.8, 173.15, -760.0];
+/** where the spot's ground is in the canyon (its metres): the pink flower bed beside the citadel's temple on its east
+ *  (Seven Havens' haven builder's raised bed, 217 m², its soil at 32.25 m on the star mesa's plateau), the petals over
+ *  her */
+export const SPOT: Vec3 = [78.8, 32.25, 0.0];
 /** the canyon's site (Seven Havens' world/env.ts SITE): its clock's offset from UTC (h) */
 const UTC_OFFSET = -7;
 /** over the zoom (log10 m): in from a few kilometres up, out once her eye fills the frame (a cut: nothing but her

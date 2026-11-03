@@ -1,8 +1,9 @@
 // The flora sorted into its draws, every frame: each instance in reach (and in view, or close enough that its shadow
 // might fall into it) is listed in its species', variant's and level's draw, with its share of that level; over the
 // band before a level's end it's listed in the next level's draw as well, with the rest of the share, so the two
-// crossfade (flora.wgsl coverMask). A plant whose crown the eye is up against dissolves. The draws are indirect: each bucket's instance count is counted here; its index
-// count, first index, base vertex and first instance (its place in the visible list) were set at load (flora.ts).
+// crossfade (flora.wgsl coverMask). A plant stays whole however close the eye comes (nothing is solid either: the cast
+// walk through every plant). The draws are indirect: each bucket's instance count is counted here; its index count,
+// first index, base vertex and first instance (its place in the visible list) were set at load (flora.ts).
 #include "weft/frame"
 #include "./floradata.wgsl"
 
@@ -57,14 +58,9 @@ fn emit(b: u32, i: u32, share: f32, incoming: bool) {
   if (d >= sp.lod.x) { lod = 1u; }
   if (d >= sp.lod.y) { lod = 2u; }
   let end = select(select(sp.lod.z, sp.lod.y, lod == 1u), sp.lod.x, lod == 0u);
-  // its share of this level: whole, then falling over the band before the level's end (the last level fading out);
-  // all of it dissolving as the eye comes within a couple of metres of its crown (a follow camera backed against a
-  // cypress sees past it, not into a wall of leaves)
+  // its share of this level: whole, then falling over the band before the level's end (the last level fading out)
   let f = saturate((end - d) / max(end * sp.lod.w, 0.5));
-  let crown = sp.form.z * inst.scale;
-  let over = frame.camPos.y > inst.pos.y - 0.5 && frame.camPos.y < inst.pos.y + h + 0.5 && FU.look.w < 0.5;
-  let clear = select(1.0, smoothstep(0.6, 2.0, distance(frame.camPos.xz, inst.pos.xz) - crown), over);
   let b = sp.buckets.x + variant * 3u;
-  emit(b + lod, i, f * clear, false);
-  if (f < 1.0 && lod < 2u) { emit(b + lod + 1u, i, (1.0 - f) * clear, true); }
+  emit(b + lod, i, f, false);
+  if (f < 1.0 && lod < 2u) { emit(b + lod + 1u, i, 1.0 - f, true); }
 }

@@ -1,15 +1,17 @@
-// The canyon's ground as the terrain's fragment shader paints it: an include giving
+// The land's ground as the terrain's fragment shader paints it: an include giving
 //   canyonGround(p, n, info, dist) -> GroundSample { albedo (linear), rough, nrm (the bumped normal), wet }
 // for a point p on the ground (world metres), its geometric normal n, its material `info` (fill.wgsl `info`, sampled
-// with canyonInfoAt: r sand, g damp, b scree, a zone * 36 / 255) and its distance from the eye.
-// The rock is boulder's sandstone() (redrocks/rocks.wgsl) moved into the art bible's palette and onto the canyon's own
-// strata: the bed a point lies in is found in the same table the heights were stepped by (tables.wgsl), so each cliff
+// with canyonInfoAt: r sand, g damp, b scree, a zone * 17 / 255) and its distance from the eye.
+// The rock is boulder's sandstone() (redrocks/rocks.wgsl) moved into the art bible's palette and onto the land's own
+// strata (from the plain up): the bed a point lies in is found in the same table the heights were stepped by
+// (tables.wgsl), so each cliff
 // band has its own shade (terracotta, burnt sienna, rose, peach), its top two metres are the cream caprock the bench
 // above stands on, the soft beds between are a darker scree-red, and every band wanders a little. Over that, sampled
 // in world space (triplanar where it matters): the painterly sandstone_strata on the walls' faces, cliff_flutes on the
 // sheer ones, canyon_floor (cracked, pebbled) on the flats and scree, desert_sand where sand lies (on the flats and in
-// the hollows the fill found), desert varnish streaking down the cliffs from under each ledge, and damp, darker,
-// faintly green ground along the river. Albedo stays mid-valued and warm: the violet of the shade is the light's.
+// the hollows the fill found: the plain's own yellow-orange desert sand down on the plain), desert varnish streaking down
+// the cliffs from under each ledge, the plateau's fissures dark crimson creases, and damp, darker, faintly green ground
+// along the water's channel. Albedo stays mid-valued and warm: the violet of the shade is the light's.
 // Expects (group 2, the terrain's own, at bindings that clear boulder's terrain.wgsl):
 //   @binding(20) groundTex: texture_2d_array<f32>, rgba8unorm-srgb with mips, layers GROUND_STRATA (sandstone_strata),
 //                GROUND_FLUTES (cliff_flutes), GROUND_SAND (desert_sand), GROUND_FLOOR (canyon_floor), from
@@ -22,10 +24,6 @@
 
 @group(2) @binding(20) var groundTex: texture_2d_array<f32>;
 @group(2) @binding(21) var groundInfo: texture_2d_array<f32>;
-// the strata (tables.wgsl's CN_STRATA_Y and _K: a knot's ground height, its segment's kind) in a buffer, searched per
-// pixel: a constant array indexed at run time is copied whole on each read by some shader compilers (WebKit's: on an
-// iPhone the ground's painting took most of a frame), a buffer never is
-@group(2) @binding(22) var<storage, read> groundStrata: array<vec2f>;
 
 const GROUND_STRATA = 0;
 const GROUND_FLUTES = 1;
@@ -63,19 +61,21 @@ const GR_CREAM = vec3f(0.941, 0.827, 0.643);
 const GR_SCREE = vec3f(0.560, 0.270, 0.180);
 const GR_VARNISH = vec3f(0.300, 0.180, 0.170);
 const GR_DAMP = vec3f(0.45, 0.42, 0.30);
+// the plain's desert sand (yellow-orange, the show's open desert round the star) and the plateau's fissures' creases
+const GR_DESERT = vec3f(0.890, 0.647, 0.353);
+const GR_CREASE = vec3f(0.353, 0.149, 0.200);
 
-/** the strata segment holding ground height y: its index, kind (0 bench, 1 scree, 2 cliff), how far up it, its top */
+/** the strata segment holding height y over the plain (the table's base: CN_PLAIN_Y): its index, kind (0 bench,
+ *  1 scree, 2 cliff), how far up it, its top and bottom (over the plain too) */
 struct GrBed { i: i32, kind: i32, t: f32, top: f32, bottom: f32 }
 fn grBed(y: f32) -> GrBed {
   var b: GrBed;
   let n = CN_STRATA_N;
-  let y0 = groundStrata[0].x;
-  let yn = groundStrata[n - 1].x;
-  if (y <= y0) { b.i = -1; b.kind = 1; b.t = 0.0; b.top = y0; b.bottom = y - 1.0; return b; }
-  if (y >= yn) {
+  if (y <= cnStrataY(u32(0))) { b.i = -1; b.kind = 1; b.t = 0.0; b.top = cnStrataY(u32(0)); b.bottom = y - 1.0; return b; }
+  if (y >= cnStrataY(u32(n - 1))) {
     // (past the table: beds of ~24 m, a cliff each)
-    let k = floor((y - yn) / 24.0);
-    b.i = n + i32(k); b.kind = 2; b.bottom = yn + k * 24.0; b.top = b.bottom + 24.0; b.t = (y - b.bottom) / 24.0;
+    let k = floor((y - cnStrataY(u32(n - 1))) / 24.0);
+    b.i = n + i32(k); b.kind = 2; b.bottom = cnStrataY(u32(n - 1)) + k * 24.0; b.top = b.bottom + 24.0; b.t = (y - b.bottom) / 24.0;
     return b;
   }
   var lo = 0;
@@ -83,12 +83,12 @@ fn grBed(y: f32) -> GrBed {
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (groundStrata[m].x <= y) { lo = m; } else { hi = m - 1; }
+    if (cnStrataY(u32(m)) <= y) { lo = m; } else { hi = m - 1; }
   }
   b.i = lo;
-  b.kind = i32(groundStrata[lo].y);
-  b.bottom = groundStrata[lo].x;
-  b.top = groundStrata[lo + 1].x;
+  b.kind = i32(cnStrataK(u32(lo)));
+  b.bottom = cnStrataY(u32(lo));
+  b.top = cnStrataY(u32(lo + 1));
   b.t = (y - b.bottom) / max(b.top - b.bottom, 1e-3);
   return b;
 }
@@ -106,7 +106,7 @@ fn grBedColour(b: GrBed) -> vec3f {
 /** the rock's colour (sRGB) at p: its bed's shade, fine bands inside it, the cream caprock at a cliff's top */
 fn grRock(p: vec3f, n: vec3f) -> vec3f {
   // (the beds wander a little, so no band is ruled)
-  let y = p.y + (grNoise(vec3f(p.x, 0.0, p.z) * 0.02) - 0.5) * 1.4 + (grNoise(vec3f(p.x, 0.0, p.z) * 0.11) - 0.5) * 0.35;
+  let y = p.y - CN_PLAIN_Y + (grNoise(vec3f(p.x, 0.0, p.z) * 0.02) - 0.5) * 1.4 + (grNoise(vec3f(p.x, 0.0, p.z) * 0.11) - 0.5) * 0.35;
   let b = grBed(y);
   var col = grBedColour(b);
   // on a flat a bed's shade runs into its neighbour's over a few metres of height (a bench or a plateau that rolls
@@ -138,7 +138,7 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   let steep = 1.0 - smoothstep(0.5, 0.82, n.y);
   let sheer = 1.0 - smoothstep(0.18, 0.42, n.y);
   let flat = smoothstep(0.62, 0.9, n.y);
-  let zone = round(info.a * 255.0 / 36.0);
+  let zone = round(info.a * 255.0 / 17.0);
   // the painterly textures, in world space: the strata and flutes on the faces (planar on the face's axis, their bands
   // level), the floor and the sand from above, at two scales against tiling
   let ax = abs(n.x) / max(abs(n.x) + abs(n.z), 1e-4);
@@ -159,9 +159,11 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   // (the floor texture's red drawn a little towards terracotta and peach: it is the ground between, not the rock)
   let floorRaw = mix(floorA, sqrt(floorA * floorB), smoothstep(20.0, 120.0, dist));
   let floorTex = mix(floorRaw, mix(GR_TERRACOTTA, GR_PEACH, 0.4) * dot(floorRaw, lum) / 0.36, 0.45);
-  // (the sand texture is a deep orange: drawn towards the bible's peach, warmed toward terracotta, its ripples kept)
+  // (the sand texture is a deep orange: drawn towards the bible's peach, warmed toward terracotta, its ripples kept;
+  // down on the plain the desert's own yellow-orange)
+  let desert = select(0.0, 1.0, zone == 0.0) * smoothstep(CN_PLAIN_Y + 15.0, CN_PLAIN_Y + 6.0, p.y);
   let sandRaw = mix(sandA, sqrt(sandA * sandB), smoothstep(15.0, 90.0, dist));
-  let sandTex = mix(GR_PEACH, GR_TERRACOTTA, 0.3) * (0.58 + 0.36 * dot(sandRaw, lum) / 0.62);
+  let sandTex = mix(mix(GR_PEACH, GR_TERRACOTTA, 0.3), GR_DESERT, desert) * (0.58 + 0.36 * dot(sandRaw, lum) / 0.62);
 
   // the rock: its bed's colour with the painted detail of what it is — the strata's and the flutes' on a wall (their
   // planes stand on the face's axis, so on a flat they'd smear into straight streaks along x or z), the floor's from
@@ -174,8 +176,8 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   rock *= mix(1.0, mix(flatD, faceD, wall), mix(0.75, 0.4, 1.0 - near));
   rock = mix(rock, rock * mix(vec3f(1.0), strata / max(dot(strata, lum), 0.05) * 0.5, 0.25), steep);
   // desert varnish: dark streaks down the steep faces, strongest just under a ledge
-  let b = grBed(p.y);
-  let underLedge = 1.0 - smoothstep(0.0, 14.0, b.top - p.y);
+  let b = grBed(p.y - CN_PLAIN_Y);
+  let underLedge = 1.0 - smoothstep(0.0, 14.0, b.top - (p.y - CN_PLAIN_Y));
   let sq = vec3f(p.x * 0.35, p.y * 0.018, p.z * 0.35) + vec3f(0.0, f32(b.i) * 0.37, 0.0);
   var streakN = 0.0;
   if (LAND_LITE) { streakN = grNoise(sq) * 0.94; } else { streakN = grFbm(sq); }
@@ -186,10 +188,13 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   if (LAND_LITE) { mottle = grNoise(p * 0.035) * 0.94; } else { mottle = grFbm(p * 0.035); }
   rock *= mix(0.86, 1.08, mottle);
 
-  // the flats: bare slickrock (its bed's colour, paler and gritty, the floor texture's cracks and pebbles in it) or the
-  // canyon floor's cracked earth down on a floor, scree at the cliffs' feet, sand where it lies
+  // the flats: bare slickrock (its bed's colour, paler and gritty, the floor texture's cracks and pebbles in it) or
+  // cracked earth down on a floor (the town's, the plain's: the plain's drawn toward the desert's sand), scree at the
+  // cliffs' feet, sand where it lies
   let slick = mix(rock, GR_PEACH, 0.38) * (0.7 + 0.6 * dot(floorTex, lum) / 0.45);
-  var ground = mix(slick, floorTex * 1.05, smoothstep(6.0, 1.0, p.y) * 0.8);
+  let onFloor = max(smoothstep(6.0, 1.0, abs(p.y - CN_FLOOR_Y)), smoothstep(CN_PLAIN_Y + 6.0, CN_PLAIN_Y + 1.0, p.y));
+  let earth = mix(floorTex, GR_DESERT * (0.62 + 0.5 * dot(floorTex, lum)), desert * 0.6);
+  var ground = mix(slick, earth * 1.05, onFloor * 0.8);
   ground = mix(ground, mix(GR_SCREE, rock, 0.35) * (0.8 + 0.4 * dot(floorTex, lum)), info.b * 0.8);
   // (its edge wanders in the world's metres, so the material's coarse texels far off never show as blocks: wider and
   // wandering on a broader scale the farther off it is, where those texels are 4 to 40 m)
@@ -200,10 +205,18 @@ fn canyonGround(p: vec3f, n: vec3f, info: vec4f, dist: f32) -> GroundSample {
   let sandAmount = clamp(info.r * mix(0.55, 1.0, flat) + (1.0 - steep) * 0.08 + wander, 0.0, 1.0);
   ground = mix(ground, sandTex, smoothstep(0.3 - 0.25 * far, 0.8 + 0.2 * far, sandAmount));
   var albedo = mix(rock, ground, flat * (1.0 - info.b * 0.3) + (1.0 - flat) * (1.0 - steep) * 0.5);
-  // damp ground by the river: darker, a breath of green; the channel's bed darker still
+  // damp ground by the channel: darker, a breath of green; the water's beds darker still
   let damp = info.g * (1.0 - steep * 0.8);
   albedo = mix(albedo, albedo * GR_DAMP / 0.42, damp * 0.55);
   if (zone == 6.0) { albedo *= 0.55; }
+  // the plateau's slabs: their own red rock, not a bench's pale slickrock (the show's cracked red plateau); its
+  // fissures dark crimson creases, near by how deep a point is under the slabs (their outline the cleft's own, not the
+  // material's texels), farther all of their zone (where a far patch has smoothed the cleft itself away, and with it the
+  // slabs' tops beside it: never by depth there)
+  let plat = select(0.0, 1.0, zone == 5.0 || zone == 9.0);
+  albedo = mix(albedo, mix(rock, GR_TERRACOTTA, 0.45) * 1.06, 0.55 * flat * plat);
+  let crease = select(0.0, 1.0, zone == 9.0) * mix(smoothstep(3.2, 4.4, CN_TOP - p.y), 1.0, smoothstep(300.0, 900.0, dist));
+  albedo = mix(albedo, GR_CREASE * mix(1.0, 0.6, smoothstep(3.5, 6.0, CN_TOP - p.y)), 0.85 * crease);
   // the gardens' terraces under their planters: dark soil, on their floors only (never down a cliff that a terrace's
   // edge texel happens to cover)
   if (zone == 4.0) { albedo = mix(albedo, vec3f(0.36, 0.24, 0.16), 0.7 * flat); }

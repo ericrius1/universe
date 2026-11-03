@@ -1,27 +1,28 @@
-// Where the rocks go: the catalogue's prototypes placed over the canyon from the shared layout (world/layout.ts), the
-// land's own lines (the river's channel and the side canyons as canyon.ts cut them: they wander off the layout's) and
-// the ground (heightAt, slopeAt: the terrain as the land filled it). Everything is decided from one seed, so the field is
-// the same on every load. Nothing goes inside the city wall, on the grand stair, in the river or on its banks, on the
-// road out of the gate, or on the Haven (the temple, its gardens and the promontory they stand on); ground is read for
-// what it is:
-//   - talus: boulders and fallen slabs piled at the feet of cliffs (where a flat floor or bench meets a steep rise),
-//     thickest and biggest close in, thinning outward in fans; a few strays on the open flats;
-//   - hoodoo fields: groves of hoodoos (and a table or two) on the floors of the wide canyons and on the plateau back
-//     from the rim, the tallest in the middle;
-//   - mushroom rocks: on each of the land's own hoodoo pillars (as tall as it, its cap over its top), scattered on the
-//     floors and the plateau near the rim, a few giants as landmarks, and a grove on the plateau's far horizon (ref 3's
-//     silhouettes);
-//   - spires: framing the mouths of the side canyons and standing along them by the walls (never in the middle, where
-//     you fly), a few by the river and on the rim;
-//   - ledges: thick plates set into the rim, half out over the drop;
-//   - crystals: fields of clusters along the rim overlooking the canyon, and glowing grottos (giant crystals and many
-//     clusters, a light at night) at cliff feet in the side canyons;
-//   - arches: one bridging the west slot canyon, one free on the south canyon's floor, one on the plateau.
+// Where the rocks go: the catalogue's prototypes placed round the star mesa from the shared layout (world/layout.ts),
+// the land's own lines (the plain's channel and the plateau's fissures as canyon.ts cut them) and the ground (heightAt,
+// slopeAt: the terrain as the land filled it). Everything is decided from one seed, so the field is the same on every
+// load. Nothing goes inside the town's building line (the town, the plateau and its citadel: only a few dim crystals
+// down in the plateau's fissures), on the water gate or the lookouts, in the chute or the channel across the plain or
+// on its banks; ground is read for what it is:
+//   - talus: boulders and fallen slabs piled at the feet of cliffs — the mesa's all round, the outcrops' and buttes'
+//     out on the plain — (where a flat floor or bench meets a steep rise), thickest and biggest close in, thinning
+//     outward in fans; a few strays on the open plain;
+//   - hoodoo fields: groves of hoodoos (and a table or two) out on the plain, the tallest in the middle;
+//   - mushroom rocks: on each of the land's own hoodoo pillars (as tall as it, its cap over its top), scattered over the
+//     plain, a few giants as landmarks 1.5-2.5 km out round the star, and a grove on each far horizon behind the
+//     citadel (ref 3's silhouettes);
+//   - spires: along the channel across the plain by its banks (never over it, where you fly), and framing the foot of
+//     every tip's cliff but the east's (its chute's);
+//   - ledges: thick plates set into the rim, half out over the cliff's drop;
+//   - crystals: about thirty fields of clusters on the rim's crest, round every point; a few glowing grottos (giant
+//     crystals and many clusters, a light at night) at the mesa's foot by its notches; and about twenty dim clusters
+//     down in the plateau's fissures;
+//   - an arch: one, free, out on the plain to the west-north-west.
 // Each placed rock is a prototype, a position, a turn, a lean and a scale; the big ones hand over posts (upright
 // cylinders a walker can't pass) and tops (to stand on), in world metres, and the grottos their lights.
 import type { LightSpot } from '../arch/types';
-import { centreLines, hoodoosIn, riverDistance } from '../land/canyon';
-import { BASIN, GATE, MESA, RIM_Y, SIDE_CANYONS, STAIR, TEMPLE, WALL, type V2 } from '../world/layout';
+import { canyonHeight, canyonInfo, channelDistance, channelLine, hoodoosIn } from '../land/canyon';
+import { CHANNEL, GARDENS, GATE, PLAIN_Y, PLATEAU, POINTS, RIM, STAR, WAYS, inPoint, polar, sdStar, starReach, type V2 } from '../world/layout';
 import type { Catalog } from './catalog';
 import { gauss, Noise3, pick, range, rng } from './noise';
 import type { Kind } from './proto';
@@ -45,15 +46,21 @@ export interface WorldTop { x: number; z: number; r: number; y: number }
 
 export interface Field { rocks: Rock[]; posts: WorldPost[]; tops: WorldTop[]; lights: LightSpot[] }
 
-/** the region rocks are placed in (m) */
-const BOUNDS = { x0: -3600, x1: 3600, z0: -2600, z1: 3600 };
-/** ground lower than this (m) is the canyon's floor */
-const FLOOR_MAX = 30;
+/** the region rocks are placed in (m): the plain all round the star */
+const BOUNDS = { x0: -3600, x1: 3600, z0: -3600, z1: 3600 };
+/** ground lower than this (m) is the plain's (the mesa's top, its benches and the rim are all higher) */
+const FLOOR_MAX = PLAIN_Y + 30;
 /** where the giant mushroom rocks stand (each within ~200 m of its mark, where the ground allows): landmarks seen from
- *  the city and the Haven, on the plateau either side of the promontory, beyond the side canyons and past the river */
-const GIANTS: V2[] = [[-1150, -1250], [1250, -1150], [1900, 900], [-2100, 1300], [600, 2300], [-700, 2600]];
-/** the far groves of mushroom rocks on the plateau's horizon behind the Haven (ref 3) */
+ *  the town and the citadel, out on the plain 1.5-2.5 km round the star (none over the channel to the east) */
+const GIANTS: V2[] = [polar(1700, 32), polar(2300, 82), polar(1900, 138), polar(2400, 196), polar(1600, 248), polar(2150, 302)];
+/** the far groves of mushroom rocks on the plain's horizon behind the citadel (ref 3) */
 const GROVES: V2[] = [[-2600, -2000], [2700, -1900]];
+/** the notches whose cliffs' feet hold a crystal grotto (degrees: between the south and south-west points, the west
+ *  and north-west, the north-east and east) */
+const GROTTO_NOTCHES = [112.5, 202.5, 337.5].map((a) => a + STAR.rot);
+/** the crystal fields on the rim's crest: two along each of the star's sixteen edges (a tip to a notch), but by the
+ *  east tip's water gate; how many dim clusters go down in the plateau's fissures, at most, in each slab sector */
+const CREST_FIELDS = [0.3, 0.72], FISSURE_CLUSTERS = 5;
 
 const segD = (x: number, z: number, a: V2, b: V2) => {
   const dx = b[0] - a[0], dz = b[1] - a[1];
@@ -61,23 +68,25 @@ const segD = (x: number, z: number, a: V2, b: V2) => {
   return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t);
 };
 const lineD = (x: number, z: number, path: V2[]) => { let d = Infinity; for (let i = 1; i < path.length; i++) d = Math.min(d, segD(x, z, path[i - 1], path[i])); return d; };
-const inEll = (x: number, z: number, cx: number, cz: number, rx: number, rz: number) => ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2 < 1;
-const STAIR_PATH: V2[] = STAIR.landings.map(([x, z]) => [x, z]);
-const MESA_ZC = (MESA.tipZ + MESA.neckZ) / 2, MESA_RZ = (MESA.tipZ - MESA.neckZ) / 2;
+const DEG = Math.PI / 180;
 
-/** the river's channel and its banks either side of the land's centre line (canyon.ts: down to the floor by here, m) */
-const RIVER_BANKS = 26;
+/** the lookout towers on the crest's foot behind the tips' squares (every point's but the east's: city/rim.ts) */
+const TOWERS: V2[] = POINTS.filter((p) => p.role !== 'palace').map((p) => inPoint(p, WAYS.lookout.r, 0));
+/** the chute down the east tip's cliff, from the water gate to the plunge pool the plain's channel leaves (x, its
+ *  half-width either side of the gate's axis) */
+const CHUTE = { x0: GATE.x - 10, x1: CHANNEL.plain.path[0][0] + 30, half: 26 };
+/** the channel across the plain, its banks either side (m from its line) */
+const CHANNEL_BANKS = CHANNEL.plain.halfWidth + 22;
 
-/** somewhere the rocks keep out of, for a rock of reach r: the city and a margin round its wall, the road out of the
- *  gate, the stair, the river's channel and banks (where the land cut them), the Haven (temple, gardens) and the
- *  promontory they stand on */
+/** somewhere the rocks keep out of, for a rock of reach r: the town's ground (everything inside its building line: the
+ *  town, the ring road, the plateau and the citadel on it; the rim's crest past the line is the rocks'), the water gate
+ *  and the lookouts, the chute and the plain's channel with its banks */
 export function keepOut(x: number, z: number, r = 0): boolean {
-  if (inEll(x, z, WALL.cx, WALL.cz, WALL.rx + 40 + r, WALL.rz + 40 + r)) return true;
-  if (Math.abs(x - GATE.x) < 30 + r && z > GATE.z && z < GATE.z + 420) return true;
-  if (lineD(x, z, STAIR_PATH) < STAIR.width / 2 + 35 + r) return true;
-  if (riverDistance(x, z) < RIVER_BANKS + r) return true;
-  if (Math.hypot(x - TEMPLE.x, z - TEMPLE.z) < 380 + r) return true;
-  return inEll(x, z, MESA.cx, MESA_ZC, MESA.halfWidth + 40 + r, MESA_RZ + 40 + r);
+  if (sdStar(x, z) < -RIM.building + r) return true;
+  if (Math.hypot(x - GATE.x, z - GATE.z) < 45 + r) return true;
+  for (const t of TOWERS) if (Math.hypot(x - t[0], z - t[1]) < WAYS.lookout.radius + 6 + r) return true;
+  if (x > CHUTE.x0 && x < CHUTE.x1 && Math.abs(z - GATE.z) < CHUTE.half + r) return true;
+  return x > CHUTE.x1 - 70 && channelDistance(x, z) < CHANNEL_BANKS + r;
 }
 
 /** a uniform spatial hash of what's placed, for spacing */
@@ -144,10 +153,11 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
     for (const f of [1, 1.5]) for (let k = 0; k < 8; k++) y = Math.min(y, ground.heightAt(x + DIRS[k][0] * rad * f, z + DIRS[k][1] * rad * f));
     return y;
   };
-  /** place one: its reach on the ground (m) keeps the spacing; false if it doesn't fit */
-  const put = (proto: number, x: number, z: number, scale: number, o: { yaw?: number; tilt?: [number, number]; sink?: number; glow?: number; give?: number; y?: number; free?: boolean } = {}) => {
+  /** place one: its reach on the ground (m) keeps the spacing; false if it doesn't fit (`free`: placed where it's
+   *  asked, the keep-outs not asked; `inside`: the keep-outs not asked, the spacing still is) */
+  const put = (proto: number, x: number, z: number, scale: number, o: { yaw?: number; tilt?: [number, number]; sink?: number; glow?: number; give?: number; y?: number; free?: boolean; inside?: boolean } = {}) => {
     const reach = P[proto].radius * scale;
-    if (!o.free && (keepOut(x, z, reach * 0.6) || !space.clear(x, z, reach, o.give ?? 0.15))) return false;
+    if (!o.free && ((!o.inside && keepOut(x, z, reach * 0.6)) || !space.clear(x, z, reach, o.give ?? 0.15))) return false;
     const foot = o.y ?? footY(x, z, reach * 0.6);
     const y = foot - (o.sink ?? 0) * P[proto].height * scale;
     rocks.push({ proto, x, y, z, yaw: o.yaw ?? r() * Math.PI * 2, tilt: o.tilt ?? [0, 0], scale, seed: r(), glow: o.glow ?? 0, ground: P[proto].kind === 'ledge' ? -1e4 : foot });
@@ -155,12 +165,20 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
     return true;
   };
   const sized = (kind: Kind, pickT: number) => cat.of[kind][Math.min(cat.of[kind].length - 1, Math.floor(pickT * cat.of[kind].length))];
-  // the side canyons' centre lines as the land cut them (they wander off the layout's), each from the basin outward
-  const lines = centreLines(20);
-  const sideLines: V2[][] = [[...lines.west].reverse(), lines.east, lines.south];
-  /** in a slot's flying lane (the west and east slots' middles, kept clear of anything big: the flight's look-ahead
-   *  sees only the ground) */
-  const inLane = (x: number, z: number, reach: number) => [0, 1].some((i) => lineD(x, z, sideLines[i]) < SIDE_CANYONS[i].halfWidth * 0.6 + reach);
+  /** the plain's channel's line as the land cut it, every 20 m (out to the region's edge) */
+  const channel = channelLine(20).filter(([x]) => x < BOUNDS.x1);
+  /** out on the plain: low, a way out from the mesa's foot (sdStar: past the cliff's ~60 m), off the channel */
+  const onPlain = (x: number, z: number, h: number, out = 120, banks = 60) => h < FLOOR_MAX && sdStar(x, z) > out && channelDistance(x, z) > banks;
+  /** where the mesa's cliff meets the plain going out along angle a (degrees) from the star's edge: the first point
+   *  out where the ground is within 4 m of the plain and level */
+  const footAlong = (a: number): V2 => {
+    const c = Math.cos(a * DEG), s = Math.sin(a * DEG), r0 = starReach(a);
+    for (let d = 0; d < 260; d += 3) {
+      const x = STAR.cx + c * (r0 + d), z = STAR.cz + s * (r0 + d);
+      if (ground.heightAt(x, z) < PLAIN_Y + 4 && ground.slopeAt(x, z) < 0.3) return [x, z];
+    }
+    return [STAR.cx + c * (r0 + 120), STAR.cz + s * (r0 + 120)];
+  };
 
   // ---- the land's own hoodoo pillars first (canyon.ts: a heightfield has no overhangs), each made a mushroom rock: the
   // catalogue's nearest in height, scaled to the pillar and standing in it, so its cap overhangs the pillar's top
@@ -175,66 +193,52 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
     put(proto, ho.x, ho.z, (rise + 0.6) / P[proto].height, { y: foot, free: true });
   }
 
-  // ---- arches first (they need room): across the west slot, free on the south canyon's floor, on the plateau
-  {
-    const west = SIDE_CANYONS[0];
-    const [a, b] = [west.path[1], west.path[2]];
-    const x = a[0] + (b[0] - a[0]) * 0.45, z = a[1] + (b[1] - a[1]) * 0.45;
-    const along = Math.atan2(b[1] - a[1], b[0] - a[0]);
-    const proto = cat.of.arch[1];
-    // (spanning the slot: the fin's length across it, its opening the slot's width, its ends in the walls)
-    const scale = (west.halfWidth * 2 + 6) / (P[proto].span ?? P[proto].radius);
-    put(proto, x, z, scale, { yaw: -(along + Math.PI / 2), y: ground.heightAt(x, z), free: true });
-    const south = SIDE_CANYONS[2];
-    const [c, d] = [south.path[2], south.path[3]];
-    const sx = c[0] + (d[0] - c[0]) * 0.3, sz = c[1] + (d[1] - c[1]) * 0.3;
-    put(cat.of.arch[2], sx, sz, 1, { yaw: -Math.atan2(d[1] - c[1], d[0] - c[0]) });
-    for (let tries = 0; tries < 200; tries++) {
-      const px = range(r, 400, 1400), pz = range(r, -1500, -700);
-      const st = site(px, pz, 60);
-      if (st.h > RIM_Y - 20 && st.s < 0.15 && st.drop < 10 && put(cat.of.arch[0], px, pz, 1)) break;
-    }
+  // ---- the arch first (it needs room): free on the plain, west-north-west of the star
+  for (let tries = 0; tries < 200; tries++) {
+    yield;
+    const [px, pz] = polar(range(r, 1200, 1500), range(r, 205, 225));
+    const st = site(px, pz, 60);
+    if (onPlain(px, pz, st.h, 300) && st.s < 0.15 && st.drop < 10 && put(cat.of.arch[2], px, pz, 1)) break;
   }
 
-  // ---- spires framing the side canyons: a pair at each mouth, then by the walls along them, either side in turn
-  SIDE_CANYONS.forEach((c, ci) => {
-    const path = sideLines[ci];
-    let side = r() < 0.5 ? 1 : -1;
-    let walked = 0, next = 30;
-    for (let i = 1; i < path.length; i++) {
-      const [a, b] = [path[i - 1], path[i]];
+  // ---- spires: along the channel across the plain by its banks, either side in turn (never over it: the lane above
+  // the water stays open for flying), and framing the foot of every tip's cliff but the east's
+  {
+    let side = r() < 0.5 ? 1 : -1, walked = 0, next = 120;
+    for (let i = 1; i < channel.length; i++) {
+      const [a, b] = [channel[i - 1], channel[i]];
       const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
       for (; next < walked + L; next += range(r, 160, 320)) {
-        const t = next - walked, mouth = next < 200;
-        for (const sd of mouth ? [1, -1] : [side]) {
-          const proto = sized('spire', mouth ? range(r, 0.6, 1) : r());
-          // (in a slot no wider than its wall's share: the lane between stays open)
-          const scale = c.halfWidth < 60 ? Math.min(range(r, 0.8, 1.15) * 0.85, (c.halfWidth * 0.3) / P[proto].radius) : range(r, 0.8, 1.15);
-          const off = Math.max(8, c.halfWidth - P[proto].radius * scale * 0.9 - 2);
-          put(proto, a[0] + ux * t - uz * off * sd, a[1] + uz * t + ux * off * sd, scale, { give: 0.05 });
-        }
+        const t = next - walked, proto = sized('spire', r()), scale = range(r, 0.8, 1.15);
+        const off = CHANNEL_BANKS + P[proto].radius * scale + range(r, 4, 40);
+        put(proto, a[0] + ux * t - uz * off * side, a[1] + uz * t + ux * off * side, scale, { give: 0.05 });
         side = -side;
       }
       walked += L;
     }
-  });
+  }
+  for (const p of POINTS) {
+    yield;
+    if (p.role === 'palace') continue;
+    const [fx, fz] = footAlong(p.tip), c = Math.cos(p.tip * DEG), s = Math.sin(p.tip * DEG);
+    for (const sd of [1, -1]) {
+      for (let k = 0; k < 12; k++) {
+        const out = range(r, 18, 60), across = sd * range(r, 40, 85), proto = sized('spire', range(r, 0.45, 1));
+        if (put(proto, fx + c * out - s * across, fz + s * out + c * across, range(r, 0.8, 1.1), { give: 0.05 })) break;
+      }
+    }
+  }
 
-  // ---- hoodoo fields and mushroom groves: centres on the floors of the wide canyons and on the plateau near the rim
+  // ---- hoodoo fields and mushroom groves: centres out on the plain
   const fieldCentres: { x: number; z: number }[] = [];
   for (let tries = 0; tries < 4000 && fieldCentres.length < 16; tries++) {
     yield;
     const x = range(r, BOUNDS.x0 + 300, BOUNDS.x1 - 300), z = range(r, BOUNDS.z0 + 300, BOUNDS.z1 - 300);
-    if (keepOut(x, z, 50) || inEll(x, z, BASIN.cx, BASIN.cz, BASIN.rx + 80, BASIN.rz + 80) || inLane(x, z, 60)) continue;
+    if (keepOut(x, z, 50)) continue;
     const st = site(x, z, 50);
-    const floor = st.h < FLOOR_MAX && st.s < 0.2 && st.rise > 45;
-    const plateau = st.h > RIM_Y - 20 && st.s < 0.2 && st.drop < 5 && nearRim(x, z, 500);
-    if (!floor && !plateau) continue;
+    if (!onPlain(x, z, st.h, 250, 160) || st.s > 0.2 || st.rise < 45) continue;
     if (fieldCentres.some((f) => Math.hypot(f.x - x, f.z - z) < 450)) continue;
     fieldCentres.push({ x, z });
-  }
-  function nearRim(x: number, z: number, d: number) {
-    for (let k = 0; k < 8; k++) if (ground.heightAt(x + DIRS[k][0] * d, z + DIRS[k][1] * d) < RIM_Y - 60) return true;
-    return false;
   }
   fieldCentres.forEach((f, i) => {
     const mushrooms = i % 3 === 2;
@@ -244,7 +248,7 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R;
       const x = f.x + Math.cos(a) * d, z = f.z + Math.sin(a) * d;
       const st = site(x, z, 20);
-      if (st.s > 0.3 || Math.abs(st.h - h0) > 10 || st.rise < 20 || inLane(x, z, 10)) continue;
+      if (st.s > 0.3 || Math.abs(st.h - h0) > 10 || st.rise < 20 || channelDistance(x, z) < CHANNEL_BANKS + 10) continue;
       // (the tallest toward the middle)
       const t = Math.min(1, Math.max(0, 1 - d / R + gauss(r) * 0.25));
       const kind: Kind = mushrooms ? (r() < 0.2 ? 'table' : 'mushroom') : r() < 0.06 ? 'table' : r() < 0.12 ? 'mushroom' : 'hoodoo';
@@ -253,14 +257,13 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
     }
   });
 
-  // ---- mushroom rocks scattered, and the giants (landmarks seen from the city) and the far grove (ref 3)
+  // ---- mushroom rocks scattered over the plain, and the giants (landmarks seen from the town) and the far groves
+  // (ref 3)
   for (let tries = 0, n = 0; tries < 3000 && n < 70; tries++) {
     yield;
     const x = range(r, BOUNDS.x0, BOUNDS.x1), z = range(r, BOUNDS.z0, BOUNDS.z1);
     const st = site(x, z, 40);
-    const floor = st.h < FLOOR_MAX && st.s < 0.25 && st.rise > 25;
-    const plateau = st.h > RIM_Y - 15 && st.s < 0.25 && st.drop < 8;
-    if ((!floor && !(plateau && nearRim(x, z, 300))) || inLane(x, z, 20)) continue;
+    if (!onPlain(x, z, st.h) || st.s > 0.25 || st.rise < 25) continue;
     if (put(sized('mushroom', Math.pow(r(), 1.6) * 0.72), x, z, range(r, 0.8, 1.2))) n++;
   }
   for (const [gx, gz] of GIANTS) {
@@ -279,58 +282,96 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
     }
   }
 
-  // ---- crystal grottos at cliff feet in the side canyons: giants against the wall, clusters round them, a light
-  const grottos: V2[] = [];
-  SIDE_CANYONS.forEach((c, ci) => {
-    const path = sideLines[ci];
-    for (let tries = 0; tries < 400 && grottos.filter((g) => lineD(g[0], g[1], path) < c.halfWidth + 30).length < 2; tries++) {
-      const i = 1 + Math.floor(r() * (path.length - 1));
-      const [a, b] = [path[i - 1], path[i]];
-      const t = range(r, 0.15, 0.85), sd = r() < 0.5 ? 1 : -1;
-      const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
-      const x = a[0] + (b[0] - a[0]) * t - uz * (c.halfWidth - 10) * sd, z = a[1] + (b[1] - a[1]) * t + ux * (c.halfWidth - 10) * sd;
-      if (keepOut(x, z, 30) || grottos.some((g) => Math.hypot(g[0] - x, g[1] - z) < 700)) continue;
-      const st = site(x, z, 40);
-      if (st.h > FLOOR_MAX || st.rise > 40) continue;
-      grottos.push([x, z]);
-      const toWall = Math.atan2(-ux * sd, uz * sd);
-      for (let g = 0; g < (r() < 0.5 ? 2 : 1); g++) {
-        put(sized('crystal', range(r, 0.67, 1)), x + gauss(r) * 4, z + gauss(r) * 4, range(r, 0.8, 1.1), { tilt: [gauss(r) * 0.12, gauss(r) * 0.12], sink: 0.08, glow: 1, give: 0.4, yaw: toWall + gauss(r) });
-      }
-      for (let k = 0, n = 0; k < 80 && n < 14; k++) {
-        const a2 = r() * Math.PI * 2, d = range(r, 3, 18);
-        if (put(sized('crystal', Math.pow(r(), 1.5) * 0.66), x + Math.cos(a2) * d, z + Math.sin(a2) * d, range(r, 0.8, 1.3), { tilt: [gauss(r) * 0.2, gauss(r) * 0.2], sink: 0.1, glow: range(r, 0.6, 1), give: 0.3 })) n++;
-      }
-      lights.push({ p: [x, ground.heightAt(x, z) + 4, z], color: [0.3, 0.95, 0.85], candela: 1400, when: 'night', radius: 45 });
+  // ---- crystal grottos at the mesa's foot by its notches: giants against the cliff, clusters round them, a light
+  for (const a of GROTTO_NOTCHES) {
+    // (back in from the foot to where the wall itself rises — past the sand drifted against it — and 5 m out from
+    // there, in the notch's corner; the giants lean back toward the wall)
+    const [fx, fz] = footAlong(a), c = Math.cos(a * DEG), s = Math.sin(a * DEG);
+    let back = 0;
+    while (back < 60 && ground.heightAt(fx - c * back, fz - s * back) < PLAIN_Y + 8) back++;
+    const x = fx - c * (back - 5), z = fz - s * (back - 5), toWall = Math.atan2(c, s);
+    for (let g = 0; g < (r() < 0.5 ? 2 : 1); g++) {
+      put(sized('crystal', range(r, 0.67, 1)), x + gauss(r) * 4, z + gauss(r) * 4, range(r, 0.8, 1.1), { tilt: [gauss(r) * 0.12, gauss(r) * 0.12], sink: 0.08, glow: 1, give: 0.4, yaw: toWall + gauss(r) });
     }
-  });
+    for (let k = 0, n = 0; k < 80 && n < 14; k++) {
+      const a2 = r() * Math.PI * 2, d = range(r, 3, 18);
+      if (put(sized('crystal', Math.pow(r(), 1.5) * 0.66), x + Math.cos(a2) * d, z + Math.sin(a2) * d, range(r, 0.8, 1.3), { tilt: [gauss(r) * 0.2, gauss(r) * 0.2], sink: 0.1, glow: range(r, 0.6, 1), give: 0.3 })) n++;
+    }
+    lights.push({ p: [x, ground.heightAt(x, z) + 4, z], color: [0.3, 0.95, 0.85], candela: 1400, when: 'night', radius: 45 });
+  }
 
-  // ---- the rim: ledges set into it and crystal fields back from it
-  for (let tries = 0, ledges = 0, fields = 0; tries < 30000 && (ledges < 140 || fields < 45); tries++) {
-    yield;
-    const x = range(r, BOUNDS.x0, BOUNDS.x1), z = range(r, BOUNDS.z0, BOUNDS.z1);
+  // ---- the rim: ledges set into it all round, half out over the cliff's drop, and crystal fields on its crest
+  /** a spot on the rim's edge near angle a (degrees): on the crest, the cliff's drop within reach, and which way out */
+  const rimSpot = (a: number, inset: number) => {
+    const [x, z] = polar(starReach(a, inset), a);
     const st = site(x, z, 18);
-    if (st.h < RIM_Y - 12 || st.s > 0.35 || st.drop < 25 || keepOut(x, z, 20)) continue;
-    const ox = Math.cos(st.out), oz = Math.sin(st.out);
-    if (ledges < 140 && r() < 0.5) {
-      const proto = pick(r, cat.of.ledge);
-      const W = P[proto].radius;
-      const sc = range(r, 0.8, 1.2);
-      // (its long axis along the rim, half of it out over the drop; its top a little proud of the plateau)
-      if (put(proto, x + ox * W * sc * 0.25, z + oz * W * sc * 0.25, sc, { yaw: -(st.out + Math.PI / 2), y: st.h - 0.15, give: 0.3 })) ledges++;
-    } else if (fields < 45) {
-      fields++;
-      const n = Math.round(range(r, 4, 13));
+    return st.h > -3 && st.s < 0.35 && st.drop > 25 ? { x, z, st } : null;
+  };
+  for (let tries = 0, ledges = 0; tries < 6000 && ledges < 100; tries++) {
+    yield;
+    const spot = rimSpot(r() * 360, range(r, -4, 6));
+    if (!spot) continue;
+    const { x, z, st } = spot, ox = Math.cos(st.out), oz = Math.sin(st.out);
+    const proto = pick(r, cat.of.ledge);
+    const W = P[proto].radius;
+    const sc = range(r, 0.8, 1.2);
+    // (its long axis along the rim, half of it out over the drop; its top a little proud of the crest)
+    if (put(proto, x + ox * W * sc * 0.25, z + oz * W * sc * 0.25, sc, { yaw: -(st.out + Math.PI / 2), y: st.h - 0.15, give: 0.3 })) ledges++;
+  }
+  /** the star's outward way at (x, z) (sdStar's gradient, level) */
+  const outward = (x: number, z: number): V2 => {
+    const gx = sdStar(x + 1, z) - sdStar(x - 1, z), gz = sdStar(x, z + 1) - sdStar(x, z - 1), L = Math.hypot(gx, gz) || 1;
+    return [gx / L, gz / L];
+  };
+  // (the fields from a stream of their own: where they lie doesn't move when anything placed before them does, so the
+  // views among them — dev/views.ts rim-crystals — find them)
+  const rc = rng(seed + 31);
+  for (let e = 0; e < 16; e++) {
+    yield;
+    // (the edge from a tip to a notch, or back: two fields along it, on the crest 6-16 m in from the edge where it's
+    // level enough and still on top)
+    const a0 = STAR.rot + 22.5 * e;
+    for (const f of CREST_FIELDS) {
+      const a = a0 + 22.5 * f + range(rc, -2, 2);
+      // (none by the water gate on the east tip)
+      if (Math.abs(((a - STAR.rot + 540) % 360) - 180) < 9) continue;
+      let spot: V2 | null = null;
+      for (let k = 0; k < 16 && !spot; k++) {
+        const aa = a + range(rc, -2.5, 2.5), [x, z] = polar(starReach(aa, range(rc, 6, 16)), aa);
+        if (ground.heightAt(x, z) > -1 && ground.slopeAt(x, z) < 0.4 && !keepOut(x, z, 4)) spot = [x, z];
+      }
+      if (!spot) continue;
+      const [x, z] = spot, [ox, oz] = outward(x, z);
+      const n = Math.round(range(rc, 5, 13));
       for (let k = 0; k < n * 3; k++) {
-        const a = r() * Math.PI * 2, d = range(r, 2, 40);
-        const cx = x - ox * d * 0.7 + Math.cos(a) * d * 0.5, cz = z - oz * d * 0.7 + Math.sin(a) * d * 0.5;
-        if (ground.slopeAt(cx, cz) > 0.4) continue;
-        put(sized('crystal', Math.pow(r(), 1.4) * 0.66), cx, cz, range(r, 0.75, 1.3), { tilt: [gauss(r) * 0.15, gauss(r) * 0.15], sink: 0.12, glow: r() < 0.2 ? 0.35 : 0, give: 0.3 });
+        // (spread along the crest more than across it: back from the edge, never out over it)
+        const along = range(rc, -18, 18), d = range(rc, 0, 12);
+        const cx = x - ox * d - oz * along, cz = z - oz * d + ox * along;
+        if (ground.slopeAt(cx, cz) > 0.4 || ground.heightAt(cx, cz) < -1) continue;
+        put(sized('crystal', Math.pow(rc(), 1.4) * 0.66), cx, cz, range(rc, 0.75, 1.3), { tilt: [gauss(rc) * 0.15, gauss(rc) * 0.15], sink: 0.12, glow: rc() < 0.2 ? 0.35 : 0, give: 0.3 });
       }
     }
   }
 
-  // ---- talus at the feet of the cliffs (and benches), and strays on the flats
+  // ---- dim crystal clusters down in the plateau's fissures (the land's: canyon.ts's zone 9, where the ground the town
+  // and the Haven left is still the land's own), a few in each slab sector, spread apart
+  for (const w of GARDENS.wedges) {
+    yield;
+    if (w.kind !== 'top') continue;
+    const spots: V2[] = [];
+    for (let tries = 0; tries < 900 && spots.length < FISSURE_CLUSTERS; tries++) {
+      const a = w.a0 + (w.a1 - w.a0) * range(r, 0.12, 0.88), rr = range(r, w.r1 + 24, PLATEAU.r - 12);
+      const x = PLATEAU.cx + Math.cos(a) * rr, z = PLATEAU.cz + Math.sin(a) * rr;
+      if (spots.some((q) => Math.hypot(q[0] - x, q[1] - z) < 26)) continue;
+      const info = canyonInfo(x, z);
+      if (info.zone !== 9 || info.h > PLATEAU.topY - 4 || Math.abs(ground.heightAt(x, z) - canyonHeight(x, z)) > 0.3) continue;
+      const proto = sized('crystal', Math.pow(r(), 1.3) * 0.5), sc = range(r, 0.7, 1);
+      if (P[proto].radius * sc > 1.6) continue;
+      if (put(proto, x, z, sc, { tilt: [gauss(r) * 0.15, gauss(r) * 0.15], sink: 0.12, glow: range(r, 0.25, 0.45), give: 0.3, inside: true })) spots.push([x, z]);
+    }
+  }
+
+  // ---- talus at the feet of the cliffs (the mesa's, the outcrops' and their benches), and strays on the flats
   /** the distance to the nearest steep rise from flat ground at (x, z) (Infinity: none within 32 m) */
   const riseNear = (x: number, z: number) => {
     const h = ground.heightAt(x, z);
@@ -343,8 +384,10 @@ export function* placeRocksSteps(cat: Catalog, ground: Ground, seed = 1): Genera
   for (let gx = BOUNDS.x0; gx < BOUNDS.x1; gx += cell * 8) {
     yield;
     for (let gz = BOUNDS.z0; gz < BOUNDS.z1; gz += cell * 8) {
-      // (a block of cells with no cliff near is skipped whole, but for a stray boulder now and then)
+      // (a block of cells with no cliff near is skipped whole, but for a stray boulder now and then; the town's skipped
+      // whole: nothing's placed there)
       const cx = gx + cell * 4, cz = gz + cell * 4;
+      if (sdStar(cx, cz) < -RIM.building - 40) continue;
       const coarse = site(cx, cz, 60);
       if (coarse.rise === Infinity && coarse.drop < 20) {
         if (r() < 0.05) {

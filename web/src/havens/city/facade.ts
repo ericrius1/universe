@@ -4,8 +4,10 @@
 // springs and tops, leaving each opening as a hole: round and pointed arches get their spandrels as fans from the
 // corners, and every opening its reveals (jambs, sill, head or arch soffit) back to a fill (a window that glows at night,
 // a dark interior, a door) set in by its depth. Surrounds, sills, shutters and anything else that stands out of the wall
-// are boxes in the same coordinates.
+// are boxes in the same coordinates; a region (any simple outline on the face) is laid as one piece, so a tile field
+// fitted to it runs whole across it.
 import type { ArchBuilder } from '../arch/builder';
+import { triangulate } from '../arch/builder';
 import type { City } from './ctx';
 import type { Mat, V3 } from '../arch/types';
 import { MAT } from '../arch/types';
@@ -27,6 +29,18 @@ export interface Opening {
   fill: Mat | null;
   glow?: number;
   fillTint?: V3;
+  /** the fill's palette, if it's tiled or a lattice door (types.ts TILE_PAL) */
+  pal?: number;
+  /** a sill stone laid under it out of the wall (its top at the sill, back to the wall's face): the reveal's sill
+   *  starts behind it, at the wall's face, so the two meet and don't overlap */
+  sill?: boolean;
+  /** false: no reveal under it (a passage at the ground, its floor the street's paving) */
+  floor?: boolean;
+  /** only the hole: a part from the parts library (a window, a door: arch/parts) lays its own reveal, fill and
+   *  surround in it; its arch's curve given (`arc`, face coordinates, the left spring over the crown to the right), the
+   *  part's own, so the hole is the part's */
+  bare?: boolean;
+  arc?: V2[];
   /** a surround standing 3 cm proud, `frameW` wide */
   frame?: Mat;
   frameW?: number;
@@ -49,6 +63,10 @@ export class Face {
     this.n = [-this.ru[2], 0, this.ru[0]];
   }
 
+  /** the yaw (in the builder's current frame) that turns a part's local x along the face and its z out of it: what a
+   *  small part placed on the face (b.place: a bracket, a wall lantern, a merlon on a parapet) is turned by */
+  get yaw(): number { return Math.atan2(-this.ru[2], this.ru[0]); }
+
   at(u: number, v: number, w = 0): V3 {
     return [this.L[0] + this.ru[0] * u - this.n[0] * w, this.y0 + v, this.L[1] + this.ru[2] * u - this.n[2] * w];
   }
@@ -57,6 +75,20 @@ export class Face {
   rect(u0: number, v0: number, u1: number, v1: number, w: number, mat: Mat) {
     if (u1 - u0 < 1e-4 || v1 - v0 < 1e-4) return this;
     this.b.poly([this.at(u0, v0, w), this.at(u1, v0, w), this.at(u1, v1, w), this.at(u0, v1, w)], mat);
+    return this;
+  }
+
+  /** a region of the face: a simple outline of (u, v) points, w in front of or behind it, facing out, laid as one
+   *  piece (a tile field fitted whole across it) */
+  region(pts: V2[], w: number, mat: Mat) {
+    if (pts.length < 3) return this;
+    this.b.patch(pts.map(([u, v]) => this.at(u, v, w)), triangulate(pts), mat, this.n);
+    return this;
+  }
+
+  /** a level surface out of the face at height v, from u0 to u1 and w0 to w1 (a step's top), its uv square to the face */
+  ledge(u0: number, u1: number, v: number, w0: number, w1: number, mat: Mat) {
+    this.b.patch([this.at(u0, v, w0), this.at(u1, v, w0), this.at(u1, v, w1), this.at(u0, v, w1)], [0, 1, 2, 0, 2, 3], mat, [0, 1, 0], this.ru);
     return this;
   }
 
@@ -77,7 +109,7 @@ export class Face {
   /** the face with its openings cut */
   wall(mat: Mat, ops: Opening[]) {
     const H = this.h, L = this.len;
-    const shapes = ops.filter((o) => o.depth > 0).map((o) => ({ o, ...archOf(o) }));
+    const shapes = ops.filter((o) => o.depth > 0).map((o) => ({ o, ...(o.arc ? { spring: o.arc[0][1], arc: o.arc } : archOf(o)) }));
     // horizontal bands between every sill, spring and top
     const vs = new Set<number>([0, H]);
     for (const s of shapes) { vs.add(clamp(s.o.v0, 0, H)); vs.add(clamp(s.spring, 0, H)); vs.add(clamp(s.o.top, 0, H)); }
@@ -103,7 +135,7 @@ export class Face {
     const pts: V3[] = o.arch === 'flat'
       ? [this.at(o.u0, o.v0, -0.012), this.at(o.u1, o.v0, -0.012), this.at(o.u1, o.top, -0.012), this.at(o.u0, o.top, -0.012)]
       : [this.at(o.u1, o.v0, -0.012), ...[...arc].reverse().map(([u, v]) => this.at(u, v, -0.012)), this.at(o.u0, o.v0, -0.012)];
-    this.b.with({ glow: o.glow ?? 0, tint: o.fillTint }, () => this.b.poly(pts, fill));
+    this.b.with({ glow: o.glow ?? 0, tint: o.fillTint, pal: o.pal }, () => this.b.poly(pts, fill));
   }
 
   private opening(o: Opening, arc: V2[], spring: number, wallMat: Mat) {
@@ -115,6 +147,7 @@ export class Face {
       for (let i = 0; i < mid; i++) b.poly([this.at(o.u0, o.top), this.at(arc[i][0], arc[i][1]), this.at(arc[i + 1][0], arc[i + 1][1])], wallMat);
       for (let i = mid; i < arc.length - 1; i++) b.poly([this.at(o.u1, o.top), this.at(arc[i][0], arc[i][1]), this.at(arc[i + 1][0], arc[i + 1][1])], wallMat);
     }
+    if (o.bare) return;
     const jambTop = o.arch === 'flat' ? o.top : spring;
     // reveals (none for an opening whose depth is only a passage's other mouth)
     if (d >= 0.02) this.reveals(o, arc, jambTop, w0, wallMat);
@@ -124,7 +157,7 @@ export class Face {
       ? [this.at(o.u0, o.v0, d), this.at(o.u1, o.v0, d), this.at(o.u1, o.top, d), this.at(o.u0, o.top, d)]
       : [this.at(o.u1, o.v0, d), ...[...arc].reverse().map(([u, v]) => this.at(u, v, d)), this.at(o.u0, o.v0, d)];
     const fill = o.fill;
-    b.with({ glow: o.glow ?? 0, tint: o.fillTint }, () => b.poly(fillPts, fill));
+    b.with({ glow: o.glow ?? 0, tint: o.fillTint, pal: o.pal }, () => b.poly(fillPts, fill));
     this.surround(o, arc, jambTop);
   }
 
@@ -132,7 +165,8 @@ export class Face {
     const b = this.b, d = o.depth;
     b.poly([this.at(o.u0, o.v0, w0), this.at(o.u0, o.v0, d), this.at(o.u0, jambTop, d), this.at(o.u0, jambTop, w0)], wallMat);
     b.poly([this.at(o.u1, o.v0, w0), this.at(o.u1, jambTop, w0), this.at(o.u1, jambTop, d), this.at(o.u1, o.v0, d)], wallMat);
-    b.poly([this.at(o.u0, o.v0, w0), this.at(o.u1, o.v0, w0), this.at(o.u1, o.v0, d), this.at(o.u0, o.v0, d)], o.v0 < 0.05 ? MAT.PAVING : wallMat);
+    const ws = o.sill ? 0 : w0;
+    if (o.floor !== false) b.poly([this.at(o.u0, o.v0, ws), this.at(o.u1, o.v0, ws), this.at(o.u1, o.v0, d), this.at(o.u0, o.v0, d)], o.v0 < 0.05 ? MAT.PAVING : wallMat);
     if (o.arch === 'flat') b.poly([this.at(o.u0, o.top, w0), this.at(o.u0, o.top, d), this.at(o.u1, o.top, d), this.at(o.u1, o.top, w0)], wallMat);
     else for (let i = 0; i < arc.length - 1; i++) {
       const p = arc[i], q = arc[i + 1];
@@ -178,7 +212,10 @@ export function archOf(o: Pick<Opening, 'u0' | 'u1' | 'top' | 'arch'>, segs?: nu
   const ta = Math.acos((w / 2 - R) / Rg);
   const half = n / 2;
   const left = Array.from({ length: half + 1 }, (_, i) => { const a = Math.PI - (Math.PI - ta) * (i / half); return [o.u0 + R + Math.cos(a) * Rg, spring + Math.sin(a) * Rg] as V2; });
-  const right = Array.from({ length: half }, (_, i) => { const a = ta - ta * ((i + 1) / half); return [o.u1 - R + Math.cos(a) * Rg, spring + Math.sin(a) * Rg] as V2; });
+  // (the right arc, struck from inside the left jamb, meets the crown at π - ta and runs down to its spring at 0: from
+  // ta, as it was, its first points overshot the crown back over the left arc, the outline crossing itself — a spike
+  // over the crown, the fill folded, the spandrels overlapping)
+  const right = Array.from({ length: half }, (_, i) => { const a = (Math.PI - ta) * (1 - (i + 1) / half); return [o.u1 - R + Math.cos(a) * Rg, spring + Math.sin(a) * Rg] as V2; });
   return { spring, arc: [...left, ...right] };
 }
 

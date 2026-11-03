@@ -30,6 +30,9 @@ const LEVELS = LOD_SIZE.length;
  *  may look to be taken */
 const SHADOW_REACH = [40, 90, 220, 560];
 const SHADOW_SIZE = [0, 0.004, 0.008, 0.012];
+/** the rocks binned in squares of the ground this wide (m): a frame passes over a square none of whose rocks could be
+ *  drawn or cast whole (a few hundred of the ~16,500 are ever in a list at once; each was looked at every frame) */
+const CELL = 96;
 
 /** the stone's look and the crystals' (look.ts; the '/' panel can tweak these: rocks.wgsl RockU, crystal.wgsl CrystalU) */
 const rockLook = (kit: Kit) => kit.uniforms(rockShader.structs.RockU, 'rocks').set(ROCK_LOOK);
@@ -68,6 +71,13 @@ export class Rocks {
   private counts: Int32Array;
   private starts: Int32Array;
   private at: V3 = [0, 0, 0];
+  /** the squares: their rocks' indices square after square, where each square's run starts, a sphere round each
+   *  square's rocks (centre, radius) and the largest rock's radius; and this frame's rocks in squares that could count */
+  private cellOrder: Int32Array;
+  private cellStart: Int32Array;
+  private cellSphere: Float32Array;
+  private cellR: Float32Array;
+  private live: Int32Array;
   /** triangles in the view this frame (for the stats) */
   triangles = 0;
   /** rocks drawn in the view this frame */
@@ -84,6 +94,34 @@ export class Rocks {
     this.bucket = new Int32Array(N * 5);
     this.counts = new Int32Array(5 * cat.protos.length * LEVELS);
     this.starts = new Int32Array(5 * cat.protos.length * LEVELS);
+    const S = this.sphere, cells = new Map<number, number[]>();
+    for (let i = 0; i < N; i++) {
+      const k = (Math.floor(S[i * 4] / CELL) + 32768) * 65536 + Math.floor(S[i * 4 + 2] / CELL) + 32768;
+      const c = cells.get(k);
+      if (c) c.push(i); else cells.set(k, [i]);
+    }
+    this.cellOrder = new Int32Array(N);
+    this.cellStart = new Int32Array(cells.size + 1);
+    this.cellSphere = new Float32Array(cells.size * 4);
+    this.cellR = new Float32Array(cells.size);
+    this.live = new Int32Array(N);
+    let at = 0, ci = 0;
+    for (const ids of cells.values()) {
+      // (the box round the square's rocks, whole: a sphere round it holds every one)
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      let rMax = 0;
+      this.cellStart[ci] = at;
+      for (const i of ids) {
+        const r = S[i * 4 + 3];
+        for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], S[i * 4 + a] - r); hi[a] = Math.max(hi[a], S[i * 4 + a] + r); }
+        rMax = Math.max(rMax, r);
+        this.cellOrder[at++] = i;
+      }
+      for (let a = 0; a < 3; a++) this.cellSphere[ci * 4 + a] = (lo[a] + hi[a]) / 2;
+      this.cellSphere[ci * 4 + 3] = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2;
+      this.cellR[ci++] = rMax;
+    }
+    this.cellStart[ci] = at;
     this.verts = kit.storage({ label: 'rocks.verts', data: new Uint8Array(k.verts) });
     this.idx = kit.storage({ label: 'rocks.idx', data: k.idx, usage: ['index', 'copy-dst'] });
     this.insts = kit.storage({ label: 'rocks.insts', data: k.insts });
@@ -102,7 +140,21 @@ export class Rocks {
     const counts = this.counts, q = this.at;
     counts.fill(0);
     this.triangles = 0; this.drawn = 0;
-    for (let i = 0; i < N; i++) {
+    const C = this.cellR.length, CS = this.cellSphere, live = this.live;
+    let M = 0;
+    for (let ci = 0; ci < C; ci++) {
+      // (the nearest any of the square's rocks can be, and so the biggest any can look: too small to draw anywhere or
+      // out of the view, and past every cascade's reach or too small for it, the square is passed over)
+      const ex = CS[ci * 4] - cx, ey = CS[ci * 4 + 1] - cy, ez = CS[ci * 4 + 2] - cz, rMax = this.cellR[ci];
+      const dMin = Math.max(1, Math.sqrt(ex * ex + ey * ey + ez * ez) - CS[ci * 4 + 3]), big = rMax / dMin;
+      q[0] = CS[ci * 4]; q[1] = CS[ci * 4 + 1]; q[2] = CS[ci * 4 + 2];
+      let may = big / fov > LOD_SIZE[LEVELS - 1] && cam.sees(q, CS[ci * 4 + 3]);
+      for (let c = 0; c < 4 && !may; c++) may = dMin - rMax < SHADOW_REACH[c] && big > SHADOW_SIZE[c];
+      if (!may) continue;
+      for (let j = this.cellStart[ci]; j < this.cellStart[ci + 1]; j++) live[M++] = this.cellOrder[j];
+    }
+    for (let m = 0; m < M; m++) {
+      const i = live[m];
       const x = S[i * 4], y = S[i * 4 + 1], z = S[i * 4 + 2], r = S[i * 4 + 3];
       const dx = x - cx, dy = y - cy, dz = z - cz;
       const d = Math.max(1, Math.sqrt(dx * dx + dy * dy + dz * dz));
@@ -135,8 +187,8 @@ export class Rocks {
       }
     });
     for (let li = 0; li < 5; li++) {
-      for (let i = 0; i < N; i++) {
-        const l = this.bucket[li * N + i];
+      for (let m = 0; m < M; m++) {
+        const i = live[m], l = this.bucket[li * N + i];
         if (l < 0) continue;
         this.visData[st[li * G + this.protoOf[i] * LEVELS + l]++] = i;
       }

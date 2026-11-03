@@ -7,15 +7,18 @@
 // on the walls, landing in a break of the parapet and running down the wall's face toward the spine. Where a wedge meets
 // the stair's notch its edge is a cut rock face; the sunken north courts are walled up to the top. Colliders: radial
 // strips of boxes per wedge (terraceColliders.ts), a frame per flight.
+import { PROUD } from '../arch/builder';
 import { MAT, type Mat, type V3 } from '../arch/types';
 import type { V2 } from '../world/layout';
 import { Frame, type Haul } from './colliders';
 import { bay, BAY_KINDS, type BayKind } from './parterres';
+import { CAVERNS, FLOOR_Y, NOTCH } from '../world/layout';
 import {
-  COPING, FOOT, PARAPET, POOL_FLOOR, TOP, WALK, WALL_IN, WALL_OUT, WATER, WEDGES, notchFloor, reach, rng, NOTCH_TOP,
-  type Band, type Wedge,
+  CAUSEWAY_H, COPING, DEG, FOOT, HIDE, INLAY, KEEP_TOP, KERB, NOTCH_DWELL, PARAPET, POOL_FLOOR, R_INNER, R_SKIN, TOP, WALK,
+  WALL_IN, WALL_OUT, WATER, WEDGES, notchFloor, reach, rng, slabAxis, NOTCH_TOP, type Band, type Wedge,
 } from './plan';
 import { arc, pt, rayLim, sector, sectorPair, side, type Lim, type Shapes } from './shapes';
+import { kiosk, PAR } from './dwellings';
 import { terraceColliders } from './terraceColliders';
 
 export const RISER = 0.17;
@@ -78,7 +81,7 @@ export function buildTerraces(s: Shapes, haul: Haul) {
     }
     const last = plans[plans.length - 1];
     if (wd.kind === 'flank') { wall(s, haul, last, last.Rn, null); belvedere(s, haul, last); }
-    else courtEnd(s, haul, last);
+    else { courtEnd(s, haul, last); slabSector(s, haul, wd); }
     terraceColliders(haul, plans);
   }
 }
@@ -142,7 +145,10 @@ function wall(s: Shapes, haul: Haul, up: BandPlan, R: number, low: BandPlan | nu
   const b = s.b, wd = up.wd, am = wd.am;
   const ri = R - WALL_IN, ro = R + WALL_OUT;
   const fu = up.f, wu = up.wk, top = fu + PARAPET, soil = fu + 1.15;
-  const bottom = low ? low.f - FOOT : fu - 14;
+  // (its foot: under the band below, or under the town's floor past the outer wall; inside the inner ring, never into
+  // the rock kept over the caverns)
+  const bottom = Math.max(low ? low.f - FOOT : FLOOR_Y - 2, ri < R_INNER ? KEEP_TOP + 0.1 : -Infinity);
+  const ground = low ? low.f : FLOOR_Y, groundWalk = low ? low.wk : FLOOR_Y;
   const rnd = rng(wd.i, up.b.k, 11);
   const ext = (k: Wedge['lo']['kind']) => (k === 'ramp' || k === 'promenade' ? 0.02 : 0);
   const lo = (r: number) => up.loEdge(r) - ext(wd.lo.kind) / r, hi = (r: number) => up.hiEdge(r) + ext(wd.hi.kind) / r;
@@ -162,21 +168,23 @@ function wall(s: Shapes, haul: Haul, up: BandPlan, R: number, low: BandPlan | nu
   const clampTo = (r: number, a: number) => Math.min(hi(r), Math.max(lo(r), a));
   // a blind arcade behind the canal below (an odd number of bays, one centred under the spout)
   let arc0 = 0, arc1 = 0, nA = 0;
-  if (low?.arcade) {
+  // (the arches stand under the string course: a wall too low for them (a sunken court's 4 m) has none)
+  const aY0 = (low?.f ?? 0) + COPING, archH = Math.min(ARCH_H, wu - 0.25 - aY0);
+  if (low?.arcade && archH >= 4.6) {
     const half = low.canal * (low.R + WALL_OUT + 1.8) - 1.0;
     nA = Math.floor((2 * half) / ARCH_BAY);
     if (nA % 2 === 0) nA--;
     arc0 = am - (nA * ARCH_BAY) / 2 / ro;
     arc1 = am + (nA * ARCH_BAY) / 2 / ro;
   }
-  const aY0 = (low?.f ?? 0) + COPING, aY1 = aY0 + ARCH_H;
+  const aY1 = aY0 + archH;
   b.with({ tint: jitter(rnd, 0.05) }, () => {
     // the face toward the band below, to the string course (round the arcade, if any)
     if (nA > 0) {
       s.strip(arc(ro, lo(ro), arc0), bottom, wu - 0.25, MAT.PLASTER, false).strip(arc(ro, arc1, hi(ro)), bottom, wu - 0.25, MAT.PLASTER, false);
       const mid = arc(ro, arc0, arc1, ARCH_BAY + 1e-3);
       s.strip(mid, bottom, aY0, MAT.PLASTER, false).strip(mid, aY1, wu - 0.25, MAT.PLASTER, false);
-      arcade(s, ro, arc0, arc1, nA, aY0);
+      arcade(s, ro, arc0, arc1, nA, aY0, archH);
     } else s.strip(arc(ro, lo(ro), hi(ro)), bottom, wu - 0.25, MAT.PLASTER, false);
     s.strip(arc(ro, lo(ro), hi(ro)), wu - 0.25, wu, MAT.CREAM, false);
     for (const [p0, p1] of pieces) {
@@ -213,7 +221,8 @@ function wall(s: Shapes, haul: Haul, up: BandPlan, R: number, low: BandPlan | nu
         s.obox(c[0], c[1], o.a, 0.38, lw, fu + 0.22, fu + WATER - 0.02, MAT.CREAM);
         if (low) haul.water.push({ kind: 'cascade', a: pt(lipR, o.a - lw / lipR), b: pt(lipR, o.a + lw / lipR), top: fu + WATER, bottom: low.f + WATER });
       } else {
-        s.flat(arc(ro, a0, a1), arc(ri, a0, a1), wu, wu, MAT.PAVING);
+        // (a sill stone PROUD over the walks either side: its arcs' chords and theirs crossed in slivers)
+        s.flat(arc(ro, a0, a1), arc(ri, a0, a1), wu + PROUD, wu + PROUD, MAT.PAVING);
       }
     }
     // the wall's ends where it meets a causeway's blade (elsewhere a cut face or a side wall covers them)
@@ -228,8 +237,8 @@ function wall(s: Shapes, haul: Haul, up: BandPlan, R: number, low: BandPlan | nu
     const a = lo(ro) + ((hi(ro) - lo(ro)) * i) / nB;
     if (busy(a)) continue;
     const c = pt(ro + 0.2, a), tan = a + Math.PI / 2;
-    s.obox(c[0], c[1], tan, 0.5, 0.3, low ? low.f : bottom, wu - 0.25, MAT.PLASTER, { top: MAT.CREAM, skip: ['bottom'] });
-    s.obox(c[0], c[1], tan, 0.62, 0.38, (low ? low.wk : bottom) - 0.2, (low ? low.wk : bottom) + 0.5, MAT.ASHLAR, { skip: ['bottom'] });
+    s.obox(c[0], c[1], tan, 0.5, 0.3, ground, wu - 0.25, MAT.PLASTER, { top: MAT.CREAM, skip: ['bottom'] });
+    s.obox(c[0], c[1], tan, 0.62, 0.38, groundWalk - 0.2, groundWalk + 0.5, MAT.ASHLAR, { skip: ['bottom'] });
   }
   // piers along the parapet: lanterns on every other one, urns on the rest
   const nP = Math.max(1, Math.round(((hi(R) - lo(R)) * R) / 15));
@@ -243,7 +252,7 @@ function wall(s: Shapes, haul: Haul, up: BandPlan, R: number, low: BandPlan | nu
     else s.urn(c[0], c[1], top + 0.62, MAT.PLASTER_WARM, MAT.CREAM, MAT.SOIL, 0.8);
     // the pier comes down the face as a cream pilaster to the terrace below (not through the arcade or a flight)
     if (busy(a)) continue;
-    const q = pt(ro + 0.12, a), foot = low ? low.wk - 0.1 : bottom;
+    const q = pt(ro + 0.12, a), foot = groundWalk - 0.1;
     s.obox(q[0], q[1], tan, 0.6, 0.18, foot, top - 0.12, MAT.ASHLAR, { skip: ['bottom'] });
     s.obox(q[0], q[1], tan, 0.72, 0.26, foot, foot + 0.7, MAT.CREAM, { skip: ['bottom'] });
   }
@@ -262,8 +271,8 @@ const ARCH_H = 5.0;
 
 /** a blind arcade on a wall's face at radius ro between angles a0 and a1 in n bays: piers, round arches recessed into
  *  the wall over a sill at y0, a cream impost band and keystones; the recesses dim */
-function arcade(s: Shapes, ro: number, a0: number, a1: number, n: number, y0: number) {
-  const half = 1.55, spring = y0 + 2.5, crown = spring + half, y1 = y0 + ARCH_H, depth = 0.75, seg = 8;
+function arcade(s: Shapes, ro: number, a0: number, a1: number, n: number, y0: number, H = ARCH_H) {
+  const half = 1.55, spring = y0 + 2.5, crown = spring + half, y1 = y0 + H, depth = 0.75, seg = 8;
   for (let k = 0; k < n; k++) {
     const A = pt(ro, a0 + ((a1 - a0) * k) / n), B = pt(ro, a0 + ((a1 - a0) * (k + 1)) / n);
     const mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2, L = Math.hypot(B[0] - A[0], B[1] - A[1]);
@@ -300,7 +309,7 @@ function arcade(s: Shapes, ro: number, a0: number, a1: number, n: number, y0: nu
     s.obox(kq[0], kq[2], Math.atan2(t[1], t[0]), 0.26, 0.09, crown - 0.45, crown + 0.2, MAT.CREAM);
   }
   // the band over the arches
-  s.strip(arc(ro + 0.06, a0, a1, ARCH_BAY + 1e-3), y0 + ARCH_H - 0.3, y0 + ARCH_H, MAT.CREAM, false);
+  s.strip(arc(ro + 0.06, a0, a1, ARCH_BAY + 1e-3), y1 - 0.3, y1, MAT.CREAM, false);
 }
 
 export function lantern(s: Shapes, haul: Haul, c: V2, a: number, y: number, scale = 1) {
@@ -370,18 +379,23 @@ function flight(s: Shapes, haul: Haul, p: BandPlan, up: BandPlan, st: WallStair)
   const at = (m: number) => pt(Rf, am + sg * m / Rf);
   const ft = st.d * Rf - STAIR_W / 2, fb = ft - st.run, le = st.d * Rf + STAIR_W / 2;
   const T = at(ft), B = at(fb);
-  b.stairs(B[0], p.wk, B[1], T[0], up.wk, T[1], STAIR_W, st.n, MAT.ASHLAR, { side: MAT.PLASTER, foot: p.f });
+  // (its top tread PROUD under the landing: the chord's square end and the landing's radial side overlapped in a sliver)
+  b.stairs(B[0], p.wk, B[1], T[0], up.wk - PROUD, T[1], STAIR_W, st.n, MAT.ASHLAR, { side: MAT.PLASTER, foot: p.f });
   // the landing: a block from the floor up to the walk above
   const lA: Lim = () => am + sg * Math.min(ft, le) / Rf, lB: Lim = () => am + sg * Math.max(ft, le) / Rf;
-  b.prism(sector(R + WALL_OUT - 0.05, R + WALL_OUT + STAIR_W, sg > 0 ? lA : lB, sg > 0 ? lB : lA), p.f, up.wk, MAT.PLASTER, { top: MAT.PAVING });
+  // (from the wall's face: reaching 5 cm under the opening's threshold, the two were one plane)
+  b.prism(sector(R + WALL_OUT, R + WALL_OUT + STAIR_W, sg > 0 ? lA : lB, sg > 0 ? lB : lA), p.f, up.wk, MAT.PLASTER, { top: MAT.PAVING });
   // the parapet on the open side: sloped along the flight, level round the landing
   const out = (q: V2, d: number): V2 => { const dx = q[0] - pt(0, 0)[0], dz = q[1] - pt(0, 0)[1], l = Math.hypot(dx, dz); return [q[0] + (dx / l) * d, q[1] + (dz / l) * d]; };
-  const e = STAIR_W / 2 - 0.15;
+  // (its outer face PROUD in from the flight's side and the landing's: flush, the two were one plane, fighting)
+  const e = STAIR_W / 2 - 0.15 - PROUD;
   const pB = out(B, e), pT = out(T, e), pL = out(at(le), e);
-  slopedWall(s, pB, pT, p.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM);
-  slopedWall(s, pT, pL, up.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM);
+  // (one parapet round its corners: its pieces' ends inside each other left off, the one at the landing's corner was in
+  // the landing's side's plane, and the last against the wall's face)
+  slopedWall(s, pB, pT, p.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM, [true, false]);
+  slopedWall(s, pT, pL, up.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM, [false, false]);
   const wl0 = pt(R + WALL_OUT, am + sg * (le - 0.15) / Rf);
-  slopedWall(s, pL, wl0, up.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM);
+  slopedWall(s, pL, wl0, up.wk - 0.3, up.wk - 0.3, 1.25, 0.3, MAT.PLASTER, MAT.CREAM, [false, false]);
   const lp = out(at(le - 0.45), e - 0.3);
   s.pier(lp[0], lp[1], am, 0.22, up.wk + 0.9, up.wk + 1.15, MAT.CREAM, MAT.CREAM);
   lantern(s, haul, lp, am + sg * le / Rf + Math.PI / 2, up.wk + 1.15, 0.8);
@@ -389,7 +403,7 @@ function flight(s: Shapes, haul: Haul, p: BandPlan, up: BandPlan, st: WallStair)
 
 /** a wall whose foot and top run straight from p to q, its foot from y0 to y1 and h tall above it, `thick` thick
  *  (centred on the line), with a cap */
-export function slopedWall(s: Shapes, p: V2, q: V2, y0: number, y1: number, h: number, thick: number, mat: Mat, cap: Mat) {
+export function slopedWall(s: Shapes, p: V2, q: V2, y0: number, y1: number, h: number, thick: number, mat: Mat, cap: Mat, ends: [boolean, boolean] = [true, true]) {
   const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz);
   if (L < 0.05) return;
   // (R on the right of travel from p to q, Lf on the left)
@@ -399,7 +413,8 @@ export function slopedWall(s: Shapes, p: V2, q: V2, y0: number, y1: number, h: n
   s.strip([R0, R1], [y0, y1], [body0, body1], mat, true).strip([R0, R1], [body0, body1], [y0 + h, y1 + h], cap, true);
   s.strip([L0, L1], [y0, y1], [body0, body1], mat, false).strip([L0, L1], [body0, body1], [y0 + h, y1 + h], cap, false);
   s.flat([L0, L1], [R0, R1], [y0 + h, y1 + h], [y0 + h, y1 + h], cap);
-  s.strip([L0, R0], y0, y0 + h, cap, true).strip([R1, L1], y1, y1 + h, cap, true);
+  if (ends[0]) s.strip([L0, R0], y0, y0 + h, cap, true);
+  if (ends[1]) s.strip([R1, L1], y1, y1 + h, cap, true);
 }
 
 /** the band's walks: along the canal (or, on the top band, from the temple's ring), the outer promenade, the spine
@@ -452,7 +467,8 @@ function spine(s: Shapes, haul: Haul, p: BandPlan) {
     s.slab(sector(ra, rb, rayLim(am, -CHANNEL), rayLim(am, CHANNEL)), f + POOL_FLOOR, MAT.POOL);
     for (const sg of [1, -1]) {
       const L = rayLim(am, sg > 0 ? CHANNEL : -CHANNEL_COPING), H = rayLim(am, sg > 0 ? CHANNEL_COPING : -CHANNEL);
-      b.prism(sector(ra, rb, L, H), f + POOL_FLOOR, f + COPING, MAT.CREAM);
+      // (on the flank wedges gold: with the causeways' copings and the slab sectors' inlays the compass rose's rays)
+      b.prism(sector(ra, rb, L, H), f + POOL_FLOOR, f + COPING, p.wd.kind === 'flank' ? MAT.GOLD : MAT.CREAM);
     }
   }
   const start = p.upper ? p.R + FOOT_ZONE - 0.4 : p.R + 3.4 + 2.4;
@@ -544,8 +560,10 @@ function sides(s: Shapes, p: BandPlan) {
   const r0 = p.upper ? p.R + WALL_OUT : p.R, r1 = p.Rn + WALL_OUT;
   for (const [sd, sg] of [[wd.lo, -1], [wd.hi, 1]] as const) {
     const edge = sg > 0 ? p.hiEdge : p.loEdge, inner = sg > 0 ? p.hi : p.lo;
-    const path = side(edge, r0, r1, 2);
-    const ipath = side(inner, r0, r1, 2);
+    // (a station where the next wall's inner face is, so the parapet's top ends on it)
+    const cutAt = (lim: Lim) => [...side(lim, r0, p.Rn - WALL_IN - 0.02, 2), ...side(lim, p.Rn - WALL_IN - 0.02, r1, 2).slice(1)];
+    const path = cutAt(edge);
+    const ipath = cutAt(inner);
     if (sd.kind === 'stair') {
       // (beside the processional way, north of the notch, the band is level with it: no cut there)
       const keep = path.map((q) => q[1] > NOTCH_TOP);
@@ -556,8 +574,11 @@ function sides(s: Shapes, p: BandPlan) {
         s.strip(seg, p.f + 0.3, p.wk, MAT.ASHLAR, sg > 0);
         s.strip(seg, p.wk, p.f + PARAPET - 0.12, MAT.PLASTER, sg > 0).strip(seg, p.f + PARAPET - 0.12, p.f + PARAPET, MAT.CREAM, sg > 0);
       }
-      for (const seg of runsOf(ipath, keep)) s.strip(seg, p.wk, p.f + PARAPET, MAT.PLASTER, sg < 0);
-      for (const [segO, segI] of zipRuns(path, ipath, keep)) s.flat(sg > 0 ? segI : segO, sg > 0 ? segO : segI, p.f + PARAPET, p.f + PARAPET, MAT.CREAM);
+      // (the parapet's inner face and top stop at the next wall's inner face: over the wall its trough's rims are the
+      // top, the two were one plane)
+      const inBand = path.map((q, i) => keep[i] && Math.hypot(q[0] - pt(0, 0)[0], q[1] - pt(0, 0)[1]) <= p.Rn - WALL_IN - 0.02 + 1e-6);
+      for (const seg of runsOf(ipath, inBand)) s.strip(seg, p.wk, p.f + PARAPET, MAT.PLASTER, sg < 0);
+      for (const [segO, segI] of zipRuns(path, ipath, inBand)) s.flat(sg > 0 ? segI : segO, sg > 0 ? segO : segI, p.f + PARAPET, p.f + PARAPET, MAT.CREAM);
     } else if (sd.kind === 'radial') {
       const topY = TOP + WALK + 1.0;
       // (the outer face reaches down to the wall's foot: wherever the land's slope to the court dips outside it)
@@ -610,11 +631,9 @@ function belvedere(s: Shapes, haul: Haul, p: BandPlan) {
     half.push([c[0] + Math.cos(t) * rad, c[1] + Math.sin(t) * rad]);
   }
   // (the half-disc's outline runs counter-clockwise on the map: round the arc, then back along the wall's face)
-  b.prism(half, f - 14, wk - 0.3, MAT.PLASTER, { top: null });
+  b.prism(half, FLOOR_Y - 1, wk - 0.3, MAT.PLASTER, { top: null });
   b.prism(half.map(([x, z]) => [c[0] + (x - c[0]) * 1.04, c[1] + (z - c[1]) * 1.04] as V2), wk - 0.3, wk, MAT.CREAM, { top: MAT.PAVING });
   for (let i = 0; i < n; i++) {
-    const t0 = (i + 0.5) / n;
-    if (Math.abs(t0 - 0.5) < 0.06) continue;
     s.balustrade(lerp2(c, half[i], 0.95), lerp2(c, half[i + 1], 0.95), wk, MAT.CREAM, MAT.CREAM);
   }
   basin(s, haul, pt(R + 3.4, am), f, wk, 2.2);
@@ -631,17 +650,11 @@ function belvedere(s: Shapes, haul: Haul, p: BandPlan) {
   }
   for (let k = 0; k <= 30; k++) {
     const t = -Math.PI / 2 + (Math.PI * k) / 30;
-    if (Math.abs(t) < 0.2) continue;
     const u = Math.cos(t) * (rad - 0.35), v = Math.sin(t) * (rad - 0.35);
     F.solid(u - 0.4, v - 0.4, u + 0.4, v + 0.4, wk - 1, wk + 1);
   }
   F.solid(rad - 0.2, -0.6, rad + 0.6, 0.6, wk - 1, wk + 0.9);
   haul.colliders.push(F.done());
-  // the basin's overflow through the balustrade's gap and down the cliff
-  const lip = pt(R + rad + 0.1, am);
-  const t = [Math.cos(am + Math.PI / 2) * 0.6, Math.sin(am + Math.PI / 2) * 0.6];
-  s.obox(lip[0], lip[1], am, 0.5, 0.65, wk - 0.35, wk - 0.15, MAT.CREAM);
-  haul.water.push({ kind: 'cascade', a: [lip[0] - t[0], lip[1] - t[1]], b: [lip[0] + t[0], lip[1] + t[1]], top: wk - 0.15, bottom: f - 30 });
 }
 
 const lerp2 = (a: V2, b: V2, t: number): V2 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
@@ -687,4 +700,48 @@ function courtEnd(s: Shapes, haul: Haul, p: BandPlan) {
   const t = [Math.cos(am + Math.PI / 2) * 0.3, Math.sin(am + Math.PI / 2) * 0.3];
   const e = pt(ri - 1.0, am);
   haul.water.push({ kind: 'cascade', a: [e[0] - t[0], e[1] - t[1]], b: [e[0] + t[0], e[1] + t[1]], top: p.wk + 6.3, bottom: p.f + WATER + 0.2 });
+}
+
+/** a slab sector beyond its sunken courts (the land's own cracked rock, plan.ts havenGround): its gold inlay down its
+ *  axis to a domed kiosk near the plateau's edge (with the causeways' gold copings and the flank wedges' gold channels,
+ *  the compass rose's rays), a paved kerb along each causeway's cutting, by the stair's notch the plateau's edge to where
+ *  the dwellings' wall begins, and over the caverns' tunnel (the south-south-west's) a paved lane hiding the dig */
+function slabSector(s: Shapes, haul: Haul, wd: Wedge) {
+  const ax = slabAxis(wd), r0 = wd.w.r1 + WALL_OUT, kr = R_SKIN - 4.2;
+  // over the tunnel: a lane of paving between cream kerbs, lamps along it, the inlay down its middle
+  const p = CAVERNS.portal.angle * DEG;
+  if (Math.abs(Math.atan2(Math.sin(p - ax), Math.cos(p - ax))) < 1e-6) {
+    const LANE = 8 + HIDE + 0.9, line = (o: number) => [r0, R_SKIN].map((r) => pt(r, ax + Math.asin(o / r)));
+    s.flat(line(-LANE), line(LANE), TOP + PROUD, TOP + PROUD, MAT.PAVING);
+    for (const sg of [-1, 1]) {
+      const e = line(sg * LANE), i = line(sg * (LANE - 0.5));
+      s.flat(sg < 0 ? e : i, sg < 0 ? i : e, TOP + 2 * PROUD, TOP + 2 * PROUD, MAT.CREAM);
+      for (let r = r0 + 12; r < kr - 6; r += 18) {
+        const q = pt(r, ax + Math.asin((sg * (LANE - 1.2)) / r));
+        s.b.place('lantern-post', [q[0], TOP + PROUD, q[1]], { yaw: -ax, scale: 1.1 });
+      }
+    }
+  }
+  const lift = Math.abs(ax - wd.am) > 1e-6 ? 2 * PROUD : 0;
+  const inl = (o: number) => [r0, kr - 2.9].map((r) => pt(r, ax + Math.asin(o / r)));
+  s.flat(inl(-INLAY), inl(INLAY), TOP + PROUD + lift, TOP + PROUD + lift, MAT.GOLD);
+  kiosk(s, pt(kr, ax), ax);
+  // the kerbs along the causeways' cuttings
+  for (const [sd, sg] of [[wd.lo, -1], [wd.hi, 1]] as const) {
+    if (sd.kind !== 'ramp') continue;
+    const g = sg < 0 ? wd.w.a0 - 4 * DEG : wd.w.a1 + 4 * DEG, ga = wd.am + Math.atan2(Math.sin(g - wd.am), Math.cos(g - wd.am));
+    const edge = (o: number) => [r0, R_SKIN].map((r) => pt(r, ga - sg * Math.asin(o / r)));
+    if (sg > 0) s.flat(edge(CAUSEWAY_H + KERB), edge(CAUSEWAY_H), TOP + PROUD, TOP + PROUD, MAT.PAVING);
+    else s.flat(edge(CAUSEWAY_H), edge(CAUSEWAY_H + KERB), TOP + PROUD, TOP + PROUD, MAT.PAVING);
+  }
+  // by the notch (the south-south-west's lo side): the cut face from the court's end on to the dwellings' wall, its
+  // parapet as theirs
+  if (wd.lo.kind === 'stair') {
+    const x = -NOTCH.half, za = Math.sqrt(r0 * r0 - x * x), zb = NOTCH_DWELL.z0, xi = x - 1.6 - 2 * HIDE;
+    const face: V2[] = [[x, zb], [x, za]];
+    s.strip(face, [notchFloor(zb) - 1, notchFloor(za) - 1], TOP + PAR, MAT.ROCK, true);
+    s.strip([[xi, za], [xi, zb]], TOP - 0.3, TOP + PAR - 0.12, MAT.PLASTER, true).strip([[xi, za], [xi, zb]], TOP + PAR - 0.12, TOP + PAR, MAT.CREAM, true);
+    s.flat([[x, za], [x, zb]], [[xi, za], [xi, zb]], TOP + PAR, TOP + PAR, MAT.CREAM);
+  }
+  void haul;
 }

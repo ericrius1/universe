@@ -50,6 +50,7 @@ export interface World {
   aurora3: Vec4;
   lamps: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  cave: ArrayLike<number> | Vec4[];
 }
 export interface CloudSky {
   e1: Vec4;
@@ -69,11 +70,16 @@ export interface MatU {
   tex: Vec4;
   look: Vec4;
   glow: Vec4;
+  paint: Vec4;
 }
 export interface ArchU {
   mats: Partial<MatU>[];
   night: Vec4;
   look: Vec4;
+  pal: ArrayLike<number> | Vec4[];
+  room: ArrayLike<number> | Vec4[];
+  paint: Vec4;
+  wear: Vec4;
 }
 export interface Chunk {
   o: Vec4;
@@ -96,6 +102,35 @@ export interface VOut {
   lamp: Vec4;
   id: Vec4;
 }
+export interface ArchEye {
+  at: Vec4;
+  viewProj: Mat4;
+}
+export interface PartInst {
+  p: Vec4;
+  k: Vec4;
+}
+export interface PartIn {
+  slot: number;
+  p: Vec3;
+  oct: Vec2;
+  uv: Vec2;
+  tint: Vec4;
+  id: number;
+}
+export interface Tiled {
+  c: Vec3;
+  grout: number;
+  piece: Vec2;
+}
+export interface UvFrame {
+  gu: Vec3;
+  gv: Vec3;
+}
+export interface Painted {
+  c: Vec3;
+  g: Vec3;
+}
 
-declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; MatU: MatU; ArchU: ArchU; Chunk: Chunk; VIn: VIn; VOut: VOut }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'AU' | 'skyIrradiance' | 'chunks' | 'fires' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'matTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CloudSky: CloudSky; WeatherU: WeatherU; MatU: MatU; ArchU: ArchU; Chunk: Chunk; VIn: VIn; VOut: VOut; ArchEye: ArchEye; PartInst: PartInst; PartIn: PartIn; Tiled: Tiled; UvFrame: UvFrame; Painted: Painted }, 'frame' | 'world' | 'cloudSky' | 'weatherU' | 'AU' | 'AE' | 'skyIrradiance' | 'chunks' | 'fires' | 'partInsts' | 'partVis' | 'transmittanceLut' | 'multiScatLut' | 'skyViewLut' | 'aerialLut' | 'shadowMap' | 'heights' | 'terrainShadow' | 'auroraDome' | 'cloudShadowTex' | 'matTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

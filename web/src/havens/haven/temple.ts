@@ -3,13 +3,15 @@
 // attic; portals on six faces (the south one meets the grand stair's processional way) with stepped cream frames and
 // pointed heads, balconies on the other six; inside, a dim hall round a ring of columns and a sanctum on a dais under
 // a golden lotus. On the roof, the lotus crown (petals.ts) round a garden court and the needle. Round it, the paved ring
-// the gardens and causeways start from, the processional way to the stair and the avenue north.
-import { MAT, type Mat, type V3 } from '../arch/types';
+// the gardens and causeways start from, the processional way to the stair and the avenue north. The portals tiled in
+// lavender and teal on cream: the tympanum under each pointed head, a dado up the reveals, a tiled threshold, the
+// flights' risers.
+import { MAT, TILE_PAL, type Mat, type V3 } from '../arch/types';
 import type { V2 } from '../world/layout';
 import { TEMPLE } from '../world/layout';
 import { Frame, type Haul } from './colliders';
 import { crown, needle, petal } from './petals';
-import { AVENUE_N, C, GARDENS, NOTCH_TOP, TOP, WALK, WAY, rng } from './plan';
+import { AVENUE_N, C, GARDENS, TOP, WALK, WAY, rng } from './plan';
 import type { Shapes } from './shapes';
 import { basin, lantern } from './terraces';
 
@@ -97,30 +99,28 @@ function ring(s: Shapes, haul: Haul) {
       lantern(s, haul, p, a, FLOOR + 3.2, 1.1);
     } else s.urn(p[0], p[1], FLOOR, MAT.PLASTER_WARM, MAT.CREAM, MAT.SOIL, 1.2 + rnd() * 0.1);
   }
-  // the processional way: paved across its width from the ring to the top landing's middle, a cream-edged runner down
-  // it from the podium's south steps to the landing, cypresses and lanterns
-  const zr = C[1] + Math.sqrt(r0 * r0 - WAY.half * WAY.half) - 0.5;
-  s.slab([[C[0] - WAY.half, zr], [C[0] + WAY.half, zr], [C[0] + WAY.half, WAY.z1], [C[0] - WAY.half, WAY.z1]], FLOOR + 0.02, MAT.PAVING);
-  const z0 = C[1] + PODIUM_AP + 5.6, z1 = NOTCH_TOP;
+  // the processional way's start: a cream-edged runner from the podium's south steps to the ring's edge, cypresses and
+  // lanterns either side (the grand stair lays the way on from the ring's edge to its top landing)
+  const z0 = C[1] + PODIUM_AP + 5.6, z1 = C[1] + Math.sqrt(r0 * r0 - 5.0 * 5.0) - 0.05;
   s.obox(C[0], (z0 + z1) / 2, Math.PI / 2, (z1 - z0) / 2, 5.0, FLOOR, FLOOR + 0.04, MAT.CREAM, { skip: ['bottom'] });
   s.obox(C[0], (z0 + z1) / 2, Math.PI / 2, (z1 - z0) / 2, 4.2, FLOOR + 0.04, FLOOR + 0.06, MAT.PAVING, { skip: ['bottom'] });
-  for (let z = z0 + 4; z < z1 - 2; z += 7) for (const sg of [-1, 1]) {
+  for (let z = z0 + 4; z < z1 - 1; z += 7) for (const sg of [-1, 1]) {
     const p: V2 = [C[0] + sg * 7.5, z];
     haul.beds.push({ poly: [[p[0] - 0.8, p[1] - 0.8], [p[0] + 0.8, p[1] - 0.8], [p[0] + 0.8, p[1] + 0.8], [p[0] - 0.8, p[1] + 0.8]], y: FLOOR, kind: 'cypress', density: 1 });
     b.cylinder(p[0], p[1], 0.9, FLOOR, FLOOR + 0.45, 10, MAT.CREAM);
   }
-  // the avenue north across the forecourt to a pair of pylons
-  const n0 = C[1] - PODIUM_AP - 5.6, n1 = C[1] - AVENUE_N.r1;
-  s.obox(C[0], (n0 + n1) / 2, Math.PI / 2, (n0 - n1) / 2, AVENUE_N.half, FLOOR - 0.6, FLOOR, MAT.PAVING, { skip: ['bottom'] });
-  for (const sg of [-1, 1]) s.obox(C[0] + sg * (AVENUE_N.half + 0.2), (n0 + n1) / 2, Math.PI / 2, (n0 - n1) / 2, 0.25, FLOOR - 0.6, FLOOR + 0.14, MAT.CREAM, { skip: ['bottom'] });
+  // the avenue north across the forecourt to a pair of pylons at the ring's edge, where the north causeway runs on
+  // level with it
+  const half = AVENUE_N.half, n0 = C[1] - PODIUM_AP - 5.6, n1 = C[1] - Math.sqrt(AVENUE_N.r1 ** 2 - (half + 0.45) ** 2);
+  s.obox(C[0], (n0 + n1) / 2, Math.PI / 2, (n0 - n1) / 2, half, FLOOR - 0.6, FLOOR, MAT.PAVING, { skip: ['bottom'] });
+  // (its kerbs beside the paving, not over its edge: their ends were in one plane with the paving's)
+  for (const sg of [-1, 1]) s.obox(C[0] + sg * (half + 0.225), (n0 + n1) / 2, Math.PI / 2, (n0 - n1) / 2, 0.225, FLOOR - 0.6, FLOOR + 0.14, MAT.CREAM, { skip: ['bottom'] });
   for (let z = n0 - 6; z > n1 + 4; z -= 9) for (const sg of [-1, 1]) {
-    const p: V2 = [C[0] + sg * (AVENUE_N.half + 2.5), z];
+    const p: V2 = [C[0] + sg * (half + 2.5), z];
     haul.beds.push({ poly: [[p[0] - 0.8, p[1] - 0.8], [p[0] + 0.8, p[1] - 0.8], [p[0] + 0.8, p[1] + 0.8], [p[0] - 0.8, p[1] + 0.8]], y: TOP, kind: 'cypress', density: 1 });
   }
-  // (three steps down off the avenue's end to the forecourt's ground)
-  for (let k = 0; k < 3; k++) s.obox(C[0], n1 - 0.45 - k * 0.45, 0, AVENUE_N.half + 0.45, 0.23, TOP - 0.6, FLOOR - (k + 1) * 0.2, MAT.ASHLAR, { skip: ['bottom'] });
   for (const sg of [-1, 1]) {
-    const p: V2 = [C[0] + sg * (AVENUE_N.half + 1.6), n1 + 2];
+    const p: V2 = [C[0] + sg * (half + 1.6), n1 + 3];
     s.pier(p[0], p[1], 0, 1.3, FLOOR - 0.6, FLOOR + 9, MAT.PLASTER, MAT.CREAM);
     s.obox(p[0], p[1], 0, 1.5, 1.5, FLOOR + 9, FLOOR + 9.6, MAT.CREAM);
     s.finial(p[0], p[1], FLOOR + 9.6, MAT.GOLD, 2.2);
@@ -145,8 +145,9 @@ function podium(s: Shapes, haul: Haul) {
     const ends: [number, number][] = isPortal(j) ? [[-HALF - 0.9, -6.4], [6.4, HALF + 0.9]] : [[-HALF - 0.9, HALF + 0.9]];
     for (const [u0, u1] of ends) s.balustrade(f.at(u0 * (PODIUM_AP / AP), v), f.at(u1 * (PODIUM_AP / AP), v), PODIUM, MAT.CREAM, MAT.CREAM);
     if (isPortal(j)) {
-      const p = f.at(0, PODIUM_AP - AP + 2.8), q = f.at(0, PODIUM_AP - AP - 0.02);
-      b.stairs(p[0], FLOOR, p[1], q[0], PODIUM, q[1], 12, 14, MAT.ASHLAR, { side: MAT.ASHLAR, foot: FLOOR - 0.6 });
+      // (ending at the podium's cap: its top tread beside the paving, not in it)
+      const p = f.at(0, PODIUM_AP - AP + 2.8), q = f.at(0, PODIUM_AP - AP + 0.15);
+      b.with({ pal: TILE_PAL.TEMPLE }, () => b.stairs(p[0], FLOOR, p[1], q[0], PODIUM, q[1], 12, 14, MAT.ASHLAR, { side: MAT.ASHLAR, foot: FLOOR - 0.6, riser: MAT.TILE_BORDER }));
       for (const sg of [-1, 1]) {
         const c = f.at(sg * 6.6, PODIUM_AP - AP + 0.4);
         s.pier(c[0], c[1], f.along, 0.55, PODIUM, PODIUM + 1.6, MAT.ASHLAR, MAT.CREAM);
@@ -166,9 +167,10 @@ function podium(s: Shapes, haul: Haul) {
 function facade(s: Shapes, haul: Haul, j: number) {
   const b = s.b, f = face(j), portal = isPortal(j);
   const rnd = rng(j, 31);
+  // (a box laid on the wall: its back on the wall's face left off, hidden there and in one plane with its neighbours')
   const wallAt = (u0: number, u1: number, y0: number, y1: number, v: number, mat: Mat, o: { skip?: string[]; top?: Mat } = {}) => {
     const p = f.at((u0 + u1) / 2, v / 2);
-    s.obox(p[0], p[1], f.along, (u1 - u0) / 2, Math.abs(v) / 2, y0, y1, mat, o);
+    s.obox(p[0], p[1], f.along, (u1 - u0) / 2, Math.abs(v) / 2, y0, y1, mat, { ...o, skip: [...(o.skip ?? []), 's'] });
   };
   const half = HALF - 1.2;
   // the wall itself: a slab THICK deep behind the face (the hall's inner face is drawn by interior())
@@ -181,17 +183,19 @@ function facade(s: Shapes, haul: Haul, j: number) {
     } else s.strip([q0, q1], PODIUM, ROOF - 2.4, MAT.PLASTER, false);
   });
   // plinth
-  for (const [u0, u1] of portal ? [[-half, -DOOR_W - 1.2], [DOOR_W + 1.2, half]] : [[-half, half]]) wallAt(u0, u1, PODIUM, PODIUM + 1.4, 0.35, MAT.ASHLAR, { skip: ['bottom'] });
+  // (its back on the wall left off: the portal's jambs' backs lay in that plane where they meet)
+  for (const [u0, u1] of portal ? [[-half, -DOOR_W - 1.5], [DOOR_W + 1.5, half]] : [[-half, half]]) wallAt(u0, u1, PODIUM, PODIUM + 1.4, 0.35, MAT.ASHLAR, { skip: ['bottom', 's'] });
   // pilasters and the slit windows between them
   const n = 11, pitch = (2 * half) / n;
   for (let i = 0; i <= n; i++) {
     const u = -half + i * pitch;
-    if (portal && Math.abs(u) < DOOR_W + 2.4) continue;
+    // (none behind the portal, nor behind the balcony's tall window: the pilasters' tops were in its head's plane)
+    if (Math.abs(u) < (portal ? DOOR_W + 2.4 : 2.5)) continue;
     wallAt(u - 0.42, u + 0.42, PODIUM + 1.4, ROOF - 6.0, 0.5, MAT.CREAM, { skip: ['bottom'] });
     b.cylinder(...f.at(u, 0.25), 0.55, PODIUM + 1.4, PODIUM + 2.0, 4, MAT.ASHLAR);
     if (i < n) {
       const um = u + pitch / 2;
-      if (portal && Math.abs(um) < DOOR_W + 2.4) continue;
+      if (Math.abs(um) < (portal ? DOOR_W + 2.4 : 2.5)) continue;
       const lit = rnd() < 0.75 ? 0.85 : 0.0;
       b.with({ glow: lit }, () => wallAt(um - 0.32, um + 0.32, ROOF - 13.5, ROOF - 7.2, 0.04, MAT.WINDOW, { skip: ['bottom'] }));
       b.with({ ao: 0.8 }, () => wallAt(um - 0.55, um + 0.55, ROOF - 7.2, ROOF - 6.9, 0.18, MAT.CREAM, { skip: ['bottom'] }));
@@ -231,12 +235,20 @@ function portalFrame(s: Shapes, haul: Haul, f: ReturnType<typeof face>) {
     for (const [w, d] of [[0.9, 0.5], [0.6, 0.95]]) {
       const u = sg * (DOOR_W + w / 2 + (d > 0.6 ? 0.9 : 0));
       const c = f.at(u, d / 2);
-      s.obox(c[0], c[1], f.along, w / 2, d / 2, y0, y1 + 1.0, MAT.CREAM, { skip: ['bottom'] });
+      s.obox(c[0], c[1], f.along, w / 2, d / 2, y0, y1 + 1.0, MAT.CREAM, { skip: ['bottom', 's'] });
     }
-    // the reveal's side through the wall
+    // the reveal's side through the wall, tiled to above head height: a field under a band of interlaced stars
     const p = f.at(sg * DOOR_W, 0), q = f.at(sg * DOOR_W, -THICK);
     b.with({ ao: 0.6 }, () => s.strip(sg > 0 ? [p, q] : [q, p], y0, y1, MAT.ASHLAR, true));
+    const tp = f.at(sg * (DOOR_W - 0.015), -0.12), tq = f.at(sg * (DOOR_W - 0.015), -THICK + 0.12);
+    b.with({ ao: 0.7, pal: TILE_PAL.TEMPLE }, () => {
+      s.strip(sg > 0 ? [tp, tq] : [tq, tp], y0 + 0.06, y0 + 2.2, MAT.TILE, true);
+      s.strip(sg > 0 ? [tp, tq] : [tq, tp], y0 + 2.2, y0 + 2.64, MAT.TILE_BAND, true);
+    });
   }
+  // the threshold through the wall, tiled
+  const t0 = f.at(-DOOR_W, 0.6), t1 = f.at(DOOR_W, 0.6), t2 = f.at(DOOR_W, -THICK), t3 = f.at(-DOOR_W, -THICK);
+  b.with({ pal: TILE_PAL.TEMPLE }, () => b.patch([t0, t1, t2, t3].map((q) => [q[0], y0 + 0.012, q[1]] as V3), [0, 1, 2, 0, 2, 3], MAT.TILE, [0, 1, 0], [Math.cos(f.along), 0, Math.sin(f.along)]));
   // the soffit and a pointed head of two leaning slabs over the opening, a gold diamond above
   const a = f.at(-DOOR_W, 0), c = f.at(DOOR_W, 0), ai = f.at(-DOOR_W, -THICK), ci = f.at(DOOR_W, -THICK);
   b.with({ ao: 0.55 }, () => s.flat([a, c], [ai, ci], y1, y1, MAT.ASHLAR, true));
@@ -245,6 +257,12 @@ function portalFrame(s: Shapes, haul: Haul, f: ReturnType<typeof face>) {
   for (const v of [0.02, 0.6]) {
     const w = DOOR_W + 1.8 + v;
     b.polyW([P(-w, v, y1 + 1.0), P(w, v, y1 + 1.0), P(0, v, apex + v * 0.8)].reverse(), v < 0.1 ? MAT.LAVENDER : MAT.CREAM);
+  }
+  // the tympanum tiled: the pediment's face inset 0.4 m all round (about the triangle's incentre)
+  {
+    const W0 = DOOR_W + 2.4, H = apex + 0.48 - (y1 + 1.0), side = Math.hypot(W0, H), r = (W0 * H) / (W0 + side), k = (r - 0.4) / r;
+    const at = (u: number, h: number) => P(u * k, 0.62, y1 + 1.0 + r + (h - r) * k);
+    b.with({ pal: TILE_PAL.TEMPLE }, () => b.polyW([at(-W0, 0), at(W0, 0), at(0, H)].reverse(), MAT.TILE));
   }
   for (const sg of [-1, 1]) {
     const w = DOOR_W + 2.4;
@@ -260,16 +278,17 @@ function portalFrame(s: Shapes, haul: Haul, f: ReturnType<typeof face>) {
 function balcony(s: Shapes, haul: Haul, f: ReturnType<typeof face>) {
   const b = s.b, y = PODIUM + 10.5, w = 6.2, d = 2.6;
   const c = f.at(0, d / 2);
-  s.obox(c[0], c[1], f.along, w, d / 2, y - 0.45, y, MAT.CREAM);
+  // (their backs on the wall left off: the slit windows' lay there too)
+  s.obox(c[0], c[1], f.along, w, d / 2, y - 0.45, y, MAT.CREAM, { skip: ['s'] });
   for (const u of [-w + 0.6, -w / 3, w / 3, w - 0.6]) {
     const k = f.at(u, d / 2 - 0.3);
-    s.obox(k[0], k[1], f.along, 0.3, d / 2 - 0.3, y - 1.8, y - 0.45, MAT.ASHLAR, { skip: ['bottom'] });
+    s.obox(k[0], k[1], f.along, 0.3, d / 2 - 0.3, y - 1.8, y - 0.45, MAT.ASHLAR, { skip: ['bottom', 's'] });
   }
   s.balustrade(f.at(-w + 0.2, d - 0.25), f.at(w - 0.2, d - 0.25), y, MAT.CREAM, MAT.CREAM);
   s.balustrade(f.at(-w + 0.2, 0.3), f.at(-w + 0.2, d - 0.25), y, MAT.CREAM, MAT.CREAM);
   s.balustrade(f.at(w - 0.2, d - 0.25), f.at(w - 0.2, 0.3), y, MAT.CREAM, MAT.CREAM);
   const win = f.at(0, 0.06);
-  b.with({ glow: 0.9 }, () => s.obox(win[0], win[1], f.along, 1.7, 0.03, y, y + 6.5, MAT.WINDOW, { skip: ['bottom'] }));
+  b.with({ glow: 0.9 }, () => s.obox(win[0], win[1], f.along, 1.7, 0.03, y, y + 6.5, MAT.WINDOW, { skip: ['bottom', 's'] }));
   const fr = f.at(0, 0.3);
   s.obox(fr[0], fr[1], f.along, 2.3, 0.25, y + 6.5, y + 7.1, MAT.CREAM);
   diamond(s, f.at(0, 0.32), f.along, y + 8.0, 0.75, MAT.GOLD);
@@ -277,11 +296,10 @@ function balcony(s: Shapes, haul: Haul, f: ReturnType<typeof face>) {
   haul.lights.push({ p: [l[0], y + 2.5, l[1]], color: [1.0, 0.72, 0.45], candela: 60, when: 'night', radius: 10 });
 }
 
-/** the hall: its floor, the walls' inner faces and the ceiling (dim), a ring of columns, and the sanctum: a round dais
- *  under a golden lotus round a flame */
+/** the hall (floored by the podium's own top): the walls' inner faces and the ceiling (dim), a ring of columns, and the
+ *  sanctum: a round dais under a golden lotus round a flame */
 function interior(s: Shapes, haul: Haul) {
   const b = s.b, ap = AP - THICK;
-  s.slab(gon(ap + 0.01), PODIUM, MAT.PAVING);
   b.with({ ao: 0.42 }, () => {
     for (let j = 0; j < N; j++) {
       const f = face(j);
@@ -348,10 +366,12 @@ function interior(s: Shapes, haul: Haul) {
 
 /** the roof terrace: paving, a balustrade round its edge, the garden court round the needle's foot */
 function roof(s: Shapes, haul: Haul) {
-  s.slab(gon(AP - 0.3), ROOF + 0.4, MAT.PAVING);
+  // (out to the faces, where the band round the top starts: short of them, a slot showed down into the walls)
+  s.slab(gon(AP), ROOF + 0.4, MAT.PAVING);
   for (let j = 0; j < N; j++) {
     const f = face(j);
-    s.balustrade(f.at(-HALF + 1.6, -0.9), f.at(HALF - 1.6, -0.9), ROOF + 0.4, MAT.CREAM, MAT.CREAM);
+    // (short of the corner piers: its rail's ends lay in their tops' plane)
+    s.balustrade(f.at(-HALF + 2.4, -0.9), f.at(HALF - 2.4, -0.9), ROOF + 0.4, MAT.CREAM, MAT.CREAM);
   }
   // the court: six planters between the main petals' feet, a ring pool round the needle's plinth
   const rnd = rng(77);
@@ -399,10 +419,9 @@ function colliders(haul: Haul) {
   }
   // the processional way south to the stair's top landing, and the avenue north with its steps down at the end
   const W = new Frame('haven.temple.ways', C[0], C[1], 0);
-  W.floor(-WAY.half, PODIUM_AP + 2.8, WAY.half, WAY.z1 - C[1], FLOOR);
+  W.floor(-WAY.half, PODIUM_AP + 2.8, WAY.half, Math.sqrt(AVENUE_N.r1 ** 2 - WAY.half ** 2), FLOOR);
   W.floor(-AVENUE_N.half - 0.2, -AVENUE_N.r1, AVENUE_N.half + 0.2, -PODIUM_AP - 2.8, FLOOR);
-  W.stair(-AVENUE_N.half - 0.2, -AVENUE_N.r1 - 1.4, AVENUE_N.half + 0.2, -AVENUE_N.r1, TOP, WALK, 1, 1);
-  for (const sg of [-1, 1]) W.solid(sg > 0 ? AVENUE_N.half - 0.05 : -AVENUE_N.half - 0.45, -AVENUE_N.r1, sg > 0 ? AVENUE_N.half + 0.45 : -AVENUE_N.half + 0.05, -PODIUM_AP - 2.8, TOP - 1, FLOOR + 0.14);
+  for (const sg of [-1, 1]) W.solid(sg > 0 ? AVENUE_N.half - 0.05 : -AVENUE_N.half - 0.45, -AVENUE_N.r1 + 1.5, sg > 0 ? AVENUE_N.half + 0.45 : -AVENUE_N.half + 0.05, -PODIUM_AP - 2.8, TOP - 1, FLOOR + 0.14);
   haul.colliders.push(W.done());
   const K = new Frame('haven.temple.core', C[0], C[1], 0);
   for (let i = 0; i < 12; i++) {

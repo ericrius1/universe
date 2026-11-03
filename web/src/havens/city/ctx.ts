@@ -78,6 +78,29 @@ export class Collide {
     this.doors.push([Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), h].map(r3));
     return this;
   }
+  /** a box laid in another frame (the builder's current one: an arch over an alley, a lamp post turned to its road) as
+   *  this collider's box round it: its corners through `b` to the world, then into this one's frame (exact where the
+   *  two frames are square to each other, a little bigger where they aren't) */
+  solidIn(b: ArchBuilder, x0: number, z0: number, x1: number, z1: number, y0: number, y1: number) {
+    const r = this.boxIn(b, x0, z0, x1, z1, y0, y1);
+    return this.solid(r[0], r[1], r[2], r[3], r[4], r[5]);
+  }
+  floorIn(b: ArchBuilder, x0: number, z0: number, x1: number, z1: number, h: number) {
+    const r = this.boxIn(b, x0, z0, x1, z1, h, h);
+    return this.floor(r[0], r[1], r[2], r[3], r[4]);
+  }
+  private boxIn(b: ArchBuilder, x0: number, z0: number, x1: number, z1: number, y0: number, y1: number): number[] {
+    const c = Math.cos(this.yaw), s = Math.sin(this.yaw), [ox, oy, oz] = this.origin;
+    const r = [Infinity, Infinity, -Infinity, -Infinity, Infinity, -Infinity];
+    for (const [x, z] of [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]) {
+      const w0 = b.xf([x, y0, z]), w1 = b.xf([x, y1, z]), dx = w0[0] - ox, dz = w0[2] - oz;
+      // (world -> this frame: the inverse of ArchBuilder's turn)
+      const lx = c * dx - s * dz, lz = s * dx + c * dz;
+      r[0] = Math.min(r[0], lx); r[1] = Math.min(r[1], lz); r[2] = Math.max(r[2], lx); r[3] = Math.max(r[3], lz);
+      r[4] = Math.min(r[4], w0[1] - oy); r[5] = Math.max(r[5], w1[1] - oy);
+    }
+    return r;
+  }
   /** a convex plan polygon as boxes: one where its sides are square to the frame, strips (≤ step wide, each as tall as
    *  the polygon at its middle) where they slant */
   polySolid(p: V2[], y0: number, y1: number, step = 1.5) { for (const r of rects(p, step)) this.solid(r[0], r[1], r[2], r[3], y0, y1); return this; }

@@ -1,10 +1,11 @@
-// The canyon's ground as the terrain draws it (land.ts): terrainpatch.wgsl's patches (the nested heights, the morph
+// The land's ground as the terrain draws it (land.ts): terrainpatch.wgsl's patches (the nested heights, the morph
 // between levels, the earth's curve) painted by ground.wgsl (the strata's bands, the cream caprock, the flutes on the
 // sheer faces, the floor's grit, sand where the fill found it settles, scree, damp by the river) from the material the
 // fill left beside the heights (groundInfo, one layer a level, handed over between levels as the heights are), and lit
 // as the builders' stone is (arch.wgsl, rocks.wgsl): the key light and its shadow (the cascades', the heightfield's),
 // the sky's light leaning lavender in the shade and the colour there glazed toward violet (never a grey), the sunlit
-// floor's warm bounce up into what faces down or sideways, a dry sheen, the lamps, rain's wet look, the air between.
+// floor's warm bounce up into what faces down or sideways, a dry sheen (not a phone's: ground.wgsl LAND_LITE), the
+// lamps, rain's wet look, the air between. Terrain.debug leaves parts out, to measure each on a device.
 #include "./../world/terrainpatch.wgsl"
 #include "./ground.wgsl"
 
@@ -14,15 +15,15 @@ const LAND_LUMA = vec3f(0.2126, 0.7152, 0.0722);
 const LAND_VIOLET = vec3f(1.04, 0.9, 1.58);
 const LAND_GLAZE = vec3f(0.96, 0.96, 1.42);
 const LAND_LEAN = 0.75;
-// how far round the temple the Haven's floors lie (havenGround's reach: within the gardens' radius)
-const LAND_HAVEN_R = CN_PROM_R + 12.0;
+// how far round the citadel the Haven's floors lie (havenGround's reach: within the plateau's radius)
+const LAND_HAVEN_R = CN_PLAT_R + 12.0;
 
 // the ground's heights as a patch takes them (terrainpatch.wgsl): smoothed to its spacing, so a far cliff is a slope
 // and not a staircase of the texels the patch skips; and under the Haven the lowest round the vertex instead (its
 // mesh's reach either way), so no coarse patch rises through a terrace, a wall's foot or a court laid on the carved
 // ground
 fn patchHeight(xz: vec2f, spacing: f32) -> f32 {
-  if (spacing < 0.75 || distance(xz, vec2f(CN_TEMPLE_X, CN_TEMPLE_Z)) > LAND_HAVEN_R) { return terrainHeightAt(xz, spacing); }
+  if (spacing < 0.75 || distance(xz, CN_PLAT_C) > LAND_HAVEN_R) { return terrainHeightAt(xz, spacing); }
   var h = terrainHeight(xz);
   for (var k = 1; k <= 2; k++) {
     let d = spacing * 0.5 * f32(k);

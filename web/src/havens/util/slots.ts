@@ -25,6 +25,15 @@ export class Slots<N extends string> {
       list.splice(list.indexOf(this.marks.get(this.target ?? this.fallback)!), 0, d as unknown as Draw);
       return d;
     }) as RenderPass['draw'];
+    // (and every bundle of static draws it makes: the parts', culled on the GPU)
+    const bundle = pass.bundle.bind(pass);
+    pass.bundle = ((label) => {
+      const b = bundle(label);
+      const list = pass.draws;
+      list.splice(list.lastIndexOf(b), 1);
+      list.splice(list.indexOf(this.marks.get(this.target ?? this.fallback)!), 0, b);
+      return b;
+    }) as RenderPass['bundle'];
   }
 
   /** draw a feature into its slot (fn makes its draws on the pass) */

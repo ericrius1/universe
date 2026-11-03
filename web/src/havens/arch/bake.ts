@@ -3,15 +3,18 @@
 // times the surface's facing (a light behind a surface's plane gives it nothing: the cheap test for the far side of a
 // wall) — each vertex asking only the lights listed in its cell of a grid over them; and a light behind one of the
 // part's walls (its colliders' solids) lights nothing past it: each vertex's way to each light is tested against the
-// solids near that light. A builder's faces are big (a wall is one quad, a street one polygon) and light pools are
-// small, so first the mesh is refined where light falls on it: an edge is split while it is longer than a light in
-// front of it lets it be — a fraction of its distance to the light, the smaller the brighter the light is there
-// (linear interpolation's error grows with the light and the square of the edge over the distance) — decided per edge
-// so both triangles sharing one split it alike (no cracks), a few rounds, nothing done where no light reaches. A face
-// too small to show a pool is left whole; a thin band (a cornice, a plinth) is cut across instead, as finely as the
-// lights along it ask. The night's lights ('night', 'always') sum to one colour per vertex; the braziers ('fire': lit
-// by firebending) to a strength of their own with the nearest of them, which the renderer lights and flickers by its
-// index. Run off the main thread (bake.worker.ts).
+// solids near that light — those wide enough, seen from it, for the mesh round it to show their shadow (a post, a
+// pole, a column throws only a thin wedge of shade: sampled at vertices metres apart it came out as a few big dark
+// triangles fanned at random round the lamp, so it throws none). A builder's faces are big (a wall is one quad, a
+// street one polygon) and light pools are small, so first the mesh is refined where light falls on it: an edge is
+// split while it is longer than a light in front of it lets it be — a fraction of its distance to the light, the
+// smaller the brighter the light is there (linear interpolation's error grows with the light and the square of the
+// edge over the distance), asked at the edge's point nearest each light — decided per edge so both triangles sharing
+// one split it alike (no cracks), a few rounds, nothing done where no light reaches. A face too small to show a pool
+// is left whole; a thin band (a cornice, a plinth) is cut across instead, as finely as the lights along it ask. The
+// night's lights ('night', 'always') sum to one colour per vertex; the braziers ('fire': lit by firebending) to a
+// strength of their own with the nearest of them, which the renderer lights and flickers by its index. Run off the
+// main thread (bake.worker.ts).
 import type { ArchMesh, LightSpot, StructureCollider } from './types';
 import { CellGrid } from '../util/cellgrid';
 
@@ -33,8 +36,12 @@ export interface BakeOptions {
   thin: number;
   /** the nearest a light counts as to a surface (m): no burning spot where a lantern touches its wall */
   near: number;
+  /** a solid narrower than this seen from a light (the angle its plan spans there, radians) shades nothing from it: its
+   *  wedge of shade is narrower than the mesh's triangles out there (an edge is a third to more than its distance to
+   *  the light), so a few vertices that happened to fall in it darkened whole triangles */
+  narrow: number;
 }
-export const BAKE: BakeOptions = { reach: 30, tau: 0.6, lo: 0.3, hi: 1.2, minEdge: 0.6, rounds: 7, small: 1.5, thin: 0.5, near: 0.3 };
+export const BAKE: BakeOptions = { reach: 30, tau: 0.6, lo: 0.3, hi: 1.2, minEdge: 0.6, rounds: 8, small: 1.5, thin: 0.5, near: 0.3, narrow: 0.5 };
 
 /** the light grid's cell (m) */
 const LCELL = 8;
@@ -139,22 +146,41 @@ class Tris {
   }
 }
 
-/** the edge length (squared) the lights round a point on a surface ask for there: for each light reaching it from in
- *  front, its distance times sqrt(tau / E) (kept within [lo, hi]); Infinity where none does */
+/** the edge length (squared) the lights along a way on a surface ask for (from a to b, the surface's normal n there):
+ *  for each light reaching any of it from in front, at the way's point nearest that light (where it asks the most), its
+ *  distance times sqrt(tau / E) (kept within [lo, hi]); Infinity where none does. Asked at an edge's middle alone (as
+ *  it was), an edge whose end stood under a lamp and whose middle was out of the lamp's reach was never split, and the
+ *  light at that end was carried the edge's whole length — on a square's big faces tens of metres: a long bright
+ *  wedge fanned out from under every lamp, the dark ones between them, and a lamp over the middle of a long sliver of
+ *  the plaza's paving had no pool at all */
 function wanted(L: LightGrid, o: BakeOptions) {
   const g = L.grid, LP = L.p, R2 = L.r2, near2 = o.near * o.near;
-  return (mx: number, my: number, mz: number, nx: number, ny: number, nz: number) => {
+  // (a light listed in several of the cells the way crosses asked once: the way's stamp)
+  const seen = new Uint32Array(L.n);
+  let stamp = 0;
+  // (`under`: the caller asks only whether it's under that, so the first light that asks for less settles it)
+  return (ax: number, ay: number, az: number, bx: number, by: number, bz: number, nx: number, ny: number, nz: number, under = 0) => {
+    stamp++;
+    const ex = bx - ax, ey = by - ay, ez = bz - az, e2 = Math.max(ex * ex + ey * ey + ez * ez, 1e-12);
+    const cx1 = Math.floor(Math.max(ax, bx) / LCELL), cz0 = Math.floor(Math.min(az, bz) / LCELL), cz1 = Math.floor(Math.max(az, bz) / LCELL);
     let want2 = Infinity;
-    for (let k = g.at(Math.floor(mx / LCELL), Math.floor(mz / LCELL)), e = g.end; k < e; k++) {
-      const l = g.items[k];
-      const dx = LP[l * 3] - mx, dy = LP[l * 3 + 1] - my, dz = LP[l * 3 + 2] - mz, d2 = dx * dx + dy * dy + dz * dz;
-      if (d2 >= R2[l]) continue;
-      // (a light behind the surface lights none of it; one nearly in its plane still grazes it)
-      const cos = (dx * nx + dy * ny + dz * nz) / Math.sqrt(Math.max(d2, 1e-8));
-      if (cos < -0.1) continue;
-      const w = 1 - d2 / R2[l], E = (L.cd[l] * Math.max(cos, 0.1) * w * w) / Math.max(d2, near2);
-      const f = Math.min(o.hi, Math.max(o.lo, Math.sqrt(o.tau / Math.max(E, 1e-6))));
-      want2 = Math.min(want2, f * f * d2);
+    for (let cx = Math.floor(Math.min(ax, bx) / LCELL); cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) {
+      for (let k = g.at(cx, cz), e = g.end; k < e; k++) {
+        const l = g.items[k];
+        if (seen[l] === stamp) continue;
+        seen[l] = stamp;
+        const lx = LP[l * 3], ly = LP[l * 3 + 1], lz = LP[l * 3 + 2];
+        const t = Math.min(1, Math.max(0, ((lx - ax) * ex + (ly - ay) * ey + (lz - az) * ez) / e2));
+        const dx = lx - (ax + ex * t), dy = ly - (ay + ey * t), dz = lz - (az + ez * t), d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= R2[l]) continue;
+        // (a light behind the surface lights none of it; one nearly in its plane still grazes it)
+        const cos = (dx * nx + dy * ny + dz * nz) / Math.sqrt(Math.max(d2, 1e-8));
+        if (cos < -0.1) continue;
+        const w = 1 - d2 / R2[l], E = (L.cd[l] * Math.max(cos, 0.1) * w * w) / Math.max(d2, near2);
+        const f = Math.min(o.hi, Math.max(o.lo, Math.sqrt(o.tau / Math.max(E, 1e-6))));
+        want2 = Math.min(want2, f * f * d2);
+        if (want2 < under) return want2;
+      }
     }
     return want2;
   };
@@ -218,16 +244,21 @@ function cutStrip(V: Grow, t1: number[], t2: number[], o: BakeOptions, want: Ret
   const len = (a: number, b: number) => Math.hypot(P[b * 3] - P[a * 3], P[b * 3 + 1] - P[a * 3 + 1], P[b * 3 + 2] - P[a * 3 + 2]);
   if (len(q[1], q[2]) + len(q[3], q[0]) > len(q[0], q[1]) + len(q[2], q[3])) q = [q[1], q[2], q[3], q[0]];
   const [q0, q1, q2, q3] = q, L = len(q0, q1);
-  // the cuts: from one end, each step as long as the light at its middle (and at its start) lets it be
-  const at = (t: number) => {
-    const s = 1 - t, m = (k: number) => ((P[q0 * 3 + k] * s + P[q1 * 3 + k] * t) + (P[q3 * 3 + k] * s + P[q2 * 3 + k] * t)) / 2;
-    const nx = N[q0 * 3] + N[q1 * 3], ny = N[q0 * 3 + 1] + N[q1 * 3 + 1], nz = N[q0 * 3 + 2] + N[q1 * 3 + 2], nl = Math.hypot(nx, ny, nz) || 1;
-    return Math.sqrt(want(m(0), m(1), m(2), nx / nl, ny / nl, nz / nl));
-  };
+  // the cuts: from one end, each step as long as the lights along the strip's middle line from it to the next cut let it
+  // be — tried the whole way on first, then as far as that way asked for (a shorter way asks no more of it, so a few
+  // tries settle it). (Asked at its start and its middle alone, a step past a lamp between them ran the strip's whole
+  // length: a cornice or a lantern's cord lit from one end to the other.)
+  const nx = N[q0 * 3] + N[q1 * 3], ny = N[q0 * 3 + 1] + N[q1 * 3 + 1], nz = N[q0 * 3 + 2] + N[q1 * 3 + 2], nl = Math.hypot(nx, ny, nz) || 1;
+  const m = (t: number, k: number) => ((P[q0 * 3 + k] * (1 - t) + P[q1 * 3 + k] * t) + (P[q3 * 3 + k] * (1 - t) + P[q2 * 3 + k] * t)) / 2;
   const ts = [0];
   for (let t = 0, guard = 0; t < 1 && guard < 4096; guard++) {
-    let step = Math.max(o.minEdge, Math.min(at(t), L)) / L;
-    step = Math.max(o.minEdge / L, Math.min(step, Math.min(at(Math.min(1, t + step / 2)), L) / L));
+    let step = 1 - t;
+    for (let k = 0; k < 8; k++) {
+      const u = t + step, w = Math.sqrt(want(m(t, 0), m(t, 1), m(t, 2), m(u, 0), m(u, 1), m(u, 2), nx / nl, ny / nl, nz / nl));
+      const ok = Math.max(o.minEdge, w) / L;
+      if (step <= ok) break;
+      step = ok;
+    }
     t = t + step > 0.999 ? 1 : t + step;
     ts.push(t);
   }
@@ -253,13 +284,13 @@ export function refine(m: ArchMesh, L: LightGrid, o: BakeOptions = BAKE): ArchMe
   for (let round = 0; round < o.rounds && active.n; round++) {
     const mids = new Map<number, number>();
     const P = V.pos, N = V.nrm;
-    // an edge split or not: the shortest any light round its middle asks for
+    // an edge split or not: the shortest any light along it asks for (still a matter of its own two ends alone)
     const decide = (a: number, b: number) => {
       const ax = P[a * 3], ay = P[a * 3 + 1], az = P[a * 3 + 2], bx = P[b * 3], by = P[b * 3 + 1], bz = P[b * 3 + 2];
       const ex = bx - ax, ey = by - ay, ez = bz - az, len2 = ex * ex + ey * ey + ez * ez;
       if (len2 <= min2) return false;
       const nx = N[a * 3] + N[b * 3], ny = N[a * 3 + 1] + N[b * 3 + 1], nz = N[a * 3 + 2] + N[b * 3 + 2], nl = Math.hypot(nx, ny, nz) || 1;
-      const w2 = want((ax + bx) * 0.5, (ay + by) * 0.5, (az + bz) * 0.5, nx / nl, ny / nl, nz / nl);
+      const w2 = want(ax, ay, az, bx, by, bz, nx / nl, ny / nl, nz / nl, len2);
       return w2 < Infinity && len2 > Math.max(min2, w2);
     };
     const edge = (a: number, b: number) => {
@@ -312,35 +343,40 @@ function nearLight(P: Float32Array, a: number, b: number, c: number, L: LightGri
 /** the part's solids (its colliders' wall boxes, each in its structure's plan: origin, yaw), gridded by their world
  *  footprints: what stands between a light and a surface */
 export class Occluders {
-  /** per box: the plan box (x0, h0, y0, x1, h1, y1), its frame (origin x, y, z, cos, sin) */
+  /** per box: the plan box (x0, h0, y0, x1, h1, y1), its frame (origin x, y, z, cos, sin), its plan corners in the
+   *  world (x, z four times, round it) */
   private box: Float32Array;
   private frame: Float32Array;
+  private corner: Float32Array;
   private grid: CellGrid;
   readonly n: number;
 
   constructor(structures: StructureCollider[]) {
-    const boxes: number[] = [], frames: number[] = [], foot: number[] = [];
+    const boxes: number[] = [], frames: number[] = [], foot: number[] = [], corners: number[] = [];
     for (const sc of structures) {
       const c = Math.cos(sc.yaw), s = Math.sin(sc.yaw), [ox, oy, oz] = sc.origin;
       for (const b of sc.collision.solids) {
         boxes.push(b[0], b[4], b[1], b[2], b[5], b[3]);
         frames.push(ox, oy, oz, c, s);
         let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
-        for (const [px, py] of [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]]) {
+        for (const [px, py] of [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]) {
           const wx = ox + c * px + s * py, wz = oz - s * px + c * py;
           x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); z0 = Math.min(z0, wz); z1 = Math.max(z1, wz);
+          corners.push(wx, wz);
         }
         foot.push(x0, z0, x1, z1);
       }
     }
     this.box = new Float32Array(boxes);
     this.frame = new Float32Array(frames);
+    this.corner = new Float32Array(corners);
     this.n = foot.length / 4;
     this.grid = CellGrid.boxes(LCELL, this.n, (i, out) => { out[0] = foot[i * 4]; out[1] = foot[i * 4 + 1]; out[2] = foot[i * 4 + 2]; out[3] = foot[i * 4 + 3]; });
   }
 
-  /** the boxes that might stand between a light at p and the surfaces within r of it (none it's inside of) */
-  near(p: ArrayLike<number>, r: number): Int32Array {
+  /** the boxes that might stand between a light at p and the surfaces within r of it: none it's inside of, none
+   *  narrower seen from it than `narrow` (radians; see BakeOptions) */
+  near(p: ArrayLike<number>, r: number, narrow = 0): Int32Array {
     const out: number[] = [], seen = new Set<number>(), g = this.grid;
     for (let cx = Math.floor((p[0] - r) / LCELL); cx <= Math.floor((p[0] + r) / LCELL); cx++) for (let cz = Math.floor((p[2] - r) / LCELL); cz <= Math.floor((p[2] + r) / LCELL); cz++) {
       for (let k = g.at(cx, cz), e = g.end; k < e; k++) {
@@ -348,10 +384,27 @@ export class Occluders {
         if (seen.has(i)) continue;
         seen.add(i);
         if (this.cut(i, p[0], p[1], p[2], p[0], p[1], p[2], true)) continue;
+        if (narrow > 0 && this.span(i, p[0], p[2]) < narrow) continue;
         out.push(i);
       }
     }
     return new Int32Array(out);
+  }
+
+  /** the angle box i's plan spans seen from (x, z) (radians; a full turn from over or under it) */
+  private span(i: number, x: number, z: number): number {
+    const C = this.corner, o = i * 8;
+    // (each corner's bearing from the box's middle's, so none wraps round)
+    const ref = Math.atan2((C[o + 1] + C[o + 5]) / 2 - z, (C[o] + C[o + 4]) / 2 - x);
+    let lo = 0, hi = 0, inside = true;
+    for (let k = 0; k < 4; k++) {
+      const cx = C[o + k * 2], cz = C[o + k * 2 + 1], nx = C[o + ((k + 1) % 4) * 2], nz = C[o + ((k + 1) % 4) * 2 + 1];
+      if ((nx - cx) * (z - cz) - (nz - cz) * (x - cx) < 0) inside = false;
+      let a = Math.atan2(cz - z, cx - x) - ref;
+      a -= Math.round(a / (2 * Math.PI)) * 2 * Math.PI;
+      lo = Math.min(lo, a); hi = Math.max(hi, a);
+    }
+    return inside ? 2 * Math.PI : hi - lo;
   }
 
   /** does the segment from a to l cross box i (entering it between them)? `inside`: is a in it */
@@ -390,8 +443,8 @@ export function bakeLight(m: ArchMesh, L: LightGrid, occ: Occluders | null, o: B
   const night = new Float32Array(n * 3), fire = new Float32Array(n), fireOf = new Int32Array(n).fill(-1), fireBody = new Uint8Array(n);
   if (!L.n) return { night, fire, fireOf, fireBody };
   const g = L.grid, LP = L.p, P = m.pos, N = m.nrm, near2 = o.near * o.near, body2 = FIRE_BODY * FIRE_BODY;
-  // (each light's walls, found once)
-  const walls = occ?.n ? Array.from({ length: L.n }, (_, l) => occ.near(LP.subarray(l * 3, l * 3 + 3), Math.sqrt(L.r2[l]))) : null;
+  // (each light's walls, found once: those wide enough from it to shade what the mesh can show)
+  const walls = occ?.n ? Array.from({ length: L.n }, (_, l) => occ.near(LP.subarray(l * 3, l * 3 + 3), Math.sqrt(L.r2[l]), o.narrow)) : null;
   for (let v = 0; v < n; v++) {
     const px = P[v * 3], py = P[v * 3 + 1], pz = P[v * 3 + 2], nx = N[v * 3], ny = N[v * 3 + 1], nz = N[v * 3 + 2];
     let r = 0, gg = 0, b = 0, f = 0, top = 0, topI = -1, body = false;

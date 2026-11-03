@@ -123,11 +123,34 @@ export function lanternString(c: City, a: V3, z: V3, sag: number, every: number,
 }
 
 /** a round stone planter with a palm (or another bed) at local (x, z): radius r, h tall */
+/** a flat ring facing up from radius r0 out to r1 at y round local (x, z), in `sides` (those of the cylinders it caps) */
+export function annulus(c: City, x: number, z: number, r0: number, r1: number, y: number, sides: number, mat: Mat) {
+  const at = (a: number, rr: number): V3 => [x + Math.cos(a) * rr, y, z + Math.sin(a) * rr];
+  for (let i = 0; i < sides; i++) {
+    const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+    c.b.quad(at(a1, r0), at(a1, r1), at(a0, r1), at(a0, r0), mat);
+  }
+}
+
+/** a round (or `sides`-sided) basin's rim as it's seen from above and from inside: the flat ring from r out to r + w at
+ *  y1, and the basin's wall facing in from its floor at y0 up to it — over the rim's own cylinder (top: null), so the
+ *  water shows (the plaza's great fountain lays its own the same way) */
+export function basinRim(c: City, x: number, z: number, r: number, w: number, y0: number, y1: number, sides: number, rim: Mat = MAT.CREAM, wall: Mat = MAT.POOL) {
+  annulus(c, x, z, r, r + w, y1, sides, rim);
+  const at = (a: number, y: number): V3 => [x + Math.cos(a) * r, y, z + Math.sin(a) * r];
+  for (let i = 0; i < sides; i++) {
+    const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+    c.b.quad(at(a0, y0), at(a1, y0), at(a1, y1), at(a0, y1), wall);
+  }
+}
+
 export function planter(c: City, x: number, z: number, r: number, h: number, kind: 'palms' | 'cypress' | 'trees' | 'blossom' | 'shrubs' | 'flowers', y = 0) {
   const b = c.b;
   b.cylinder(x, z, r, y - 0.3, y + h, 12, MAT.ASHLAR, { top: null });
   b.cylinder(x, z, r + 0.1, y + h, y + h + 0.12, 12, MAT.CREAM, { top: null });
   b.cylinder(x, z, r - 0.15, y + h - 0.2, y + h + 0.12, 12, MAT.CREAM, { top: MAT.SOIL });
+  // (the rim's top, out from the soil: left open, it showed down into the planter)
+  annulus(c, x, z, r - 0.15, r + 0.1, y + h + 0.12, 12, MAT.CREAM);
   c.bed(ngon(x, z, r - 0.15, 8), y + h - 0.08, kind, kind === 'palms' || kind === 'cypress' ? 1 : 0.8, kind === 'flowers' ? 'mixed' : undefined);
 }
 
@@ -152,11 +175,12 @@ export function merlons(f: Face, u0: number, u1: number, v: number, mw: number, 
 }
 
 /** a straight flight along local x or z (axis), drawn and walked: from (x0, z0) at y0 rising `rise` over `run` toward
- *  +axis (sign 1) or -axis, `w` wide (centred on the start point's other coordinate); solid sides down to `foot` */
-export function flight(c: City, col: Collide | null, x0: number, z0: number, y0: number, run: number, rise: number, w: number, axis: 0 | 1, sign: 1 | -1, mat: Mat, o: { side?: Mat; foot?: number; steps?: number } = {}) {
+ *  +axis (sign 1) or -axis, `w` wide (centred on the start point's other coordinate); solid sides down to `foot`; its
+ *  risers of `riser` if given (tiled) */
+export function flight(c: City, col: Collide | null, x0: number, z0: number, y0: number, run: number, rise: number, w: number, axis: 0 | 1, sign: 1 | -1, mat: Mat, o: { side?: Mat; foot?: number; steps?: number; riser?: Mat } = {}) {
   const n = o.steps ?? Math.max(2, Math.round(rise / 0.18));
   const dx = axis === 0 ? sign * run : 0, dz = axis === 1 ? sign * run : 0;
-  c.b.stairs(x0, y0, z0, x0 + dx, y0 + rise, z0 + dz, w, n, mat, { side: o.side ?? mat, foot: o.foot ?? y0 });
+  c.b.stairs(x0, y0, z0, x0 + dx, y0 + rise, z0 + dz, w, n, mat, { side: o.side ?? mat, foot: o.foot ?? y0, riser: o.riser });
   if (col) {
     if (axis === 0) col.stair(x0, z0 - w / 2, x0 + dx, z0 + w / 2, y0, rise, 0, sign);
     else col.stair(x0 - w / 2, z0, x0 + w / 2, z0 + dz, y0, rise, 1, sign);

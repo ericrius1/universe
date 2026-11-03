@@ -36,8 +36,8 @@ while (queue.length) {
     if (existsSync(d)) seen.add(d);
     continue;
   }
-  for (const m of text.matchAll(/(?:import|export)\s[^'"]*?from\s+'(\.{1,2}\/[^']+)'|import\s+'(\.{1,2}\/[^']+)'|new URL\('(\.{1,2}\/[^']+)',\s*import\.meta\.url\)/g)) {
-    const spec = m[1] ?? m[2] ?? m[3];
+  for (const m of text.matchAll(/(?:import|export)\s[^'"]*?from\s+'(\.{1,2}\/[^']+)'|import\s+'(\.{1,2}\/[^']+)'|new URL\('(\.{1,2}\/[^']+)',\s*import\.meta\.url\)|import\('(\.{1,2}\/[^']+)'\)/g)) {
+    const spec = m[1] ?? m[2] ?? m[3] ?? m[4];
     const t = spec.endsWith('.wgsl') || spec.endsWith('.ts') ? resolve(dirname(f), spec) : tsFile(f, spec);
     if (t && existsSync(t)) queue.push(t); else console.warn(`havens-sync: ${relative(src, f)} → ${spec} not found`);
   }

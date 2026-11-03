@@ -3,11 +3,8 @@
 // The shutter and the lines' weight are set by whoever drives the camera (the player: the blur and the lines only in
 // fast flight); both 0 leave the image alone at no cost.
 import type { Kit, RenderPass, Texture, UniformBuffer } from '@ericrius1/weft';
-import shader4 from './motionblur.wgsl';
-import shader1 from './motionblur1.wgsl';
+import shader from './motionblur.wgsl';
 import { tier } from '../util/tier';
-
-const shader = tier.msaa === 4 ? shader4 : shader1;
 
 export class MotionBlur {
   readonly out: Texture;
@@ -31,8 +28,10 @@ export class MotionBlur {
 
   /** the panel's switch: off, none at all (and off from the start where the device's profile has none: util/tier.ts) */
   allowed = tier.motionBlur;
+  /** it reads the scene's four depth samples: without MSAA (a phone) it never runs */
+  capable = true;
   /** is it doing anything this frame */
-  get active() { return this.allowed && (this.settings.shutter > 0.001 || this.speed.w > 0.001); }
+  get active() { return this.capable && this.allowed && (this.settings.shutter > 0.001 || this.speed.w > 0.001); }
 
   run(height: number): RenderPass[] {
     if (!this.active) return [];

@@ -4,13 +4,10 @@
 import { Ref, type Kit, type RenderPass, type RunEntry, type Texture, type UniformBuffer } from '@ericrius1/weft';
 import bloomShader from './bloom.wgsl';
 import postShader from './post.wgsl';
-import smudge4 from './smudge.wgsl';
-import smudge1 from './smudge1.wgsl';
+import smudgeShader from './smudge.wgsl';
 import { PostFx } from './fx';
 import { MotionBlur } from './motionblur';
 import { tier } from '../util/tier';
-
-const smudgeShader = tier.msaa === 4 ? smudge4 : smudge1;
 
 export class Post {
   readonly u: UniformBuffer<any>;
@@ -27,28 +24,38 @@ export class Post {
     smudge: 0.8, smudgeStart: 120, smudgeFull: 700, smudgeRadius: 1.6,
     glow: 0.3, glowFrom: 5, nightVision: 0.4, split: 1, rich: 0.07,
   };
+  /** the smudged scene (the scene itself where there's no smudge) */
   readonly smudged: Texture;
+  private readonly smudgeOn: boolean;
   private smudgeU: UniformBuffer<any>;
-  private smudgePass: RenderPass;
+  private smudgePass: RenderPass | null = null;
   /** the newer effects (post/fx.ts) */
   readonly fx: PostFx;
   /** camera motion blur, first (the player sets its shutter) */
   readonly motionBlur: MotionBlur;
 
-  /** depth: the scene's depth buffer (multisampled with MSAA: util/tier.ts msaa); out: where the picture goes (the
-   *  screen, or a texture of the canvas's format a host lays over its own: embed.ts) */
+  /** depth: the scene's depth buffer, multisampled or (a phone's) not: what reads all four samples (the motion blur,
+   *  the smudge) is off without them, and reads a small stand-in; out: where the picture goes (the screen, or a texture
+   *  of the canvas's format a host lays over its own: embed.ts) */
   constructor(readonly kit: Kit, hdrIn: Texture, depth: Texture, count = 6, out: Texture | 'screen' = 'screen') {
     this.u = kit.uniforms(postShader.structs.Post, 'post');
     this.fx = new PostFx(kit, hdrIn, depth);
-    // contour smudging of distant silhouettes, before everything else reads the image
-    this.smudged = kit.texture({ label: 'hdr.smudged', format: 'rgba16float', size: tier.smudge ? 'render' : [1, 1] });
+    const ms = depth.samples > 1;
+    const msDepth = ms ? depth : kit.texture({ label: 'depth.stand-in', format: 'depth32float', size: [4, 4], samples: 4 });
+    // contour smudging of distant silhouettes, before everything else reads the image (not on a phone: the bloom and the
+    // final pass read the scene itself)
+    this.smudgeOn = ms && tier.smudge;
+    this.smudged = this.smudgeOn ? kit.texture({ label: 'hdr.smudged', format: 'rgba16float', size: 'render' }) : hdrIn;
     this.smudgeU = kit.uniforms(smudgeShader.structs.SmudgeU, 'smudge');
-    this.smudgePass = kit.pass({ label: 'smudge', color: [{ target: this.smudged, clear: [0, 0, 0, 0] }] });
-    this.motionBlur = new MotionBlur(kit, hdrIn, depth);
+    this.motionBlur = new MotionBlur(kit, hdrIn, msDepth);
+    this.motionBlur.capable = ms;
+    this.motionBlur.allowed = tier.motionBlur;
     const blurred = new Ref(() => (this.motionBlur.active ? this.motionBlur.out : hdrIn), 'post.src');
-    if (tier.smudge) this.smudgePass.fullscreen(smudgeShader, { label: 'smudge', bind: { SU: this.smudgeU, src: blurred, depth } as never });
-    // (without the smudge (a phone: util/tier.ts) the chain reads the scene itself, and the motion blur, off there, too)
-    const hdr = tier.smudge ? this.smudged : hdrIn;
+    if (this.smudgeOn) {
+      this.smudgePass = kit.pass({ label: 'smudge', color: [{ target: this.smudged, clear: [0, 0, 0, 0] }] });
+      this.smudgePass.fullscreen(smudgeShader, { label: 'smudge', bind: { SU: this.smudgeU, src: blurred, depth: msDepth } as never });
+    }
+    const hdr = this.smudged;
     let src: Texture = hdr;
     const ups: RunEntry[] = [];
     for (let i = 0; i < count; i++) {
@@ -74,7 +81,8 @@ export class Post {
     this.fx.levels = count;
     this.fx.attach(hdr);
     this.out = kit.pass({ label: 'post', color: [{ target: out, clear: [0, 0, 0, 1] }] });
-    this.out.fullscreen(postShader, { label: 'post', bind: { P: this.u, hdr, bloom: this.levels[0], ...this.fx.bindings() } as never });
+    // (without MSAA, the final pass blends the scene's edges instead: fx.wgsl fxEdgeAA)
+    this.out.fullscreen(postShader, { label: 'post', constants: { EDGE_AA: ms ? 0 : 1 }, bind: { P: this.u, hdr, bloom: this.levels[0], ...this.fx.bindings() } as never });
   }
 
   run(): RunEntry[] {
@@ -85,7 +93,6 @@ export class Post {
     });
     this.smudgeU.set({ p: [s.smudge, s.smudgeStart, s.smudgeFull, s.smudgeRadius] });
     for (const f of this.bloomU) f();
-    if (!tier.smudge) return [...this.passes, ...this.fx.passes(), this.out];
-    return [...this.motionBlur.run(this.smudged.height), this.smudgePass, ...this.passes, ...this.fx.passes(), this.out];
+    return [...this.motionBlur.run(this.smudged.height), ...(this.smudgePass ? [this.smudgePass] : []), ...this.passes, ...this.fx.passes(), this.out];
   }
 }

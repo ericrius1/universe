@@ -114,17 +114,21 @@ fn place(vi: u32, inst: FloraInst, sp: FloraSp) -> Placed {
   return o;
 }
 
+// (what's interpolated is taken at the centroid of the samples a triangle covers: read at the centre of a pixel that a
+// sliver only grazes — a cypress's tip, a blade, a petal edge-on — it was carried far past the triangle's corners, a
+// colour or a haze many times any of theirs, and that one pixel, there for a frame as the plant swayed, the bloom
+// spread into a ball of its colour)
 struct VOut {
   @builtin(position) pos: vec4f,
-  @location(0) wp: vec3f,
-  @location(1) n: vec3f,
-  @location(2) albedo: vec3f,
-  @location(3) ao: f32,
+  @location(0) @interpolate(perspective, centroid) wp: vec3f,
+  @location(1) @interpolate(perspective, centroid) n: vec3f,
+  @location(2) @interpolate(perspective, centroid) albedo: vec3f,
+  @location(3) @interpolate(perspective, centroid) ao: f32,
   @location(4) @interpolate(flat) part: u32,
   @location(5) @interpolate(flat) fade: u32,
   @location(6) @interpolate(flat) look: vec4f,
-  @location(7) ap: vec4f,
-  @location(8) ember: f32,
+  @location(7) @interpolate(perspective, centroid) ap: vec4f,
+  @location(8) @interpolate(perspective, centroid) ember: f32,
 }
 
 @vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut {
@@ -214,6 +218,10 @@ struct FOut { @location(0) color: vec4f, @builtin(sample_mask) mask: u32 }
   }
   // gloss: lotus pads' wax, glazed and bronze pots, fruit
   if (look.w > 0.0) { c += sunC * vis * ggx(n, v, l, mix(0.75, 0.2, look.w), vec3f(0.04)) * look.w * ao; }
+  // the sky off the leaves' sheen (a few percent head-on, more at a graze): a dark cypress against the dusk or the night
+  // sky reads as that sky deepened, blue-violet (ref 8), not a black cut-out
+  let graze = 1.0 - saturate(abs(dot(n, v)));
+  c += skyAmbient(reflect(-v, n)) * (0.05 + 0.3 * graze * graze * graze) * mix(0.6, 1.0, ao);
   c *= FU.look.x;
   c = c * i.ap.a + i.ap.rgb;
   // embers: on-screen colour, so they glow alike by day and by night

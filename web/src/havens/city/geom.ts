@@ -1,10 +1,11 @@
-// Plan geometry for laying the city out: convex polygons whose edges carry what they face (a party wall, an alley, a
-// street, the plaza), cut by lines and shrunk by per-edge margins the way the street network is carved out of the
-// blocks; plus the homothetic ellipses (the wall's ellipse scaled about the plaza) the ring streets follow. Polygons are
-// kept with positive polyArea (builder.ts): with x east and z south that is clockwise on a north-up map, and an edge
-// a -> b then faces outward along (dz, -dx).
+// Plan geometry for laying the town out: convex polygons whose edges carry what they face (a party wall, an alley, a
+// street, a grand front), cut by lines and shrunk by per-edge margins the way the street network is carved out of the
+// blocks, grown by a margin (what the town keeps back from everyone else's ground); plus the rings the ring streets
+// follow, each the star's building line scaled about the citadel between the ring road's outer edge (k = 0) and the
+// building line itself (k = 1). Polygons are kept with positive polyArea (builder.ts): with x east and z south that is
+// clockwise on a north-up map, and an edge a -> b then faces outward along (dz, -dx).
 import type { V2 } from '../world/layout';
-import { WALL } from '../world/layout';
+import { STAR, WAYS, buildingReach } from '../world/layout';
 
 /** what a lot's edge faces: 0 a neighbour (party wall), 1 an alley, 2 a street, 3 a grand front (the avenue, the
  *  plaza, a court) */
@@ -143,29 +144,69 @@ export function toWorld(p: V2, o: V2, yaw: number): V2 {
   return [o[0] + c * p[0] + s * p[1], o[1] - s * p[0] + c * p[1]];
 }
 
-/** how far along the ray from the plaza (the origin) at angle a (0 = east, π/2 = south) the wall's centre line is */
-export function wallReach(a: number): number {
-  const dx = Math.cos(a), dz = Math.sin(a);
-  // ((t dx - cx)/rx)^2 + ((t dz - cz)/rz)^2 = 1
-  const A = (dx / WALL.rx) ** 2 + (dz / WALL.rz) ** 2;
-  const B = -2 * ((dx * WALL.cx) / WALL.rx ** 2 + (dz * WALL.cz) / WALL.rz ** 2);
-  const C = (WALL.cx / WALL.rx) ** 2 + (WALL.cz / WALL.rz) ** 2 - 1;
-  return (-B + Math.sqrt(B * B - 4 * A * C)) / (2 * A);
+/** the ring road's outer edge round the citadel: the town's rings start there (k = 0) */
+const R0 = WAYS.ring.r1;
+
+/** how far along the ray from the star's centre at angle a (radians, 0 = east, π/2 = south) the town's building line
+ *  is (straight, RIM.building inside the point's edge: layout.ts buildingReach) */
+export function townReach(a: number): number {
+  return buildingReach((a * 180) / Math.PI);
 }
 
-/** the point at angle a from the plaza on the wall's ellipse scaled by k about the plaza (k = 1: the wall's line) */
+/** the point at angle a on the ring k of the way from the ring road's outer edge (k = 0) to the building line (k = 1) */
 export function ring(a: number, k: number): V2 {
-  const t = wallReach(a) * k;
-  return [Math.cos(a) * t, Math.sin(a) * t];
+  const t = R0 + (townReach(a) - R0) * k;
+  return [STAR.cx + Math.cos(a) * t, STAR.cz + Math.sin(a) * t];
 }
 
-/** where a point sits between the plaza (0) and the wall (1) */
+/** where a point sits between the ring road (0) and the building line (1) */
 export function ringK(p: V2): number {
-  const d = Math.hypot(p[0], p[1]);
-  return d < 1e-6 ? 0 : d / wallReach(Math.atan2(p[1], p[0]));
+  const dx = p[0] - STAR.cx, dz = p[1] - STAR.cz, d = Math.hypot(dx, dz);
+  return (d - R0) / (townReach(Math.atan2(dz, dx)) - R0);
 }
 
-/** the point on the wall's centre line at the wall's own parameter t (radians about its centre) */
-export function wallPoint(t: number): V2 {
-  return [WALL.cx + Math.cos(t) * WALL.rx, WALL.cz + Math.sin(t) * WALL.rz];
+/** a convex polygon grown by d: each edge moved out by d, its corners mitred (the town's margin round a claim that
+ *  isn't its own) */
+export function grow(p: V2[], d: number): V2[] {
+  const q = area(p) >= 0 ? p : [...p].reverse(), n = q.length, out: V2[] = [];
+  // (each edge's line moved out: a point on it and its direction; consecutive lines meet at the new corners)
+  const lines = q.map((a, i) => {
+    const b = q[(i + 1) % n], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+    return { p: [a[0] + (dz / L) * d, a[1] - (dx / L) * d] as V2, u: [dx / L, dz / L] as V2 };
+  }).filter((_, i) => Math.hypot(q[(i + 1) % n][0] - q[i][0], q[(i + 1) % n][1] - q[i][1]) > 1e-6);
+  for (let i = 0; i < lines.length; i++) {
+    const A = lines[(i + lines.length - 1) % lines.length], B = lines[i];
+    const den = A.u[0] * B.u[1] - A.u[1] * B.u[0];
+    if (Math.abs(den) < 1e-9) { out.push(B.p); continue; }
+    const t = ((B.p[0] - A.p[0]) * B.u[1] - (B.p[1] - A.p[1]) * B.u[0]) / den;
+    out.push([A.p[0] + A.u[0] * t, A.p[1] + A.u[1] * t]);
+  }
+  return out;
+}
+
+/** how far a point is from a polygon (0 inside it) */
+export function distanceTo(p: V2[], pt: V2): number {
+  if (inside(pt, p)) return 0;
+  let d = Infinity;
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i], b = p[(i + 1) % p.length], ex = b[0] - a[0], ez = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * ex + (pt[1] - a[1]) * ez) / (ex * ex + ez * ez || 1)));
+    d = Math.min(d, Math.hypot(pt[0] - a[0] - ex * t, pt[1] - a[1] - ez * t));
+  }
+  return d;
+}
+
+/** where the ray o + t·u (t > 0) first crosses segment a -> b: t, or Infinity */
+export function rayHit(o: V2, u: V2, a: V2, b: V2): number {
+  const ex = b[0] - a[0], ez = b[1] - a[1], den = u[0] * ez - u[1] * ex;
+  if (Math.abs(den) < 1e-12) return Infinity;
+  const t = ((a[0] - o[0]) * ez - (a[1] - o[1]) * ex) / den, s = ((a[0] - o[0]) * u[1] - (a[1] - o[1]) * u[0]) / den;
+  return t > 1e-6 && s >= 0 && s <= 1 ? t : Infinity;
+}
+
+/** a rectangle along a -> b, `half` m either side (positive area) */
+export function strip(a: V2, b: V2, half: number): V2[] {
+  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, nx = (-dz / L) * half, nz = (dx / L) * half;
+  const p: V2[] = [[a[0] + nx, a[1] + nz], [b[0] + nx, b[1] + nz], [b[0] - nx, b[1] - nz], [a[0] - nx, a[1] - nz]];
+  return area(p) >= 0 ? p : p.reverse();
 }

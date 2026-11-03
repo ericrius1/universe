@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, '../public/data/earth-havens');
-const SPOT = { x: 78.8, z: -760.0 };
+const SPOT = { x: 78.8, z: 0.0 };
 // (each picture's tiles shot at a field of view their width fills from a height the canyon still draws well at: the
 // near's from ~7 km, the far's from ~40 km; the relief leans a pixel or two at the tiles' edges)
 const NEAR = { half: 4096, px: 512, colorPx: 1024, tiles: 4, fov: 16 };

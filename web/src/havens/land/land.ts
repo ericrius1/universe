@@ -1,12 +1,15 @@
-// The canyon in the game: the terrain's height source (its heights made on the GPU straight into the terrain's levels:
-// source.ts CanyonGpu, canyon.wgsl through fill.wgsl), the ground's material made beside them (fill.wgsl `info`, one
-// layer a level), the four painted textures, and the ground drawn with them (land.wgsl: ground.wgsl's sandstone, sand
-// and scree, lit as the world lights everything).
+// The land in the game, the star mesa on its plain: the terrain's height source (its heights made on the GPU straight
+// into the terrain's levels: source.ts CanyonGpu, canyon.wgsl through fill.wgsl), the ground's material made beside them
+// (fill.wgsl `info`, one layer a level), the four painted textures, and the ground drawn with them (land.wgsl:
+// ground.wgsl's sandstone, desert sand and scree, lit as the world lights everything). Under ?land=blockout the heights
+// and the material are the star's blockout instead (blockout.ts: made on the CPU, a worker a level, and written into the
+// same textures), the fallback should the real land ever fail.
 import { Ref, TexView, type Kit, type RenderPass, type StorageBuffer, type Texture } from '@ericrius1/weft';
 import shader from './land.wgsl';
 import { CanyonGpu } from './source';
 import { INFO_STEP, LEVELS, type HeightLevelSpec } from './levels';
-import { STRATA_K, STRATA_Y } from './strata';
+import { CANYON_TABLES } from './tables.data';
+import { BLOCKOUT_LEVELS, blockoutInWorker, isBlockout } from './blockout';
 import type { HeightSource, Terrain } from '../world/terrain';
 import { loadImageArray, solidTexture } from '../util/textures';
 import { asset } from '../util/assets';
@@ -16,28 +19,44 @@ import { tier } from '../util/tier';
 const GROUND = ['sandstone_strata', 'cliff_flutes', 'desert_sand', 'canyon_floor'] as const;
 
 export class Land implements HeightSource {
+  /** the blockout, not the land (?land=blockout) */
+  readonly blockout = isBlockout();
+  readonly levels: HeightLevelSpec[];
   /** the ground's material per level (rgba8: sand, damp, scree, zone) */
   readonly info: Texture;
+  /** the tables the ground's painting reads (its strata: tables.wgsl canyonTables) */
+  readonly tables: StorageBuffer;
   /** the painted textures are in (or given up on) */
   readonly textures: Promise<void>;
   /** the GPU's time filling the levels, readbacks included (ms) */
   ms = 0;
   private tex: Texture;
-  /** the strata's knots, (ground height, kind) each, for the ground's per-pixel search (ground.wgsl groundStrata) */
-  private strata: StorageBuffer;
 
-  /** levels: the game's (levels.ts LEVELS), or a host's that only looks (VIEW_LEVELS) */
-  constructor(readonly kit: Kit, readonly levels: HeightLevelSpec[] = LEVELS) {
-    const ipx = levels[0].px / INFO_STEP;
-    this.info = kit.texture({ label: 'land.info', format: 'rgba8unorm', size: [ipx, ipx, levels.length], view: '2d-array' });
-    this.strata = kit.storage({ label: 'land.strata', data: new Float32Array(STRATA_Y.flatMap((y, i) => [y, STRATA_K[i] ?? 0])), usage: ['storage'] });
+  /** `after`: its painted ground fetched once it's done (main.ts: the builders' workers' script in first); `levels`:
+   *  the game's (levels.ts LEVELS), or a host's that only looks (VIEW_LEVELS) */
+  constructor(readonly kit: Kit, after?: Promise<unknown>, levels: HeightLevelSpec[] = LEVELS) {
+    this.levels = this.blockout ? BLOCKOUT_LEVELS : levels;
+    this.tables = kit.storage({ label: 'land.tables', data: CANYON_TABLES, usage: ['storage'] });
+    const ipx = this.levels[0].px / INFO_STEP;
+    this.info = kit.texture({ label: 'land.info', format: 'rgba8unorm', size: [ipx, ipx, this.levels.length], view: '2d-array' });
     const none = this.tex = solidTexture(kit, [196, 120, 84, 255], GROUND.length, 'land.ground.none');
-    this.textures = loadImageArray(kit, GROUND.map((n) => asset(`tex/${n}.webp`)), { srgb: true, mips: true, label: 'land.ground' })
+    this.textures = Promise.resolve(after).then(() => loadImageArray(kit, GROUND.map((n) => asset(`tex/${n}.webp`)), { srgb: true, mips: true, label: 'land.ground' }))
       .then((t) => { this.tex = t; none.destroy(); }, (e) => console.warn('land: the ground textures did not load', e));
   }
 
   /** every level made on the GPU into the terrain's heights and the material beside them; the filling's buffers freed */
-  async fill(heights: Texture, level: (i: number, h: Float32Array) => void | Promise<void>) {
+  async fill(heights: Texture, level: (i: number, h: Float32Array) => void) {
+    if (this.blockout) {
+      const t0 = performance.now();
+      await Promise.all(this.levels.map(async (L, i) => {
+        const { heights: h, info } = await blockoutInWorker(L), ipx = L.px / INFO_STEP;
+        this.kit.queue.writeTexture({ texture: heights.gpu, origin: [0, 0, i] }, h, { bytesPerRow: L.px * 4, rowsPerImage: L.px }, [L.px, L.px, 1]);
+        this.kit.queue.writeTexture({ texture: this.info.gpu, origin: [0, 0, i] }, info, { bytesPerRow: ipx * 4, rowsPerImage: ipx }, [ipx, ipx, 1]);
+        level(i, h);
+      }));
+      this.ms = performance.now() - t0;
+      return;
+    }
     const gpu = new CanyonGpu(this.kit, this.levels);
     this.ms = await gpu.fillAll(heights, this.info, level);
     gpu.release();
@@ -51,6 +70,6 @@ export class Land implements HeightSource {
   /** the ground into a pass, painted */
   draw(terrain: Terrain, pass: RenderPass) {
     // (a phone's ground painted lighter: ground.wgsl LAND_LITE)
-    return terrain.draw(pass, shader, { groundTex: new Ref(() => this.tex), groundInfo: this.info, groundStrata: this.strata }, { LAND_LITE: tier.phone ? 1 : 0 });
+    return terrain.draw(pass, shader, { groundTex: new Ref(() => this.tex), groundInfo: this.info, canyonTables: this.tables }, { LAND_LITE: tier.phone ? 1 : 0 });
   }
 }

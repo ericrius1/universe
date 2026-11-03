@@ -12,9 +12,17 @@ export const asset = (rel: string) => `${ASSET_ROOT}/${rel}`;
 /** a file under assets/ */
 export const fetchAsset = (rel: string) => fetch(asset(rel));
 
-/** a file's bytes as a blob (an image to decode), or an error naming it */
-export async function loadBlob(url: string): Promise<Blob> {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url}: ${r.status}`);
-  return r.blob();
+/** a file's bytes as a blob (an image to decode), or an error naming it. Each file fetched once however many ask (the
+ *  land and the parts both paint with the sandstone and the canyon's floor): asked again, the same blob */
+const blobs = new Map<string, Promise<Blob>>();
+/** `priority` 'low' for what the first view can come in without (the network's first for what it can't) */
+export function loadBlob(url: string, priority: RequestPriority = 'auto'): Promise<Blob> {
+  let b = blobs.get(url);
+  if (!b) {
+    b = fetch(url, { priority }).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); });
+    // (a failure isn't kept: asked again, it's fetched again)
+    b.catch(() => blobs.delete(url));
+    blobs.set(url, b);
+  }
+  return b;
 }

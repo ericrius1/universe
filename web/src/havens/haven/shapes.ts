@@ -126,7 +126,7 @@ export class Shapes {
   }
 
   /** a horizontal polygon (plan outline) at height y */
-  slab(outline: V2[], y: number, mat: Mat, down = false) { this.b.slab(outline, y, mat, down); return this; }
+  slab(outline: V2[], y: number, mat: Mat, down = false) { this.b.slab(cleanOutline(outline), y, mat, down); return this; }
 
   /** an oriented box: centre (x, z), half sizes along its own axes (hx along the direction a, hz across), from y0 to
    *  y1; faces in skip left out */
@@ -180,21 +180,38 @@ export class Shapes {
     return this;
   }
 
-  /** a balustrade along a straight run from p to q on a surface at y: a plinth, turned balusters every `step` m and a
-   *  rail */
-  balustrade(p: V2, q: V2, y: number, mat: Mat, rail: Mat, h = 1.0, step = 0.42) {
+  /** a balustrade along a straight run from p to q on a surface at y: a plinth, turned balusters every `step` m (the
+   *  parts library's, placed instanced: between the plinth's top and the rail's underside) and a rail */
+  balustrade(p: V2, q: V2, y: number, _mat: Mat, rail: Mat, h = 1.0, step = 0.42) {
     const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz);
     if (L < 0.3) return this;
     const a = Math.atan2(dz, dx), mx = (p[0] + q[0]) / 2, mz = (p[1] + q[1]) / 2;
     this.obox(mx, mz, a, L / 2, 0.2, y, y + 0.16, rail, { skip: ['bottom'] });
     this.obox(mx, mz, a, L / 2 + 0.04, 0.17, y + h - 0.14, y + h, rail);
-    const n = Math.max(1, Math.floor(L / step));
+    const n = Math.max(1, Math.floor(L / step)), scale = (h - 0.3) / BALUSTER_H;
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n;
-      this.b.lathe(p[0] + dx * t, y + 0.16, p[1] + dz * t, [[0.07, 0], [0.11, 0.08], [0.07, 0.26], [0.12, 0.5], [0.06, 0.7], [0.08, h - 0.3]], 6, mat);
+      this.b.place('baluster-turned', [p[0] + dx * t, y + 0.16, p[1] + dz * t], { yaw: -a, scale });
     }
     return this;
   }
+}
+
+/** the parts library's baluster's height at its defaults (balustrade.ts baluster()) */
+const BALUSTER_H = 0.68;
+
+/** an outline without corners a few millimetres apart or in line with their neighbours (their slivers of triangles,
+ *  a fraction of a square centimetre, came out wound against the face) */
+function cleanOutline(p: V2[]): V2[] {
+  let out = p.filter((q, i) => { const r = p[(i + p.length - 1) % p.length]; return Math.hypot(q[0] - r[0], q[1] - r[1]) > 0.005; });
+  for (let pass = 0; pass < 2 && out.length > 3; pass++) {
+    out = out.filter((q, i) => {
+      const a = out[(i + out.length - 1) % out.length], c = out[(i + 1) % out.length];
+      const cr = (q[0] - a[0]) * (c[1] - a[1]) - (q[1] - a[1]) * (c[0] - a[0]), L = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      return Math.abs(cr) / Math.max(L, 1e-9) > 0.002;
+    });
+  }
+  return out.length >= 3 ? out : p;
 }
 
 /** a polygon without repeated corners (a zero-height side of a sloped quad) */

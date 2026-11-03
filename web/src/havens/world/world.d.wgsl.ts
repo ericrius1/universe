@@ -50,6 +50,7 @@ export interface World {
   aurora3: Vec4;
   lamps: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  cave: ArrayLike<number> | Vec4[];
 }
 export interface CloudSky {
   e1: Vec4;

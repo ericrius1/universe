@@ -1,6 +1,6 @@
-// The canyon's height on the GPU: canyon.ts (and noise.ts, strata.ts) line for line, with the same integer hashes,
-// gradient noise, curves, strata and designed places, so a level filled here agrees with the CPU's canyonHeight within
-// millimetres (tools/land-parity.mjs checks). Binding-free: include it anywhere; tables.wgsl (generated from
+// The land's height on the GPU: canyon.ts (and noise.ts, strata.ts, layout.ts's sdStar) line for line, with the same
+// integer hashes, gradient noise, strata, star and designed places, so a level filled here agrees with the CPU's
+// canyonHeight within millimetres (tools/land-parity.ts checks). Binding-free: include it anywhere; tables.wgsl (generated from
 // canyon.ts by tools/land-tables.ts) holds the numbers, fill.wgsl runs it over a level. Its names start with cn (the
 // entry points canyonHeight and canyonSample excepted), so it sits beside world.wgsl's own hashes and noise.
 #include "./tables.wgsl"
@@ -76,64 +76,63 @@ var<private> cnTerraceKind: i32;
 var<private> cnTerraceAlong: f32;
 fn cnTerrace(H: f32) -> f32 {
   if (H <= 0.0) { cnTerraceKind = -1; return H; }
-  let top = cnStrataF(CN_STRATA_N - 1);
-  if (H >= top) { cnTerraceKind = -1; return cnStrataY(CN_STRATA_N - 1) + (H - top); }
+  let top = cnStrataF(u32(CN_STRATA_N - 1));
+  if (H >= top) { cnTerraceKind = -1; return cnStrataY(u32(CN_STRATA_N - 1)) + (H - top); }
   var lo = 0;
   var hi = CN_STRATA_N - 2;
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (cnStrataF(m) <= H) { lo = m; } else { hi = m - 1; }
+    if (cnStrataF(u32(m)) <= H) { lo = m; } else { hi = m - 1; }
   }
-  let t = (H - cnStrataF(lo)) / (cnStrataF(lo + 1) - cnStrataF(lo));
-  cnTerraceKind = i32(cnStrataK(lo));
+  let t = (H - cnStrataF(u32(lo))) / (cnStrataF(u32(lo + 1)) - cnStrataF(u32(lo)));
+  cnTerraceKind = i32(cnStrataK(u32(lo)));
   cnTerraceAlong = t;
-  return cnStrataY(lo) + (cnStrataY(lo + 1) - cnStrataY(lo)) * t;
+  return cnStrataY(u32(lo)) + (cnStrataY(u32(lo + 1)) - cnStrataY(u32(lo))) * t;
 }
 fn cnUnterrace(Y: f32) -> f32 {
   if (Y <= 0.0) { return Y; }
-  let top = cnStrataY(CN_STRATA_N - 1);
-  if (Y >= top) { return cnStrataF(CN_STRATA_N - 1) + (Y - top); }
+  let top = cnStrataY(u32(CN_STRATA_N - 1));
+  if (Y >= top) { return cnStrataF(u32(CN_STRATA_N - 1)) + (Y - top); }
   var lo = 0;
   var hi = CN_STRATA_N - 2;
   loop {
     if (lo >= hi) { break; }
     let m = (lo + hi + 1) / 2;
-    if (cnStrataY(m) <= Y) { lo = m; } else { hi = m - 1; }
+    if (cnStrataY(u32(m)) <= Y) { lo = m; } else { hi = m - 1; }
   }
-  let t = (Y - cnStrataY(lo)) / (cnStrataY(lo + 1) - cnStrataY(lo));
-  return cnStrataF(lo) + (cnStrataF(lo + 1) - cnStrataF(lo)) * t;
+  let t = (Y - cnStrataY(u32(lo))) / (cnStrataY(u32(lo + 1)) - cnStrataY(u32(lo)));
+  return cnStrataF(u32(lo)) + (cnStrataF(u32(lo + 1)) - cnStrataF(u32(lo))) * t;
 }
 
-// ------------------------------------------------------------------ curves and small shapes
-const CN_RIVER = 0u;
-const CN_WEST = 1u;
-const CN_EAST = 2u;
-const CN_SOUTH = 3u;
-/** the slope of the last cnCurve */
-var<private> cnCurveD: f32;
-fn cnCurve(c: u32, x: f32) -> f32 {
-  let i0 = cnCurveOff(c);
-  let last = cnCurveOff(c + 1u) - 1u;
-  if (x <= cnCurveT(i0)) { cnCurveD = 0.0; return cnCurveV(i0); }
-  if (x >= cnCurveT(last)) { cnCurveD = 0.0; return cnCurveV(last); }
-  var i = i0;
-  loop {
-    if (i >= last - 1u || x < cnCurveT(i + 1u)) { break; }
-    i++;
+// ------------------------------------------------------------------ the star (layout.ts sdStar)
+/** the signed distance (m) from the star's edge (negative inside), folded by reflections into the half point between
+ *  a tip and a notch — |x|, |z|, the 45° mirror, the notch's line — never by atan2; its tip rounded by a smooth max
+ *  with the edge's mirror across the tip's axis, its notch by a smooth min with the next point's edge */
+fn cnSdStar(x: f32, z: f32) -> f32 {
+  var px = x - CN_STAR_C.x;
+  var pz = z - CN_STAR_C.y;
+  let rx = CN_STAR_ROT.x * px - CN_STAR_ROT.y * pz;
+  pz = CN_STAR_ROT.y * px + CN_STAR_ROT.x * pz;
+  px = abs(rx);
+  pz = abs(pz);
+  if (pz > px) {
+    let t = px;
+    px = pz;
+    pz = t;
   }
-  let h = cnCurveT(i + 1u) - cnCurveT(i);
-  let s = (x - cnCurveT(i)) / h;
-  let s2 = s * s;
-  let s3 = s2 * s;
-  let v0 = cnCurveV(i);
-  let v1 = cnCurveV(i + 1u);
-  let m0 = cnCurveM(i);
-  let m1 = cnCurveM(i + 1u);
-  cnCurveD = ((6.0 * s2 - 6.0 * s) * (v0 - v1)) / h + (3.0 * s2 - 4.0 * s + 1.0) * m0 + (3.0 * s2 - 2.0 * s) * m1;
-  return (2.0 * s3 - 3.0 * s2 + 1.0) * v0 + (s3 - 2.0 * s2 + s) * h * m0 + (-2.0 * s3 + 3.0 * s2) * v1 + (s3 - s2) * h * m1;
+  let d = -px * CN_STAR_M.y + pz * CN_STAR_M.x;
+  if (d > 0.0) {
+    px += 2.0 * d * CN_STAR_M.y;
+    pz -= 2.0 * d * CN_STAR_M.x;
+  }
+  let dA = (px - CN_STAR_TIP) * CN_STAR_EA.x + pz * CN_STAR_EA.y;
+  let dB = (px - CN_STAR_TIP) * CN_STAR_EA.x - pz * CN_STAR_EA.y;
+  let dC = (px - CN_STAR_N.x) * CN_STAR_EC.x + (pz - CN_STAR_N.y) * CN_STAR_EC.y;
+  return cnSmin(cnSmax(dA, dB, CN_STAR_TIPR), dC, CN_STAR_NOTCHR);
 }
 
+// ------------------------------------------------------------------ small shapes
 fn cnEllipse(px: f32, pz: f32, rx: f32, rz: f32) -> f32 {
   let ax = px / rx;
   let az = pz / rz;
@@ -145,42 +144,150 @@ fn cnEllipse(px: f32, pz: f32, rx: f32, rz: f32) -> f32 {
   return (k0 * (k0 - 1.0)) / k1;
 }
 
-fn cnRamp(u: f32) -> f32 { return cnSmax(0.0, cnSmin(u, 1.0, 0.15), 0.15); }
-
-var<private> cnAlongOut: f32;
-fn cnAcross(c: u32, along: f32, across: f32, wander: f32, wanderD: f32) -> f32 {
-  let mid = cnCurve(c, along) + wander;
-  let slope = cnCurveD + wanderD;
-  cnAlongOut = max(max(cnCurveT(cnCurveOff(c)) - along, along - cnCurveT(cnCurveOff(c + 1u) - 1u)), 0.0);
-  return abs(across - mid) / sqrt(1.0 + slope * slope);
-}
-var<private> cnMeanderD: f32;
-fn cnMeander(t: f32, l: f32, a: f32, s: u32) -> f32 {
-  let v = cnNoise1(t, l, s);
-  cnMeanderD = (a * cnNoise1D) / l;
-  return a * v;
-}
-
-// ------------------------------------------------------------------ the river
-var<private> cnRiverSlope: f32;
-fn cnRiverZ(x: f32) -> f32 {
-  let z = cnCurve(CN_RIVER, x);
-  let d = cnCurveD;
-  let a = 700.0 * cnSmooth(4200.0, 9000.0, abs(x));
-  let v = cnNoise1(x, 2600.0, CN_S_RIVER);
-  cnRiverSlope = d + (a * cnNoise1D) / 2600.0;
-  return z + a * v;
-}
-fn cnRiverDistance(x: f32, z: f32) -> f32 {
-  let zr = cnRiverZ(x);
-  return abs(z - zr) / sqrt(1.0 + cnRiverSlope * cnRiverSlope);
-}
-fn cnRiverFloor(x: f32) -> f32 {
-  let w = 175.0 + 55.0 * cnNoise1(x, 1400.0, CN_S_RIVER + 1u);
-  return mix(130.0, w, cnSmooth(700.0, 1700.0, abs(x)));
+/** the slope of the last cnChannelZ */
+var<private> cnCurveD: f32;
+/** the plain's channel's line: z at x (cubic Hermite through its knots, flat past its ends) */
+fn cnChannelZ(x: f32) -> f32 {
+  let last = CN_CHAN_N - 1;
+  if (x <= cnChanT(u32(0))) {
+    cnCurveD = 0.0;
+    return cnChanV(u32(0));
+  }
+  if (x >= cnChanT(u32(last))) {
+    cnCurveD = 0.0;
+    return cnChanV(u32(last));
+  }
+  var i = 0;
+  loop {
+    if (i >= last - 1 || x < cnChanT(u32(i + 1))) { break; }
+    i++;
+  }
+  let h = cnChanT(u32(i + 1)) - cnChanT(u32(i));
+  let s = (x - cnChanT(u32(i))) / h;
+  let s2 = s * s;
+  let s3 = s2 * s;
+  let v0 = cnChanV(u32(i));
+  let v1 = cnChanV(u32(i + 1));
+  let m0 = cnChanM(u32(i));
+  let m1 = cnChanM(u32(i + 1));
+  cnCurveD = ((6.0 * s2 - 6.0 * s) * (v0 - v1)) / h + (3.0 * s2 - 4.0 * s + 1.0) * m0 + (3.0 * s2 - 2.0 * s) * m1;
+  return (2.0 * s3 - 3.0 * s2 + 1.0) * v0 + (s3 - 2.0 * s2 + s) * h * m0 + (-2.0 * s3 + 3.0 * s2) * v1 + (s3 - s2) * h * m1;
 }
 
-// ------------------------------------------------------------------ the promontory and its gardens
+// ------------------------------------------------------------------ the star's points (a table per point)
+fn cnSectorOf(x: f32, z: f32) -> u32 {
+  let dx = x - CN_STAR_C.x;
+  let dz = z - CN_STAR_C.y;
+  var k = 0u;
+  var best = -1e30;
+  for (var i = 0u; i < 8u; i++) {
+    let d = cnTip(u32(i)).x * dx + cnTip(u32(i)).y * dz;
+    if (d > best) {
+      best = d;
+      k = i;
+    }
+  }
+  let r2 = dx * dx + dz * dz;
+  return k * 3u + select(select(2u, 1u, r2 < CN_BANDS.y * CN_BANDS.y), 0u, r2 < CN_BANDS.x * CN_BANDS.x);
+}
+
+// ------------------------------------------------------------------ the ridges
+fn cnRidgeReach(hw: f32, wander: f32) -> f32 { return min(1.15 * hw * (1.0 + wander), CN_KEEP_A + CN_KEEP_B * hw - 0.5); }
+fn cnRidgesAt(x: f32, z: f32, minWave: f32) -> f32 {
+  let k = cnSectorOf(x, z);
+  var nw = 0.0;
+  var nc = 0.0;
+  var rough = 0.0;
+  var noised = false;
+  var H = 0.0;
+  for (var j = cnRidgeOff(u32(k)); j < cnRidgeOff(u32(k + 1u)); j++) {
+    let g = cnRidge(u32(cnRidgeIdx(u32(j))));
+    let ex = g.a.z - g.a.x;
+    let ez = g.a.w - g.a.y;
+    let u = clamp(((x - g.a.x) * ex + (z - g.a.y) * ez) / (g.b.x * g.b.x), 0.0, 1.0);
+    let qx = g.a.x + ex * u - x;
+    let qz = g.a.y + ez * u - z;
+    let d = sqrt(qx * qx + qz * qz);
+    if (d >= cnRidgeReach(max(g.c.x, g.c.y), 0.25)) { continue; }
+    if (!noised) {
+      noised = true;
+      let kr = cnSmooth(minWave, 2.0 * minWave, 30.0);
+      nw = 0.17 * clamp(cnNoise(x, z, 90.0, CN_S_RIDGE) / 0.45, -1.0, 1.0) + 0.08 * kr * clamp(cnNoise(x, z, 30.0, CN_S_RIDGE + 3u) / 0.45, -1.0, 1.0);
+      nc = 0.17 * clamp(cnNoise(x, z, 60.0, CN_S_RIDGE + 1u) / 0.45, -1.0, 1.0) + 0.08 * kr * clamp(cnNoise(x, z, 24.0, CN_S_RIDGE + 4u) / 0.45, -1.0, 1.0);
+      rough = cnFbm(x, z, 26.0, 2, CN_S_RIDGE + 2u, minWave);
+    }
+    let s = g.b.y + u * g.b.x;
+    let t = s / g.b.z;
+    let reach = cnRidgeReach(g.c.x + (g.c.y - g.c.x) * t, nw);
+    if (d >= reach) { continue; }
+    let xr = d / reach;
+    let skirt = cnSmooth(1.0, 0.62, xr);
+    let spine = cnSmooth(0.0, 1.0, clamp(1.0 - xr / 0.56, 0.0, 1.0));
+    let crest = (g.c.z + (g.c.w - g.c.z) * t) * (1.0 + nc);
+    let B = cnUnterrace(CN_FLOOR_Y - CN_PLAIN_Y + crest) - CN_F_FLOOR;
+    let Bs = min(B, CN_RIDGE_SKIRT);
+    let p = clamp(skirt + 2.0 * rough * skirt * (1.0 - skirt), 0.0, 1.0) * Bs + clamp(spine + 1.5 * rough * spine * (1.0 - spine), 0.0, 1.0) * (B - Bs);
+    var cut = 1.0;
+    if (g.h > 0.0) { cut = cnSmooth(g.h, g.h + 6.0, abs(s - g.b.w)); }
+    H = max(H, p * cut);
+  }
+  return H;
+}
+
+// ------------------------------------------------------------------ the water's beds
+fn cnPoolsAt(x: f32, z: f32) -> f32 {
+  let k = cnSectorOf(x, z);
+  var low = 0.0;
+  for (var j = cnPoolOff(u32(k)); j < cnPoolOff(u32(k + 1u)); j++) {
+    let q = cnPool(u32(cnPoolIdx(u32(j))));
+    let dx = x - q.p.x;
+    let dz = z - q.p.y;
+    if (abs(dx) > q.q.z || abs(dz) > q.q.z) { continue; }
+    let d = cnEllipse(q.q.x * dx + q.q.y * dz, -q.q.y * dx + q.q.x * dz, q.p.z, q.p.w);
+    if (d < 0.0) { low = min(low, -CN_POOL_BED * cnSmooth(0.0, CN_BANK, -d)); }
+  }
+  return low;
+}
+fn cnCanalAt(x: f32, z: f32) -> f32 {
+  let u = x - CN_CHUTE_X;
+  let v = abs(z - CN_CANAL_Z);
+  if (u < CN_CANAL_X0 - 1.0 || u > CN_CHUTE_ENDS.x || v > CN_CANAL_HALF) { return 0.0; }
+  return CN_CANAL_BED * cnSmooth(0.0, CN_BANK, min(CN_CANAL_HALF - v, u - CN_CANAL_X0));
+}
+fn cnChuteBed(u: f32) -> f32 {
+  let e = CN_CHUTE_ENDS;
+  let L = CN_CHUTE_LEVELS;
+  let b = CN_CHUTE_BASIN;
+  let sl = CN_CHUTE_SILL;
+  var y = CN_CANAL_BED;
+  y = mix(y, L.y - b, cnSmooth(e.x, e.x + 0.5, u));
+  y = mix(y, L.z - b, cnSmooth(e.y, e.y + 0.5, u));
+  y = mix(y, CN_CHUTE_POOL, cnSmooth(e.z, e.z + 0.5, u));
+  y += b * (cnSmooth(e.y - sl, e.y, u) * (1.0 - cnSmooth(e.y, e.y + 0.5, u)) + cnSmooth(e.z - sl, e.z, u) * (1.0 - cnSmooth(e.z, e.z + 0.5, u)));
+  return mix(y, CN_CHANNEL_BED, cnSmooth(e.w - 4.0, e.w, u));
+}
+fn cnButtress(x: f32, z: f32) -> f32 {
+  let u = x - CN_CHUTE_X;
+  let v = abs(z - CN_CHUTE_Z);
+  let e = CN_CHUTE_ENDS;
+  let L = CN_CHUTE_LEVELS;
+  if (u < e.x - 10.0 || u > e.z + CN_WALL_OUT + 10.0 || v > CN_CHUTE_HALF + CN_WALL_W + 45.0) { return -1e9; }
+  var y = CN_FLOOR_Y;
+  y = mix(y, L.y + CN_WALL_OVER, cnSmooth(e.x + CN_WALL_OUT, e.x + CN_WALL_OUT + 0.5, u));
+  y = mix(y, L.z + CN_WALL_OVER, cnSmooth(e.y + CN_WALL_OUT, e.y + CN_WALL_OUT + 0.5, u));
+  y = mix(y, CN_PLAIN_Y, cnSmooth(e.z + CN_WALL_OUT, e.z + CN_WALL_OUT + 0.5, u));
+  return cnUnterrace(y - CN_PLAIN_Y) - CN_MESA_G * max(v - CN_CHUTE_HALF - CN_WALL_W, 0.0);
+}
+fn cnChannelDistance(x: f32, z: f32) -> f32 {
+  let zc = cnChannelZ(x);
+  let sl = cnCurveD;
+  return abs(z - zc) / sqrt(1.0 + sl * sl) + max(max(cnChanT(u32(0)) - x, x - cnChanT(u32(CN_CHAN_N - 1))), 0.0);
+}
+fn cnChannelBed(dc: f32) -> f32 {
+  return CN_CHANNEL_BED + (CN_PLAIN_Y - CN_CHANNEL_BED) * cnSmooth(CN_CHANNEL_HW - 3.0, CN_CHANNEL_HW + 6.0, dc) + max(dc - CN_CHANNEL_HW - 6.0, 0.0) * 3.0;
+}
+
+// ------------------------------------------------------------------ the plateau and its gardens
 var<private> cnGardenZone: i32;
 fn cnSteps(t: f32, e: f32) -> f32 {
   let u = t + e / 2.0;
@@ -189,81 +296,150 @@ fn cnSteps(t: f32, e: f32) -> f32 {
 }
 fn cnGardenFloor(r: f32, w: CnWedge) -> f32 {
   let bw = (w.r1 - w.r0) / w.steps;
-  return CN_MESA_TOP - w.drop * clamp(cnSteps((r - w.r0) / bw, 0.5 / bw), 0.0, w.steps - 1.0);
+  return CN_TOP - w.drop * clamp(cnSteps((r - w.r0) / bw, 0.5 / bw), 0.0, w.steps - 1.0);
 }
 fn cnGardenSurface(x: f32, z: f32) -> f32 {
-  let dx = x - CN_TEMPLE_X;
-  let dz = z - CN_TEMPLE_Z;
+  let dx = x - CN_PLAT_C.x;
+  let dz = z - CN_PLAT_C.y;
   let r = sqrt(dx * dx + dz * dz);
-  let top = CN_MESA_TOP + (CN_RIM_Y - CN_MESA_TOP) * cnSmooth(CN_TONGUE_RISE.x, CN_TONGUE_RISE.y, z);
+  let top = CN_TOP;
   var gap = top;
   var inS = top;
   var inW = 0.0;
   for (var i = 0; i < CN_WEDGE_N; i++) {
-    let w = cnWedge(i);
+    let w = cnWedge(u32(i));
     let c0 = w.d0.x * dz - w.d0.y * dx;
     let c1 = dx * w.d1.y - dz * w.d1.x;
     let lat = min(c0, c1);
     let t = (r - w.r0) / w.w;
-    let line = CN_MESA_TOP - w.drop * clamp(t, 0.0, w.steps);
+    let line = top - w.drop * clamp(t, 0.0, w.steps);
     var near = 1.0 - cnSmooth(0.17 * r, 0.22 * r + 0.01, -lat);
     if (w.short > 0.5) { near *= 1.0 - cnSmooth(w.r1, w.r1 + 0.5, r); }
     gap = min(gap, mix(top, line, near));
     var wi = clamp(lat / 0.5 + 0.5, 0.0, 1.0) * clamp((r - w.r0) / 0.5 + 0.5, 0.0, 1.0);
     if (w.short > 0.5) { wi *= clamp((w.r1 - r) / 0.5 + 0.5, 0.0, 1.0); }
-    if (wi > 0.0) { inW = wi; inS = cnGardenFloor(r, w); }
+    if (wi > 0.0) {
+      inW = wi;
+      inS = cnGardenFloor(r, w);
+    }
   }
   cnGardenZone = select(select(5, 3, gap < top - 0.05), 4, inW > 0.5);
-  return mix(gap, inS, inW);
+  return max(mix(gap, inS, inW), CN_FLOOR_Y);
 }
-fn cnTongue(x: f32, z: f32, north: f32) -> f32 {
-  let cz = (CN_TEMPLE_Z + north) / 2.0;
-  let hz = (CN_TEMPLE_Z - north) / 2.0;
-  let hw = CN_PROM_HW + 90.0 * cnNoise1(z, 260.0, CN_S_PROM) * cnSmooth(-880.0, -1000.0, z);
-  let qx = abs(x - CN_TEMPLE_X) - hw;
-  let qz = abs(z - cz) - hz;
-  let ox = max(qx, 0.0);
-  let oz = max(qz, 0.0);
-  return sqrt(ox * ox + oz * oz) + min(max(qx, qz), 0.0);
+fn cnSdPlat(x: f32, z: f32) -> f32 {
+  let dx = x - CN_PLAT_C.x;
+  let dz = z - CN_PLAT_C.y;
+  let r = sqrt(dx * dx + dz * dz);
+  var slab = 0.0;
+  for (var i = 0; i < CN_WEDGE_N; i++) {
+    let w = cnWedge(u32(i));
+    if (w.short < 0.5) { continue; }
+    slab = max(slab, cnSmooth(8.0, 40.0, min(w.d0.x * dz - w.d0.y * dx, dx * w.d1.y - dz * w.d1.x)));
+  }
+  return r - CN_PLAT_R + CN_PLAT_IN * slab * cnSmooth(-0.4, 0.4, cnNoise(x, z, 120.0, CN_S_PROM));
 }
-fn cnProm(x: f32, z: f32) -> f32 {
-  let dx = x - CN_TEMPLE_X;
-  let dz = z - CN_TEMPLE_Z;
-  let disc = max(sqrt(dx * dx + dz * dz) - CN_PROM_R, -dz - 70.0);
-  return min(disc, cnTongue(x, z, CN_PROM_NORTH));
+var<private> cnSlabZone: i32;
+fn cnSlabs(x: f32, z: f32, S: f32, texel: f32) -> f32 {
+  let dx = x - CN_PLAT_C.x;
+  let dz = z - CN_PLAT_C.y;
+  let r = sqrt(dx * dx + dz * dz);
+  var slab = 0.0;
+  for (var i = 0; i < CN_WEDGE_N; i++) {
+    let w = cnWedge(u32(i));
+    if (w.short < 0.5) { continue; }
+    let lat = min(w.d0.x * dz - w.d0.y * dx, dx * w.d1.y - dz * w.d1.x);
+    slab = max(slab, cnSmooth(20.0, 34.0, lat) * cnSmooth(w.r1 + 4.0, w.r1 + 18.0, r));
+  }
+  cnSlabZone = 5;
+  if (slab <= 0.0) { return S; }
+  let C = CN_SLAB_CELL;
+  let ix = i32(floor(x / C));
+  let iz = i32(floor(z / C));
+  var f1 = 1e9;
+  var f2 = 1e9;
+  var sx = 0.0;
+  var sz = 0.0;
+  var cx1 = 0;
+  var cz1 = 0;
+  for (var j = -1; j <= 1; j++) {
+    for (var i = -1; i <= 1; i++) {
+      let cx = ix + i;
+      let cz = iz + j;
+      let px = (f32(cx) + 0.15 + 0.7 * cnHashF(cx, cz, CN_S_SLAB)) * C;
+      let pz = (f32(cz) + 0.15 + 0.7 * cnHashF(cx, cz, CN_S_SLAB + 1u)) * C;
+      let ddx = x - px;
+      let ddz = z - pz;
+      let d = sqrt(ddx * ddx + ddz * ddz);
+      if (d < f1) {
+        f2 = f1;
+        f1 = d;
+        sx = px;
+        sz = pz;
+        cx1 = cx;
+        cz1 = cz;
+      } else if (d < f2) {
+        f2 = d;
+      }
+    }
+  }
+  let sink = CN_SLAB_STEP * floor(cnHashF(cx1, cz1, CN_S_SLAB + 2u) * 3.0);
+  let gx = (cnHashF(cx1, cz1, CN_S_SLAB + 3u) - 0.5) * 0.028;
+  let gz = (cnHashF(cx1, cz1, CN_S_SLAB + 4u) - 0.5) * 0.028;
+  let top = S - slab * (sink - gx * (x - sx) - gz * (z - sz));
+  let w = 3.0 + 3.0 * cnSmooth(-0.4, 0.4, cnNoise(x, z, 90.0, CN_S_FISSURE));
+  let e = f2 - f1;
+  if (e < 0.8 * w && slab > 0.5) { cnSlabZone = 9; }
+  let k = 1.0 - cnSmooth(0.45 * w, w, e);
+  return mix(top, CN_TOP - CN_FISSURE_DEEP, k * slab * (1.0 - cnSmooth(1.5, 3.0, texel)));
 }
-var<private> cnPromZone: i32;
-var<private> cnPromKind: i32;
-fn cnPromontory(x: f32, z: f32, wn: f32) -> f32 {
-  let d = cnProm(x, z);
-  if (d > 160.0) { cnPromZone = 0; return -1e9; }
-  let S = cnGardenSurface(x, z);
-  if (d <= 0.0) { cnPromZone = cnGardenZone; cnPromKind = -1; return S; }
-  cnPromZone = 0;
-  let out = max(d + wn * cnSmooth(0.5, 8.0, d), 0.5 * d);
-  let h = cnTerrace(cnUnterrace(S) - CN_PROM_G * out);
-  cnPromKind = cnTerraceKind;
+var<private> cnPlatZone: i32;
+var<private> cnPlatKind: i32;
+var<private> cnPlatIn: bool;
+fn cnPlateau(x: f32, z: f32, wn: f32, texel: f32) -> f32 {
+  let ox = x - CN_PLAT_C.x;
+  let oz = z - CN_PLAT_C.y;
+  cnPlatIn = false;
+  if (ox * ox + oz * oz > (CN_PLAT_R + 21.0) * (CN_PLAT_R + 21.0)) {
+    cnPlatZone = 0;
+    return -1e9;
+  }
+  let d = cnSdPlat(x, z);
+  cnPlatIn = d <= 0.0;
+  if (d > 20.0) {
+    cnPlatZone = 0;
+    return -1e9;
+  }
+  let S = cnSlabs(x, z, cnGardenSurface(x, z), texel);
+  if (d <= 0.0) {
+    cnPlatZone = select(cnGardenZone, cnSlabZone, cnSlabZone != 5);
+    cnPlatKind = -1;
+    return S;
+  }
+  cnPlatZone = 0;
+  let out = max(d + wn * cnSmooth(0.5, 8.0, d), 0.75 * d);
+  let h = max(cnTerrace(cnUnterrace(S - CN_PLAIN_Y) - CN_PLAT_G * out) + CN_PLAIN_Y, CN_FLOOR_Y);
+  cnPlatKind = cnTerraceKind;
   return h;
 }
 
 // ------------------------------------------------------------------ the grand stair's corridor
 fn cnStairProfile(z: f32) -> f32 {
-  if (z <= cnStairZ(0).x) { return cnStairZ(0).y; }
-  if (z >= cnStairZ(CN_STAIR_N - 1).x) { return cnStairZ(CN_STAIR_N - 1).y; }
+  if (z <= cnStairZ(u32(0)).x) { return cnStairZ(u32(0)).y; }
+  if (z >= cnStairZ(u32(CN_STAIR_N - 1)).x) { return cnStairZ(u32(CN_STAIR_N - 1)).y; }
   var i = 0;
   loop {
-    if (i >= CN_STAIR_N - 2 || z < cnStairZ(i + 1).x) { break; }
+    if (i >= CN_STAIR_N - 2 || z < cnStairZ(u32(i + 1)).x) { break; }
     i++;
   }
-  let a = cnStairZ(i);
-  let b = cnStairZ(i + 1);
+  let a = cnStairZ(u32(i));
+  let b = cnStairZ(u32(i + 1));
   return a.y + ((z - a.x) / (b.x - a.x)) * (b.y - a.y);
 }
 fn cnCorridorTarget(x: f32, z: f32) -> f32 {
   var y = 1e9;
   for (var i = 0; i < CN_STAIR_N - 1; i++) {
-    let a = cnLanding(i);
-    let b = cnLanding(i + 1);
+    let a = cnLanding(u32(i));
+    let b = cnLanding(u32(i + 1));
     let ex = b.x - a.x;
     let ez = b.y - a.y;
     let len = sqrt(ex * ex + ez * ez);
@@ -274,7 +450,7 @@ fn cnCorridorTarget(x: f32, z: f32) -> f32 {
     y = min(y, a.z + (b.z - a.z) * t + (max(lat - (CN_STAIR_W / 2.0 + 2.0), 0.0) + over) * 4.0);
   }
   for (var i = 0; i < CN_STAIR_N; i++) {
-    let L = cnLanding(i);
+    let L = cnLanding(u32(i));
     let dx = x - L.x;
     let dz = z - L.y;
     y = min(y, L.z + max(sqrt(dx * dx + dz * dz) - CN_LANDING_R, 0.0) * 4.0);
@@ -284,14 +460,14 @@ fn cnCorridorTarget(x: f32, z: f32) -> f32 {
 var<private> cnCorridorZone: bool;
 fn cnCorridor(x: f32, z: f32, h: f32) -> f32 {
   cnCorridorZone = false;
-  let dx = x - CN_TEMPLE_X;
-  let dz = z - CN_TEMPLE_Z;
+  let dx = x - CN_PLAT_C.x;
+  let dz = z - CN_PLAT_C.y;
   let r = sqrt(dx * dx + dz * dz);
-  let gap = min(min(CN_GAP_A.x * dz - CN_GAP_A.y * dx, dx * CN_GAP_B.y - dz * CN_GAP_B.x), CN_PROM_R + CN_CLEFT_OUT - r);
+  let gap = min(min(CN_GAP_A.x * dz - CN_GAP_A.y * dx, dx * CN_GAP_B.y - dz * CN_GAP_B.x), CN_CLEFT_R - r);
   var zig = 1e9;
   for (var i = 0; i < CN_STAIR_N - 1; i++) {
-    let a = cnLanding(i);
-    let b = cnLanding(i + 1);
+    let a = cnLanding(u32(i));
+    let b = cnLanding(u32(i + 1));
     let ex = b.x - a.x;
     let ez = b.y - a.y;
     let t = clamp(((x - a.x) * ex + (z - a.y) * ez) / (ex * ex + ez * ez), 0.0, 1.0);
@@ -300,36 +476,28 @@ fn cnCorridor(x: f32, z: f32, h: f32) -> f32 {
     zig = min(zig, sqrt(qx * qx + qz * qz));
   }
   let foot = CN_STAIR_W / 2.0 + 2.0 - zig;
-  let inside = min(max(gap, foot), z - (cnStairZ(0).x - 8.0));
+  let inside = min(max(gap, foot), z - (cnStairZ(u32(0)).x - 8.0));
   if (inside < -200.0) { return h; }
   let goal = cnCorridorTarget(x, z);
   let below = 2.0 + 5.0 * cnSmooth(0.0, 20.0, -foot) + 1.5 * cnNoise(x, z, 23.0, CN_S_STAIR);
-  let ravine = 3.0 * cnSteps((cnStairProfile(z) - below) / 3.0, 0.2);
+  let ravine = max(3.0 * cnSteps((cnStairProfile(z) - below) / 3.0, 0.2), CN_FLOOR_Y);
   let surf = mix(goal, min(ravine, goal), cnSmooth(0.0, 4.0, -foot));
   let o = max(-inside, 0.0);
   cnCorridorZone = inside >= 0.0;
   return clamp(h, surf - o * 0.7, surf + o * 120.0);
 }
 
-// ------------------------------------------------------------------ where buttes and hoodoos may not stand
-fn cnClearance(x: f32, z: f32, rad: f32) -> f32 {
-  var c = cnSmooth(rad + 180.0, rad + 220.0, cnEllipse(x - CN_BASIN.x, z - CN_BASIN.y, CN_BASIN.z, CN_BASIN.w));
-  c = min(c, cnSmooth(rad + 60.0, rad + 100.0, cnEllipse(x - CN_ARMS.x, z - CN_ARMS.y, CN_ARMS.z, CN_ARMS.w)));
-  c = min(c, cnSmooth(rad + 200.0, rad + 240.0, cnProm(x, z)));
-  c = min(c, cnSmooth(rad + 60.0, rad + 100.0, cnRiverDistance(x, z) - cnRiverFloor(x)));
-  // (each distance read before its alongOut: the side output must not race the sum)
-  let dw = cnAcross(CN_WEST, x, z, 0.0, 0.0);
-  c = min(c, cnSmooth(rad + 40.0, rad + 80.0, dw + cnAlongOut - CN_SIDE_HW.x * 1.3));
-  let de = cnAcross(CN_EAST, x, z, 0.0, 0.0);
-  c = min(c, cnSmooth(rad + 40.0, rad + 80.0, de + cnAlongOut - CN_SIDE_HW.y * 1.3));
-  let ds = cnAcross(CN_SOUTH, z, x, 0.0, 0.0);
-  return min(c, cnSmooth(rad + 60.0, rad + 100.0, ds + cnAlongOut - CN_SIDE_HW.z * 1.2));
-}
-
-// ------------------------------------------------------------------ the natural land (a base height)
+// ------------------------------------------------------------------ the natural land (a base height, from the plain)
 var<private> cnWx: f32;
 var<private> cnWz: f32;
 var<private> cnWn: f32;
+var<private> cnWarped: bool;
+fn cnWarpOnce(x: f32, z: f32, minWave: f32) {
+  if (!cnWarped) {
+    cnWarped = true;
+    cnWarp(x, z, minWave);
+  }
+}
 fn cnWarp(x: f32, z: f32, minWave: f32) {
   let k2 = cnSmooth(minWave, 2.0 * minWave, 130.0);
   let k3 = cnSmooth(minWave, 2.0 * minWave, 16.0);
@@ -339,114 +507,86 @@ fn cnWarp(x: f32, z: f32, minWave: f32) {
   cnWn = 26.0 * k2 * cnNoise(x, z, 85.0, CN_S_WARP + 6u) + 9.0 * k4 * cnNoise(x, z, 28.0, CN_S_WARP + 8u) + 1.8 * k3 * cnNoise(x, z, 16.0, CN_S_WARP + 7u);
 }
 
+fn cnEastTip(x: f32, z: f32) -> f32 {
+  return cnSmooth(620.0, 680.0, x - CN_STAR_C.x) * (1.0 - cnSmooth(40.0, 80.0, abs(z - CN_STAR_C.y)));
+}
+fn cnSdBastion(x: f32, z: f32) -> f32 {
+  let qx = abs(x - CN_BASTION.x) - CN_BASTION.z;
+  let qz = abs(z - CN_BASTION.y) - CN_BASTION.w;
+  let ox = max(qx, 0.0);
+  let oz = max(qz, 0.0);
+  return sqrt(ox * ox + oz * oz) + min(max(qx, qz), 0.0) - CN_BASTION_R;
+}
+fn cnEdgeOut(x: f32, z: f32, minWave: f32) -> f32 {
+  let k = cnSmooth(minWave, 2.0 * minWave, 40.0);
+  let w = 0.75 * cnSmooth(-0.4, 0.4, cnNoise(x, z, 140.0, CN_S_EDGE)) + 0.25 * k * cnSmooth(-0.35, 0.35, cnNoise(x, z, 40.0, CN_S_EDGE + 1u));
+  return CN_STAR_WANDER * w * (1.0 - cnEastTip(x, z));
+}
+fn cnCrestBase(x: f32, z: f32, t: f32, minWave: f32) -> f32 {
+  if (t >= CN_RIM_W) { return 0.0; }
+  let gate = cnSmooth(CN_GATE_X - 60.0, CN_GATE_X - 30.0, x) * (1.0 - cnSmooth(CN_GATE_REACH + 4.0, CN_GATE_REACH + 20.0, abs(z - CN_GATE_Z)));
+  if (gate >= 1.0) { return 0.0; }
+  let c = CN_RIM_C0 + (CN_RIM_C1 - CN_RIM_C0) * cnSmooth(-0.4, 0.4, cnNoise(x, z, 260.0, CN_S_CREST));
+  let p = 6.0 + 4.0 * cnSmooth(-0.4, 0.4, cnNoise(x, z, 190.0, CN_S_CREST + 1u));
+  let B = cnUnterrace(CN_FLOOR_Y - CN_PLAIN_Y + c) - CN_F_FLOOR;
+  let f = select(1.0 - cnSmooth(p, CN_RIM_W, t), CN_LIP + (1.0 - CN_LIP) * cnSmooth(0.0, p, t), t < p);
+  let k = cnSmooth(minWave, 2.0 * minWave, 35.0);
+  return B * f * (1.0 + 0.18 * k * cnNoise(x, z, 35.0, CN_S_CREST + 2u)) * (1.0 - gate);
+}
+
 var<private> cnUMin: f32;
-var<private> cnWallness: f32;
-fn cnCut(d: f32, hw: f32, W: f32, k: f32) -> f32 {
-  let u = (d - hw) / W;
-  cnUMin = min(cnUMin, u + 9.0 * (1.0 - k));
-  let c = 1.0 - cnRamp(u);
-  cnWallness = max(cnWallness, 4.0 * c * (1.0 - c) * k);
-  return c;
+fn cnMesa(x: f32, z: f32, qx: f32, qz: f32, dE: f32, minWave: f32) -> f32 {
+  if (dE <= 0.0) {
+    cnUMin = 9.0;
+    return CN_F_FLOOR + cnCrestBase(x, z, -dE, minWave);
+  }
+  let lip = CN_F_FLOOR + cnCrestBase(x, z, 0.0, minWave);
+  let out = max(dE + cnWn * cnSmooth(0.5, 8.0, dE), 0.5 * dE);
+  var c = clamp((CN_MESA_G * out) / lip, 0.0, 1.0);
+  cnUMin = 1.0 - (CN_MESA_G * out) / lip;
+  let wall = 4.0 * c * (1.0 - c);
+  let g = abs(cnFbm(qx, qz, 150.0, 2, CN_S_GULLY, minWave));
+  c = clamp(c + wall * (0.3 * (1.0 - cnSmooth(0.015, 0.09, g)) - 0.1 * cnSmooth(0.18, 0.4, g)), 0.0, 1.0);
+  return lip * (1.0 - c);
 }
-fn cnDeeper(a: f32, b: f32, k: f32) -> f32 {
-  let h = max(k - abs(a - b), 0.0) / k;
-  let m = max(a, b);
-  return min(m + h * h * k * m * (1.0 - m), 1.0);
-}
+
 fn cnFarness(x: f32, z: f32) -> f32 {
-  let dz = z - 300.0;
-  return cnSmooth(2800.0, 6000.0, sqrt(x * x + dz * dz) + 900.0 * cnNoise(x, z, 5000.0, CN_S_FAR + 11u));
+  let r = sqrt(x * x + z * z);
+  if (r < 2000.0) { return 0.0; }
+  return cnSmooth(2800.0, 6000.0, r + 900.0 * cnNoise(x, z, 5000.0, CN_S_FAR + 11u));
 }
 
-fn cnNatural(x: f32, z: f32, qx: f32, qz: f32, minWave: f32, texel: f32) -> f32 {
+fn cnNatural(x: f32, z: f32, dE: f32, far: f32, minWave: f32, texel: f32) -> f32 {
   cnUMin = 9.0;
-  cnWallness = 0.0;
-  let far = cnFarness(x, z);
-  let calm = cnSmooth(100.0, 500.0, cnProm(x, z));
-  let relief = calm * (2.0 + 62.0 * cnFbm(x, z, 1600.0, 3, CN_S_PLAT, minWave)) + far * 40.0 * cnFbm(x, z, 9000.0, 2, CN_S_PLAT + 5u, minWave);
-  var plat = CN_RIM_Y + max(relief, 0.0);
-  if (far > 0.0) { plat = max(plat, cnMesas(x, z, far, minWave)); }
-  let wide = 1.0 + 0.38 * cnNoise(x, z, 900.0, CN_S_PLAT + 9u) * 2.0;
-  let ridge = (1.0 - cnSmooth(700.0, 1500.0, abs(x))) * cnSmooth(150.0, 420.0, z) * (1.0 - cnSmooth(900.0, 1100.0, z));
-  let raw = cnEllipse(x - CN_BASIN.x, z - CN_BASIN.y, CN_BASIN.z, CN_BASIN.w);
-  var dBowl = cnSmin(cnEllipse(qx - CN_BASIN.x, qz - CN_BASIN.y, CN_BASIN.z, CN_BASIN.w), cnEllipse(qx - CN_ARMS.x, qz - CN_ARMS.y, CN_ARMS.z, CN_ARMS.w), 120.0);
-  dBowl = min(dBowl, raw + 12.0);
-  var e = cnCut(dBowl, 0.0, CN_W_BOWL * wide * (1.0 - 0.5 * ridge), 1.0);
-  let dr = cnRiverDistance(qx, qz);
-  e = cnDeeper(e, cnCut(dr, cnRiverFloor(qx), CN_W_RIVER * wide * (1.0 - 0.45 * ridge), 1.0), CN_K_RIDGE);
-  if (qx < 0.0) {
-    let m = cnMeander(qx, 260.0, 34.0 * cnSmooth(-800.0, -1400.0, qx), CN_S_SLOT);
-    let d0 = cnAcross(CN_WEST, qx, qz, m, cnMeanderD);
-    let d = d0 + cnAlongOut;
-    let hw = CN_SIDE_HW.x * (1.0 + 0.28 * cnNoise1(qx, 330.0, CN_S_SLOT + 2u) * 2.0);
-    e = cnDeeper(e, cnCut(d, hw, CN_W_SLOT, 1.0), CN_K_RIDGE);
-  } else {
-    let m = cnMeander(qx, 240.0, 30.0 * cnSmooth(800.0, 1400.0, qx), CN_S_SLOT + 1u);
-    let d0 = cnAcross(CN_EAST, qx, qz, m, cnMeanderD);
-    let d = d0 + cnAlongOut;
-    let hw = CN_SIDE_HW.y * (1.0 + 0.28 * cnNoise1(qx, 310.0, CN_S_SLOT + 3u) * 2.0);
-    e = cnDeeper(e, cnCut(d, hw, CN_W_SLOT, 1.0), CN_K_RIDGE);
+  var H = 0.0;
+  if (far > 0.0) { H = max(max(far * 40.0 * cnFbm(x, z, 9000.0, 2, CN_S_PLAT + 5u, minWave), cnMesas(x, z, far, minWave)), 0.0); }
+  if (dE < 110.0) {
+    if (dE > 0.0) { cnWarpOnce(x, z, minWave); }
+    H = max(max(H, cnMesa(x, z, x + cnWx, z + cnWz, dE, minWave)), cnButtress(x, z));
   }
-  {
-    let m = cnMeander(qz, 420.0, 40.0 * cnSmooth(700.0, 1300.0, qz), CN_S_SOUTH);
-    let d0 = cnAcross(CN_SOUTH, qz, qx, m, cnMeanderD);
-    let d = d0 + cnAlongOut;
-    let hw = CN_SIDE_HW.z * (1.0 + 0.15 * cnNoise1(qz, 600.0, CN_S_SOUTH + 1u) * 2.0);
-    e = cnDeeper(e, cnCut(d, hw, CN_W_SOUTH * wide, 1.0), CN_K_RIDGE);
-  }
-  if (far > 0.0) {
-    let n = cnFbm(qx, qz, 9000.0, 3, CN_S_FAR, minWave);
-    let d = (abs(n) * 9000.0) / 1.6;
-    let hw = 60.0 + 80.0 * (0.5 + cnFbm(x, z, 5000.0, 2, CN_S_FAR + 7u, minWave));
-    let depth = clamp(0.55 + 0.9 * cnFbm(x, z, 14000.0, 2, CN_S_FAR + 9u, minWave), 0.35, 1.0);
-    e = cnDeeper(e, far * depth * cnCut(d, hw, CN_W_FAR * wide, far), CN_K_RIDGE);
-  }
-  {
-    let g = abs(cnFbm(qx, qz, 150.0, 2, CN_S_GULLY, minWave));
-    let gully = 1.0 - cnSmooth(0.015, 0.09, g);
-    let spur = cnSmooth(0.18, 0.4, g);
-    e = clamp(e + cnWallness * (0.3 * gully - 0.1 * spur), 0.0, 1.0);
-  }
-  let reach = (1.0 - cnSmooth(0.15, 2.4, cnUMin)) * (1.0 - ridge) * (1.0 - 0.75 * far);
-  if (reach > 0.0) {
-    let n = cnFbm(qx, qz, 1250.0, 2, CN_S_TRIB, minWave);
-    let d = (abs(n) * 1250.0) / 1.5;
-    let u0 = cnUMin;
-    e = cnDeeper(e, 0.8 * reach * cnCut(d, 6.0 + 16.0 * reach, 45.0, reach), CN_K_RIDGE);
-    cnUMin = min(u0, cnUMin + 0.5);
-  }
-  e *= 1.0 - (1.0 - cnSmooth(-50.0, 10.0, cnTongue(x, z, -2400.0))) * cnSmooth(CN_TONGUE_SOLID.x, CN_TONGUE_SOLID.y, z);
-  var H = plat - (plat - CN_FLOOR_Y) * e;
-  H = max(H, cnButtes(qx, qz, x, z));
-  if (texel < 3.0 && abs(x) < 4500.0 && abs(z) < 4500.0) { H += cnHoodoos(x, z, texel); }
+  if (dE > 150.0) { H = max(H, cnOutcrops(x, z, minWave)); }
+  if (texel < 3.0 && dE > 140.0 && dE < 640.0) { H += cnHoodoos(x, z, texel); }
   return H;
 }
 
-fn cnButtes(qx: f32, qz: f32, x: f32, z: f32) -> f32 {
-  let C = 900.0;
-  let ix = i32(floor(x / C));
-  let iz = i32(floor(z / C));
-  var H = -1e9;
-  for (var j = -1; j <= 1; j++) {
-    for (var i = -1; i <= 1; i++) {
-      let cx = ix + i;
-      let cz = iz + j;
-      if (cnHashF(cx, cz, CN_S_BUTTE) > 0.28) { continue; }
-      let bx = (f32(cx) + 0.25 + 0.5 * cnHashF(cx, cz, CN_S_BUTTE + 1u)) * C;
-      let bz = (f32(cz) + 0.25 + 0.5 * cnHashF(cx, cz, CN_S_BUTTE + 2u)) * C;
-      let rad = 55.0 + 150.0 * cnHashF(cx, cz, CN_S_BUTTE + 3u);
-      let ddx = qx - bx;
-      let ddz = qz - bz;
-      let d = sqrt(ddx * ddx + ddz * ddz);
-      if (d > rad) { continue; }
-      let clear = cnClearance(bx, bz, rad);
-      if (clear <= 0.0) { continue; }
-      let e = cnHashF(cx, cz, CN_S_BUTTE + 4u);
-      let top = CN_RIM_Y - 25.0 + 190.0 * e * e;
-      H = max(H, cnUnterrace(top) * (1.0 - cnSmooth(rad * 0.5, rad, d)) * clear);
-    }
-  }
-  return H;
+fn cnOutcrops(x: f32, z: f32, minWave: f32) -> f32 {
+  let C = CN_OUTCROP_CELL;
+  let cx = i32(floor(x / C));
+  let cz = i32(floor(z / C));
+  if (cnHashF(cx, cz, CN_S_BUTTE) > 0.18) { return -1e9; }
+  let bx = (f32(cx) + 0.2 + 0.6 * cnHashF(cx, cz, CN_S_BUTTE + 1u)) * C;
+  let bz = (f32(cz) + 0.2 + 0.6 * cnHashF(cx, cz, CN_S_BUTTE + 2u)) * C;
+  let rad = 20.0 + 50.0 * cnHashF(cx, cz, CN_S_BUTTE + 3u);
+  if (abs(x - bx) > rad + 40.0 || abs(z - bz) > rad + 40.0) { return -1e9; }
+  cnWarpOnce(x, z, minWave);
+  let ddx = x + 0.35 * cnWx - bx;
+  let ddz = z + 0.35 * cnWz - bz;
+  let d = sqrt(ddx * ddx + ddz * ddz);
+  if (d > rad) { return -1e9; }
+  let clear = cnSmooth(rad + 250.0, rad + 290.0, cnSdStar(bx, bz)) * cnSmooth(rad + 120.0, rad + 160.0, cnChannelDistance(bx, bz));
+  if (clear <= 0.0) { return -1e9; }
+  let e = cnHashF(cx, cz, CN_S_BUTTE + 4u);
+  return cnUnterrace(10.0 + 35.0 * e * e) * (1.0 - cnSmooth(rad * 0.5, rad, d)) * clear;
 }
 
 fn cnMesas(x: f32, z: f32, far: f32, minWave: f32) -> f32 {
@@ -454,20 +594,18 @@ fn cnMesas(x: f32, z: f32, far: f32, minWave: f32) -> f32 {
   let lz = z + 900.0 * cnNoise(x, z, 3000.0, CN_S_MESA + 8u);
   let d = (cnFbm(lx, lz, 4200.0, 3, CN_S_MESA, minWave) - 0.1) * 5200.0;
   if (d <= 0.0) { return -1e9; }
-  let top = CN_RIM_Y + 70.0 + 300.0 * clamp(0.5 + cnFbm(x, z, 16000.0, 2, CN_S_MESA + 3u, minWave), 0.0, 1.0);
-  let river = cnSmooth(CN_W_RIVER + 250.0, CN_W_RIVER + 900.0, cnRiverDistance(x, z));
-  return CN_RIM_Y + (cnUnterrace(top) - CN_RIM_Y) * cnSmooth(0.0, 260.0, d) * far * river;
+  let top = 110.0 + 290.0 * clamp(0.5 + cnFbm(x, z, 16000.0, 2, CN_S_MESA + 3u, minWave), 0.0, 1.0);
+  return cnUnterrace(top) * cnSmooth(0.0, 260.0, d) * far;
 }
 
-/** cell (cx, cz)'s hoodoo height over the plateau (0: none there) */
+/** cell (cx, cz)'s hoodoo height over the plain (0: none there) */
 fn cnHoodooHeight(cx: i32, cz: i32) -> f32 {
   let C = CN_HOODOO_CELL;
   let x = (f32(cx) + 0.2 + 0.6 * cnHashF(cx, cz, CN_S_HOODOO + 1u)) * C;
   let z = (f32(cz) + 0.2 + 0.6 * cnHashF(cx, cz, CN_S_HOODOO + 2u)) * C;
-  let dB = cnSmin(cnEllipse(x - CN_BASIN.x, z - CN_BASIN.y, CN_BASIN.z, CN_BASIN.w), cnEllipse(x - CN_ARMS.x, z - CN_ARMS.y, CN_ARMS.z, CN_ARMS.w), 120.0);
-  let near = min(dB - CN_W_BOWL, cnRiverDistance(x, z) - cnRiverFloor(x) - CN_W_RIVER);
-  let k = cnSmooth(0.1, 0.14, cnFbm(x, z, 340.0, 2, CN_S_HOODOO + 5u, 0.001)) * cnSmooth(90.0, 120.0, near) * (1.0 - cnSmooth(370.0, 400.0, near))
-    * cnSmooth(160.0, 190.0, cnProm(x, z));
+  let foot = cnSdStar(x, z) - 40.0;
+  let k = cnSmooth(0.1, 0.14, cnFbm(x, z, 340.0, 2, CN_S_HOODOO + 5u, 0.001)) * cnSmooth(150.0, 180.0, foot) * (1.0 - cnSmooth(520.0, 550.0, foot))
+    * (1.0 - cnSmooth(1250.0, 1350.0, max(abs(x - CN_STAR_C.x), abs(z - CN_STAR_C.y)))) * cnSmooth(50.0, 80.0, cnChannelDistance(x, z));
   if (k <= 0.0) { return 0.0; }
   let e = cnHashF(cx, cz, CN_S_HOODOO + 4u);
   return (10.0 + 24.0 * e * e) * k;
@@ -494,14 +632,14 @@ fn cnHoodoos(x: f32, z: f32, texel: f32) -> f32 {
       if (height <= 0.0) { continue; }
       let lod = cnSmooth(2.0 * texel, 4.0 * texel, r);
       let prof = min((1.0 - cnSmooth(0.62, 1.0, d / r)) + 0.35 * (1.0 - cnSmooth(1.0, 1.9, d / r)), 1.0);
-      H = max(H, (cnUnterrace(CN_RIM_Y + height) - CN_RIM_Y) * prof * lod);
+      H = max(H, cnUnterrace(height) * prof * lod);
     }
   }
   return H;
 }
 
 fn cnDunes(x: f32, z: f32, minWave: f32) -> f32 {
-  let erg = cnSmooth(0.05, 0.25, cnFbm(x, z, 14000.0, 2, CN_S_DUNE, minWave));
+  let erg = cnSmooth(-0.12, 0.12, cnFbm(x, z, 14000.0, 2, CN_S_DUNE, minWave));
   if (erg <= 0.0) { return 0.0; }
   let u = (x * 0.92 + z * 0.38) / 170.0 + 2.2 * cnNoise(x, z, 700.0, CN_S_DUNE + 3u) + 0.6 * cnNoise(x, z, 230.0, CN_S_DUNE + 4u);
   let f = u - floor(u);
@@ -510,52 +648,94 @@ fn cnDunes(x: f32, z: f32, minWave: f32) -> f32 {
 }
 
 // ------------------------------------------------------------------ the whole
-/** a sample of the ground: its height and what it was (canyon.ts HINT): the strata segment the natural ground landed
- *  on (-1 none, 0 bench, 1 scree, 2 cliff) and how far along it, the designed zone (0 natural, 1 the city's floor, 2
- *  the stair's corridor, 3 a ramp's slope, 4 a garden terrace, 5 the promontory's top, 6 the river's channel), the
- *  river's distance (m), the normalized distance out from the nearest canyon floor */
+/** a sample of the ground: its height and what it was (canyon.ts HINT): the strata segment it landed on (-1 none,
+ *  0 bench, 1 scree, 2 cliff) and how far along it, the designed zone (0 the plain and the mesa's walls, 1 the town's
+ *  floor, 2 the stair's corridor, 3 a spoke gap's slope, 4 a garden terrace, 5 the plateau's top, 6 a water's bed,
+ *  7 a ridge, 8 the rim, 9 a fissure), the distance from the water's channel (m), the place on the mesa's wall */
 struct CanyonSample { h: f32, kind: i32, along: f32, zone: i32, river: f32, u: f32 }
 
 fn canyonSample(x: f32, z: f32, texel: f32) -> CanyonSample {
   var o: CanyonSample;
   let minWave = 3.0 * texel;
-  cnWarp(x, z, minWave);
-  let H0 = cnNatural(x, z, x + cnWx, z + cnWz, minWave, texel);
-  var h = cnTerrace(H0);
+  cnWarped = false;
+  let d0 = cnSdStar(x, z);
+  var dw = d0;
+  if (d0 > -CN_RIM_W - 2.0 && d0 < 400.0) { dw = d0 - cnEdgeOut(x, z, minWave); }
+  let dE = cnSmin(dw, cnSdBastion(x, z), 12.0);
+  let far = cnFarness(x, z);
+  let H0 = cnNatural(x, z, dE, far, minWave, texel);
+  var h = cnTerrace(H0) + CN_PLAIN_Y;
   o.kind = cnTerraceKind;
   o.along = cnTerraceAlong;
   o.u = cnUMin;
-  o.zone = 0;
-  let lobes = 0.55 + 0.45 * cnNoise(x, z, 45.0, CN_S_SAND);
-  h += 2.6 * cnSmooth(-0.35, 0.0, cnUMin) * (1.0 - cnSmooth(0.0, 0.12, cnUMin)) * lobes;
-  let far = cnFarness(x, z);
-  if (far > 0.0) {
+  o.zone = select(select(1, 8, -dE < CN_RIM_W), 0, dE > 0.0);
+  let ux = x - CN_CHUTE_X;
+  let onChannel = ux > CN_CHUTE_ENDS.z && ux < 6600.0 && abs(z - CN_CHUTE_Z) < 700.0;
+  var dc = CN_NO_CHANNEL;
+  if (onChannel) { dc = cnChannelDistance(x, z); }
+  o.river = min(dc, CN_NO_CHANNEL);
+  if (dE > 0.0) {
+    let drift = cnSmooth(-0.35, 0.0, cnUMin) * (1.0 - cnSmooth(0.0, 0.12, cnUMin));
+    if (drift > 0.0) { h += 2.6 * drift * (0.55 + 0.45 * cnNoise(x, z, 45.0, CN_S_SAND)); }
     var bench = 0.0;
-    if (cnTerraceKind == 0) { bench = cnSmooth(0.0, 0.15, cnTerraceAlong) * (1.0 - cnSmooth(0.85, 1.0, cnTerraceAlong)); }
-    let flats = max(bench, 1.0 - cnSmooth(0.0, 10.0, H0));
-    if (flats > 0.0) { h += far * cnDunes(x, z, minWave) * flats; }
+    if (cnTerraceKind == 0) { bench = cnSmooth(0.0, 0.15, cnTerraceAlong) * (1.0 - cnSmooth(0.85, 1.0, cnTerraceAlong)) * far; }
+    let flats = max(bench, 1.0 - cnSmooth(0.0, 10.0, H0)) * cnSmooth(40.0, 100.0, dE);
+    let calm = cnSmooth(40.0, 90.0, dc - CN_CHANNEL_HW);
+    if (flats > 0.0) { h += flats * (1.6 * cnFbm(x, z, 1100.0, 3, CN_S_PLAT, minWave) + cnSmooth(190.0, 340.0, dE) * calm * cnDunes(x, z, minWave)); }
   }
-  let hp = cnPromontory(x, z, cnWn);
-  if (hp >= h) {
+  let pox = x - CN_PLAT_C.x;
+  let poz = z - CN_PLAT_C.y;
+  if (pox * pox + poz * poz < (CN_PLAT_R + 21.0) * (CN_PLAT_R + 21.0)) { cnWarpOnce(x, z, minWave); }
+  let hp = cnPlateau(x, z, cnWn, texel);
+  if (hp > h || cnPlatIn) {
     h = hp;
-    o.zone = cnPromZone;
-    o.kind = cnPromKind;
+    o.zone = cnPlatZone;
+    o.kind = cnPlatKind;
   }
-  if (abs(x) < 320.0 && z > -700.0 && z < -260.0) {
+  if (abs(x - CN_PLAT_C.x) < 120.0 && z - CN_PLAT_C.y > 60.0 && z - CN_PLAT_C.y < CN_CLEFT_R + 30.0) {
     h = cnCorridor(x, z, h);
     if (cnCorridorZone) { o.zone = 2; }
   }
-  let dW = cnEllipse(x - CN_WALL.x, z - CN_WALL.y, CN_WALL.z, CN_WALL.w);
-  if (dW < 55.0) {
-    h = mix(CN_FLOOR_Y, h, cnSmooth(30.0, 55.0, dW));
-    if (dW < 30.0) { o.zone = 1; }
+  let dx = x - CN_PLAT_C.x;
+  let dz = z - CN_PLAT_C.y;
+  let out = dx * dx + dz * dz > (CN_PLAT_FOOT - 2.0) * (CN_PLAT_FOOT - 2.0);
+  if (-dE >= CN_RIM_W && dx * dx + dz * dz > CN_PLAT_FOOT * CN_PLAT_FOOT) {
+    h = CN_FLOOR_Y;
+    o.zone = 1;
+    o.kind = 0;
   }
-  let dr = cnRiverDistance(x, z);
-  o.river = dr;
-  let chan = CN_FLOOR_Y - 2.5 + 2.5 * cnSmooth(CN_RIVER_HW - 5.0, CN_RIVER_HW + 10.0, dr) + max(dr - CN_RIVER_HW - 10.0, 0.0) * 3.0;
-  if (chan < h) {
-    h = chan;
-    if (dr < CN_RIVER_HW) { o.zone = 6; }
+  if (dE < 0.0 && out) {
+    let Hr = CN_F_FLOOR + cnRidgesAt(x, z, minWave);
+    if (Hr > H0 && Hr > CN_F_FLOOR) {
+      h = cnTerrace(Hr) + CN_PLAIN_Y;
+      o.zone = 7;
+      o.kind = cnTerraceKind;
+      o.along = cnTerraceAlong;
+    }
+    let low = min(cnPoolsAt(x, z), cnCanalAt(x, z));
+    if (low < 0.0) {
+      h = CN_FLOOR_Y + low;
+      if (low < -0.05) { o.zone = 6; }
+      o.kind = 0;
+    }
+  }
+  let v = abs(z - CN_CHUTE_Z);
+  if (ux > CN_CHUTE_ENDS.x && ux < CN_CHUTE_ENDS.w && v < CN_CHUTE_HALF) {
+    h = mix(cnChuteBed(ux), h, cnSmooth(CN_CHUTE_HALF - 1.0, CN_CHUTE_HALF, v));
+    if (v < CN_CHUTE_HALF - 0.5) {
+      o.zone = 6;
+      o.kind = 0;
+    }
+  }
+  if (onChannel) {
+    let c = cnChannelBed(dc);
+    if (c < h) {
+      h = c;
+      if (dc < CN_CHANNEL_HW) {
+        o.zone = 6;
+        o.kind = -1;
+      }
+    }
   }
   o.h = h;
   return o;

@@ -52,7 +52,7 @@ export class CollisionSet {
     b.set(this.bounds);
     list.forEach((sc, k) => {
       this.structures.push(sc);
-      this.colliders.push(new HouseCollider(sc.collision, planToWorld(sc)));
+      this.colliders.push(new HouseCollider(sc.collision, planToWorld(sc), sc.levels));
       worldBounds(sc, b, (n0 + k) * 6);
     });
     this.bounds = b;

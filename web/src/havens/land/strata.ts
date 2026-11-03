@@ -11,7 +11,7 @@
 type Kind = 0 | 1 | 2;   // 0 bench, 1 scree (soft bed: a concave slope), 2 cliff
 const BENCH = 0, SCREE = 1, CLIFF = 2;
 const LOW: [Kind, number, number][] = [
-  // the floor's apron, then six hard beds with their benches up to the rim's caprock at RIM_Y
+  // the floor's apron, then six hard beds with their benches up to the plateau's caprock
   [SCREE, 8, 24],
   [CLIFF, 16, 2.0], [BENCH, 0.6, 16], [SCREE, 6.4, 6],
   [CLIFF, 19, 2.2], [BENCH, 0.5, 11], [SCREE, 5.5, 5],

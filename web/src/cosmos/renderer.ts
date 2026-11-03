@@ -12,6 +12,7 @@ import post from './shaders/c_post.wgsl';
 import volShader from './shaders/c_vol.wgsl';
 import type { Frame, Ladder } from './frames';
 import type { CosmosControls } from './controls';
+import { COSMOS_FILM, filmFields, type Film } from './film';
 
 const BLOOM_MIPS = 6;
 export const TIME_WRAP = 4096;
@@ -45,7 +46,12 @@ export class CosmosRenderer {
   readonly hdr: Texture;
   readonly bloom: Texture;
   readonly scene: RenderPass;
+  /** the film's uniform (shaders/film.wgsl), and its settings this frame: the cosmos's own, or a host's mixed in */
   readonly P: UniformBuffer<any>;
+  film: Film;
+  /** its alpha: 1, or less over the cell's frame while the two hand over (index.ts) */
+  alpha = 1;
+  private encode: boolean;
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
   readonly before: RunEntry[] = [];
@@ -79,10 +85,10 @@ export class CosmosRenderer {
     this.bloom = dome
       ? k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: [N / 2, N / 2], mips: BLOOM_MIPS })
       : k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM_MIPS });
-    this.P = k.uniforms(post.structs.CPost, 'cosmos.post').set({
-      bloom: 0.012, exposure: 1, vignette: dome ? 0 : 0.45, grain: dome ? 0 : 0.004, saturation: 1.08, contrast: 1.08, alpha: 1, encode: dome && dome.out !== 'screen' ? 0 : 1, disc: dome ? 1 : 0,
-    });
-    k.overlay.tweak(this.P, 'cosmos.post');
+    this.P = k.uniforms(post.structs.FilmU, 'cosmos.film');
+    this.encode = !dome || dome.out === 'screen';
+    // (a dome's fisheye: no vignette, no grain, black outside its circle)
+    this.film = dome ? { ...COSMOS_FILM, vignette: 0, grain: 0 } : { ...COSMOS_FILM };
     this.scene = k.pass({ label: 'cosmos', color: [{ target: this.hdr, clear: [0, 0, 0, 1] }] });
     const P = this.P;
     const items: RunEntry[] = [];
@@ -90,20 +96,20 @@ export class CosmosRenderer {
       const u = k.uniforms(post.structs.Lvl, `cosmos.bloom.l${i}`);
       this.bloomLv.push(u);
       const p = k.pass({ label: `cosmos.bloom.down${i}`, color: [{ target: this.bloom.mip(i), clear: [0, 0, 0, 1] }] });
-      p.fullscreen(post, { label: `cosmos.bloom.down${i}`, fragment: 'fs_down', bind: { P, B: u, srcTex: i === 0 ? this.hdr : this.bloom.mip(i - 1) } });
+      p.fullscreen(post, { label: `cosmos.bloom.down${i}`, fragment: 'fs_down', bind: { B: u, srcTex: i === 0 ? this.hdr : this.bloom.mip(i - 1) } });
       items.push(p);
     }
     for (let i = BLOOM_MIPS - 2; i >= 0; i--) {
       const u = k.uniforms(post.structs.Lvl, `cosmos.bloom.u${i}`);
       this.bloomLv.push(u);
       const p = k.pass({ label: `cosmos.bloom.up${i}`, color: [{ target: this.bloom.mip(i), clear: false }] });
-      p.fullscreen(post, { label: `cosmos.bloom.up${i}`, fragment: 'fs_up', blend: 'add', bind: { P, B: u, srcTex: this.bloom.mip(i + 1) } });
+      p.fullscreen(post, { label: `cosmos.bloom.up${i}`, fragment: 'fs_up', blend: 'add', bind: { B: u, srcTex: this.bloom.mip(i + 1) } });
       items.push(p);
     }
     const fin = k.pass({ label: 'cosmos.final', color: [{ target: !dome || dome.out === 'screen' ? 'screen' : dome.out.mip(0), clear: [0, 0, 0, 1] }], enabled: () => !this.over });
-    fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
+    fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
     const finOver = k.pass({ label: 'cosmos.final.over', color: [{ target: 'screen', clear: false }], enabled: () => this.over });
-    finOver.fullscreen(post, { label: 'cosmos.final.over', fragment: 'fs_final', blend: 'alpha', bind: { P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
+    finOver.fullscreen(post, { label: 'cosmos.final.over', fragment: 'fs_final', blend: 'alpha', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } });
     this.items = [...items, fin, finOver];
   }
 
@@ -181,6 +187,8 @@ export class CosmosRenderer {
 
   /** this frame's GPU work, for a host that runs it with its own */
   run(): RunEntry[] {
+    // (the film's settings as they stand now: a host's mixed in after the views were worked out)
+    this.P.set(filmFields(this.film, this.alpha, this.encode, !!this.dome));
     if (this.covered) return [...this.first(), ...this.before, ...this.last()];
     return [...this.first(), ...this.before, this.scene, ...this.items, ...this.last()];
   }
