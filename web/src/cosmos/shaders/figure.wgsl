@@ -28,7 +28,7 @@ struct HeroU {
   cel: array<vec4f, 16>, celShade: array<vec4f, 16>,
   // x how far the cornea's cells show (0..1), y the grade's contrast, z its saturation, w the level's exposure (undone)
   deep: vec4f,
-  // x night (0 day .. 1)
+  // x night (0 day .. 1), y 1: drawn for Seven Havens' picture (display colours, not locked through this one's grade)
   sky: vec4f,
   // palette slots not drawn here (a prop of the town's; -1 none)
   hide: vec4f,
@@ -398,6 +398,8 @@ fn agxPolyInv(y: f32) -> f32 {
   return x;
 }
 fn celLock(D0: vec3f) -> vec3f {
+  // (laid over Seven Havens' picture, after its own post chain: the display colours as they are, HU.sky.y)
+  if (HU.sky.y > 0.5) { return D0; }
   var g = pow(max(D0, vec3f(0.0)), vec3f(2.2));
   g = (g - 0.5) / max(HU.deep.y, 0.01) + 0.5;
   let l = luma(g);

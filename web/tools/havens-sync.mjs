@@ -1,0 +1,61 @@
+// The dive ends in Seven Havens' gardens, drawn by the Seven Havens project's own code on Universe's kit (its
+// src/embed.ts: the canyon, the Haven, the city, the rocks, the flora and the water under its sky). A deploy builds
+// this repo alone, so a copy of what embed.ts reaches lives in src/havens (its imports, its workers, its shaders'
+// includes, followed from embed.ts: nothing else of the game) and the files the world loads in public/havens (its
+// assets' tex/, sky/ and telescope/: the stars); this brings them up to date with the sibling checkout (commit them
+// with the code that needs them). To work on the canyon and see it here as you go, run `HAVENS_LOCAL=1 npm run dev`: the sibling's source is
+// compiled in and hot-reloads.
+//   npm run havens [path to Seven Havens' src]
+import { cpSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { resolve, dirname, relative, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const src = resolve(process.argv[2] ?? resolve(here, '../../../sevenhavens/src'));
+const dst = resolve(here, '../src/havens');
+const entry = resolve(src, 'embed.ts');
+if (!existsSync(entry)) { console.error(`havens-sync: no embed.ts at ${src}`); process.exit(1); }
+
+// the closure: ES imports and re-exports (types too: tsc reads them), workers, WGSL includes and their typings
+const seen = new Set();
+const queue = [entry];
+const tsFile = (from, spec) => {
+  const base = resolve(dirname(from), spec);
+  for (const c of [base, `${base}.ts`, join(base, 'index.ts')]) if (existsSync(c) && !c.endsWith('/')) try { readFileSync(c); return c; } catch { /* a directory */ }
+  return null;
+};
+while (queue.length) {
+  const f = queue.pop();
+  if (seen.has(f)) continue;
+  seen.add(f);
+  const text = readFileSync(f, 'utf8');
+  if (f.endsWith('.wgsl')) {
+    for (const m of text.matchAll(/^#include\s+"(\.{1,2}\/[^"]+)"/gm)) queue.push(resolve(dirname(f), m[1]));
+    const d = f.replace(/\.wgsl$/, '.d.wgsl.ts');
+    if (existsSync(d)) seen.add(d);
+    continue;
+  }
+  for (const m of text.matchAll(/(?:import|export)\s[^'"]*?from\s+'(\.{1,2}\/[^']+)'|import\s+'(\.{1,2}\/[^']+)'|new URL\('(\.{1,2}\/[^']+)',\s*import\.meta\.url\)/g)) {
+    const spec = m[1] ?? m[2] ?? m[3];
+    const t = spec.endsWith('.wgsl') || spec.endsWith('.ts') ? resolve(dirname(f), spec) : tsFile(f, spec);
+    if (t && existsSync(t)) queue.push(t); else console.warn(`havens-sync: ${relative(src, f)} → ${spec} not found`);
+  }
+}
+rmSync(dst, { recursive: true, force: true });
+for (const f of seen) {
+  const to = resolve(dst, relative(src, f));
+  mkdirSync(dirname(to), { recursive: true });
+  cpSync(f, to);
+}
+// the world's assets (what embed.ts draws loads: the buildings' and the land's textures, the sky's, the stars')
+const assets = resolve(src, '../public/assets'), assetsDst = resolve(here, '../public/havens');
+rmSync(assetsDst, { recursive: true, force: true });
+for (const d of ['tex', 'sky', 'telescope']) if (existsSync(resolve(assets, d))) cpSync(resolve(assets, d), resolve(assetsDst, d), { recursive: true });
+
+let rev = 'unknown';
+try { rev = execSync('git log -1 --format="%h %s"', { cwd: src }).toString().trim().slice(0, 140); } catch { /* not a checkout */ }
+let dirty = '';
+try { dirty = execSync('git status --porcelain -- .', { cwd: src }).toString().trim() ? ' (with uncommitted changes)' : ''; } catch { /* ignore */ }
+writeFileSync(resolve(dst, 'VENDORED.md'), `Copied from the Seven Havens project's src (embed.ts and what it reaches) by tools/havens-sync.mjs: edit it there, then \`npm run havens\`.\n\nSeven Havens ${rev}${dirty}\n`);
+console.log(`havens-sync: ${seen.size} files → ${dst} ← Seven Havens ${rev}${dirty}`);

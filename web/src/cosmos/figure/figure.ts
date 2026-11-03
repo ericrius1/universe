@@ -42,6 +42,8 @@ export class Figure {
   readonly pass: RenderPass;
   readonly u: UniformBuffer<any>;
   ready = false;
+  /** drawn for Seven Havens' picture (levels/haven.ts): its display colours, not locked through the cosmos's grade */
+  display = false;
   private loading = false;
   private vb: StorageBuffer | null = null;
   private ib: StorageBuffer | null = null;
@@ -117,6 +119,6 @@ export class Figure {
 
   /** this frame: how far the cornea's cells show, the night, the grade and the meadow's exposure (to undo) */
   update(cells: number, night: number, exposure: number) {
-    this.u.set({ deep: [cells, 1.08, 1.08, exposure], sky: [night, 0, 0, 0] });
+    this.u.set({ deep: [cells, 1.08, 1.08, exposure], sky: [night, this.display ? 1 : 0, 0, 0] });
   }
 }

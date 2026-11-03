@@ -204,15 +204,17 @@ fn ggxSpec(n: vec3f, v: vec3f, l: vec3f, rough: f32) -> f32 {
   let e2 = max(abs(xz.x), abs(xz.y)) / half;
   var nr = n;
   var albedo = landAlbedo(latD, m.g, m.a, detail, broad) * mix(1.0, fine, 0.8 * (1.0 - smoothstep(0.6, 0.85, m.a)));
-  if (e2 < 3.0) {
+  // (round, inside and out: its colours a soft region fading into the planet's, not the window's square)
+  let er = length(xz) / half;
+  if (er < 3.5) {
     let ruvC = clamp((xz + half) / (2.0 * half), vec2f(0.0), vec2f(1.0));
-    let near = srgbIn(textureSampleLevel(regionMap, samp_linear, ruvC, mix(8.0, 10.0, smoothstep(1.0, 2.5, e2))).rgb) * fine;
-    albedo = mix(albedo, regionAlbedo(near), 0.85 * (1.0 - smoothstep(1.0, 3.0, e2)));
+    let near = srgbIn(textureSampleLevel(regionMap, samp_linear, ruvC, mix(8.0, 10.0, smoothstep(1.0, 2.5, er))).rgb) * fine;
+    albedo = mix(albedo, regionAlbedo(near), 0.85 * (1.0 - smoothstep(0.9, 3.5, er)));
   }
   if (e2 < 1.0) {
     let rc = srgbIn(textureSampleGrad(regionMap, samp_linear, ruv, rx, ry).rgb);
     let tn = regionNormal(xz, clamp(t * 0.002, 0.07, 0.4));
-    let inside = 1.0 - smoothstep(0.85, 1.0, e2);
+    let inside = (1.0 - smoothstep(0.85, 1.0, e2)) * (1.0 - smoothstep(0.55, 1.0, er));
     nr = normalize(mix(n, normalize(E.gx.xyz * tn.x + E.gy.xyz * tn.y + E.gz.xyz * tn.z), inside));
     albedo = mix(albedo, regionAlbedo(rc), inside);
   }

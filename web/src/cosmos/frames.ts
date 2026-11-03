@@ -40,10 +40,15 @@ const frame = (id: string, name: string, unit: number, parent: Frame | null, hom
 
 const axis = (x: number, y: number, z: number, a: number) => quat.setAxisAngle(quat.create(), [x, y, z], a);
 
-/** where on Earth: Chautauqua's meadow in Boulder, Colorado, below the Flatirons (earthdata.ts has its ground) */
-export const PLACE = { lat: 39.99652, lon: -105.28596, name: 'Boulder, Colorado' };
-/** the Earth's radius at the spot (km): the air's sea-level sphere (air.wgsl R_BOTTOM) and the meadow's 1759 m */
-export const EARTH_R = 6360 + 1.759;
+/** where on Earth the dive ends: its latitude and longitude (deg), its name, its ground above the sea (km) */
+export interface Place { lat: number; lon: number; name: string; km: number }
+/** Chautauqua's meadow in Boulder, Colorado, below the Flatirons (data/earth has its ground): the default, and the
+ *  dome's (Boulder's Fiske) */
+export const BOULDER: Place = { lat: 39.99652, lon: -105.28596, name: 'Boulder, Colorado', km: 1.759 };
+export const PLACE = BOULDER;
+/** the Earth's radius at Boulder's meadow (km): the air's sea-level sphere (air.wgsl R_BOTTOM) and its 1759 m (a
+ *  ladder's own place: Ladder.earthR) */
+export const EARTH_R = 6360 + BOULDER.km;
 /** the target on Eli's drawn right eye, in the ground frame (m): in the iris, on the skin it's drawn on
  *  (figure/pose.ts) */
 export const EYE: Vec3 = [FIGURE_EYE[0], FIGURE_EYE[1], FIGURE_EYE[2]];
@@ -114,7 +119,7 @@ export class Ladder {
   readonly solar = frame('solar', 'The solar system', AU, this.local, 12.6, [0, 0, 0], axis(1, 0, 0, -60.2 * DEG));
   /** the Earth, its axis tilted and turning */
   readonly earth = frame('earth', 'The Earth', KM, this.solar, 7.3);
-  readonly ground = frame('ground', PLACE.name, M, this.earth, 2.0);
+  readonly ground = frame('ground', BOULDER.name, M, this.earth, 2.0);
   /** the eye, close: y the way it looks (straight up), the target at its origin */
   readonly eye = frame('eye', 'An eye', MM, this.ground, -2.2, [EYE[0], EYE[1], EYE[2]], EYE_ROT);
   readonly all: Frame[] = [this.cosmos, this.galaxy, this.local, this.solar, this.earth, this.ground, this.eye];
@@ -125,7 +130,14 @@ export class Ladder {
   /** the Sun's direction in the ground frame (the light for the Earth, the meadow and the eye) */
   readonly sunGround: Vec3 = [0, 1, 0];
 
-  constructor(ms = Date.now()) { this.setTime(ms); }
+  /** the Earth's radius at the spot (km): the air's sea-level sphere and the spot's ground above it */
+  readonly earthR: number;
+
+  constructor(ms = Date.now(), readonly place: Place = BOULDER) {
+    this.earthR = 6360 + place.km;
+    this.ground.name = place.name;
+    this.setTime(ms);
+  }
 
   /** place the Earth, its spin and everything below it for a moment */
   setTime(ms: number) {
@@ -135,12 +147,12 @@ export class Ladder {
     this.gmst = ((280.46061837 + 360.98564736629 * d) % 360) * DEG;
     // tilt about the equinox, then the day's turn about the axis
     quat.multiply(this.earth.rot, axis(1, 0, 0, -OBLIQUITY), axis(0, 1, 0, this.gmst));
-    // Boulder: its zenith, east and south as the ground's y, x and z (Earth-fixed axes: x Greenwich, y north)
-    const la = PLACE.lat * DEG, lo = PLACE.lon * DEG;
+    // the spot: its zenith, east and south as the ground's y, x and z (Earth-fixed axes: x Greenwich, y north)
+    const la = this.place.lat * DEG, lo = this.place.lon * DEG;
     const up: Vec3 = [Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo)];
     const east: Vec3 = [-Math.sin(lo), 0, -Math.cos(lo)];
     const south = vec3.cross(vec3.create(), east, up);
-    vec3.scale(this.ground.at, up, EARTH_R);
+    vec3.scale(this.ground.at, up, this.earthR);
     quat.fromMat3(this.ground.rot, [east[0], east[1], east[2], up[0], up[1], up[2], south[0], south[1], south[2]]);
     quat.normalize(this.ground.rot, this.ground.rot);
     this.update();

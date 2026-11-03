@@ -49,6 +49,10 @@ export class CosmosRenderer {
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
   readonly before: RunEntry[] = [];
+  /** a host's own work this frame, before all of it and after the picture's on the screen (Universe's: Seven Havens'
+   *  gardens drawn, and laid over the frame) */
+  first: () => RunEntry[] = () => [];
+  last: () => RunEntry[] = () => [];
   /** over the cell's frame (the hand-over) rather than in place of it */
   over = false;
   private items: RunEntry[];
@@ -173,7 +177,7 @@ export class CosmosRenderer {
   }
 
   /** this frame's GPU work, for a host that runs it with its own */
-  run(): RunEntry[] { return [...this.before, this.scene, ...this.items]; }
+  run(): RunEntry[] { return [...this.first(), ...this.before, this.scene, ...this.items, ...this.last()]; }
 
   frame() { this.kit.run(this.run()); }
 }

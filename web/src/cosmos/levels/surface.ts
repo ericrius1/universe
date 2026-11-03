@@ -5,7 +5,7 @@ import { Ref, type Kit, type Texture, type UniformBuffer } from '@ericrius1/weft
 import ground from '../shaders/c_ground.wgsl';
 import pressShader from '../shaders/c_press.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
-import { EARTH_R, type Ladder } from '../frames';
+import type { Ladder } from '../frames';
 import { Figure } from '../figure/figure';
 import type { Air } from './air';
 import type { EarthData } from './earthdata';
@@ -17,6 +17,8 @@ export class Surface {
   readonly figure: Figure;
   /** how dark it is outside (0 day … 1 night) */
   night = 0;
+  /** the meadow not drawn (a host draws its own ground there, the figure laid into it: Universe's gardens) */
+  hidden = false;
 
   private G: UniformBuffer<any>;
 
@@ -32,7 +34,7 @@ export class Surface {
     R.before.push(kit.compute(pressShader, { label: 'ground.press', entry: 'press', threads: [256, 128], bind: { outTex: press }, enabled: () => !pressed && (pressed = true) }));
     const fig = this.figure;
     R.scene.fullscreen(ground, {
-      label: 'ground', fragment: 'fs', blend: 'premultiplied', enabled: () => this.ground.on() && data.ready,
+      label: 'ground', fragment: 'fs', blend: 'premultiplied', enabled: () => this.ground.on() && data.ready && !this.hidden,
       bind: {
         L: this.ground.L, G: this.G, nearH: new Ref(() => data.nearH), nearC: new Ref(() => data.nearC), farH: new Ref(() => data.farH),
         farC: new Ref(() => data.farC), figCol: fig.col, figDist: fig.dist, pressTex: press, ...air.bind(this.ground),
@@ -48,7 +50,7 @@ export class Surface {
     const grass = Math.max(0, Math.min(1, (1.4 - l) / 0.6));
     this.ground.L.set({ sun, a: [EXPOSURE, 0, this.night, grass] });
     const m = this.data.manifest;
-    if (m) this.G.set({ near: [m.near.half, m.near.min, m.near.max, 0], far: [m.far.half, m.far.min, m.far.max, 0], spot: [EARTH_R - 6360, EARTH_R * 1000, 0, 0] });
+    if (m) this.G.set({ near: [m.near.half, m.near.min, m.near.max, 0], far: [m.far.half, m.far.min, m.far.max, 0], spot: [this.ladder.earthR - 6360, this.ladder.earthR * 1000, 0, 0] });
     // the cornea's living cells, as the cell's world comes near
     const cells = Math.max(0, Math.min(1, (-3.1 - l) / 0.6));
     this.figure.update(cells, this.night, EXPOSURE);

@@ -10,6 +10,19 @@ const SHORT: Record<string, string> = {
   'u:earth': 'Earth', 'u:boulder': 'Boulder', 'u:person': 'In the grass', 'u:eye': 'An eye',
 };
 
+/** what the bottom of the dive is called: the place (its name, short, line) and whoever lies there (name, short, line) */
+export interface SpotWords { name: string; short: string; line: string; person: string; personShort: string; personLine: string }
+export const BOULDER_WORDS: SpotWords = {
+  name: 'Boulder, Colorado', short: 'Boulder', line: 'A meadow on the plains below the Flatirons.',
+  person: 'Lying in the grass', personShort: 'In the grass', personLine: 'Someone on their back in the meadow below the Flatirons, looking up at the sky.',
+};
+
+/** the places, the bottom of the dive called as `w` says */
+export function cosmosPlaces(w: SpotWords): CosmosPlace[] {
+  return COSMOS_PLACES.map((p) => p.id === 'u:boulder' ? { ...p, name: w.name, short: w.short, line: w.line }
+    : p.id === 'u:person' ? { ...p, name: w.person, short: w.personShort, line: w.personLine } : p);
+}
+
 export const COSMOS_PLACES: CosmosPlace[] = [
   place('u:universe', 'The observable universe', 26.95, -0.25, 'Everything whose light has had time to reach us: 93 billion light-years across.', '93 billion ly'),
   place('u:web', 'The cosmic web', 24.3, -0.4, 'Galaxies strung along filaments round empty voids.', '100 million ly'),

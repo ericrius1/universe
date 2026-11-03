@@ -12,6 +12,7 @@ import type { App } from './main';
 import { Score, type FilmCue } from './audio/score';
 import { fmtLength } from './ui/hud';
 import { NM } from './cosmos/frames';
+import { HAVENS_CAPTIONS } from './gardens';
 
 /** above the cell: from one zoom (log10 m) and pitch to another, or held (to = from) */
 interface Up { kind: 'up'; l0: number; l1: number; p0: number; p1: number; dur: number; title?: string; caption?: string }
@@ -29,7 +30,7 @@ const hold = (a: number[], dur: number, caption?: string, title?: string) => up(
 const SHOTS: Shot[] = [
   // out (under two minutes, all of it: the places held a breath, the empty decades crossed quickly)
   hold(LYING, 3.5, 'from someone lying in the grass, to the edge of everything, and back', 'Universe'),
-  go(LYING, BOULDER, 4.5), hold(BOULDER, 1.0, 'Boulder, Colorado · the Flatirons'),
+  go(LYING, BOULDER, 4.5), hold(BOULDER, 1.0, '@spot'),
   go(BOULDER, EARTH, 4.5), hold(EARTH, 1.2, 'the Earth'),
   go(EARTH, SOLAR, 4), hold(SOLAR, 1.2, 'the solar system, where its planets are today'),
   go(SOLAR, STARS, 3.2), hold(STARS, 0.8, 'the Sun\u2019s neighbours'),
@@ -120,7 +121,8 @@ export class Journey {
     const t0 = this.starts[this.shot] + (s.kind === 'in' ? s.fly * 0.6 : 0.2);
     const t1 = this.starts[this.shot] + (s.kind === 'in' ? s.fly + s.hold : s.dur);
     const a = Math.max(0, Math.min(1, (t - t0) / 0.7, (t1 - t) / 0.5));
-    const caption = s.caption, title = s.kind === 'up' ? s.title : undefined;
+    // (the bottom of the dive called as the app has it: Seven Havens' gardens, or Boulder's meadow under ?nogardens)
+    const caption = s.caption === '@spot' ? (this.app.gardens ? HAVENS_CAPTIONS.journeySpot : 'Boulder, Colorado · the Flatirons') : s.caption, title = s.kind === 'up' ? s.title : undefined;
     if (a > 0 && (caption || title)) {
       g.save();
       g.globalAlpha = a;

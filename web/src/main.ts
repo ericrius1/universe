@@ -22,6 +22,8 @@ import { Tour } from './ui/tour';
 import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
 import { StatsBox, trackGpuMemory } from './ui/stats';
+import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS } from './gardens';
+import { TOUR } from './ui/tour';
 import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
 import { Score } from './audio/score';
@@ -30,11 +32,9 @@ import { Journey } from './journey';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
-import { COSMOS_PLACES, type CosmosPlace } from './cosmos/places';
+import { COSMOS_PLACES as BOULDER_PLACES, cosmosPlaces, type CosmosPlace } from './cosmos/places';
 import { SIZE } from './ui/intro';
 
-// the places above the cell, as the dock and the intros know places
-for (const p of COSMOS_PLACES) SIZE[p.id] = p.size;
 const asPlace = (p: CosmosPlace): Place => ({ id: p.id, name: p.name, scale: 0, at: [0, 0, 0], yaw: p.yaw, pitch: p.pitch, line: p.line, art: '' });
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -42,6 +42,15 @@ const status = (msg: string, f: number) => { $('ld-msg').textContent = msg; ($('
 const params = new URLSearchParams(location.search);
 const BASE = import.meta.env.BASE_URL;
 const NO_ORIGIN = params.has('noorigin');
+// the dive ends in Seven Havens' gardens (gardens.ts), or under ?nogardens (and on a dome) in Boulder's meadow as before
+const GARDENS = !params.has('nogardens') && !params.has('dome');
+const COSMOS_PLACES = GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES;
+if (GARDENS) for (const s of TOUR) {
+  if (s.place === 'u:boulder') s.caption = HAVENS_CAPTIONS.tourSpot;
+  else if (s.place === 'u:person' && s.caption.startsWith('<small>')) s.caption = HAVENS_CAPTIONS.tourPerson;
+}
+// the places above the cell, as the dock and the intros know places
+for (const p of COSMOS_PLACES) SIZE[p.id] = p.size;
 const frame = () => new Promise((res) => requestAnimationFrame(res));
 
 async function boot() {
@@ -75,7 +84,10 @@ async function boot() {
   if (dome) Object.assign(canvas.style, { width: '100vmin', height: '100vmin', left: 'calc(50vw - 50vmin)', top: 'calc(50vh - 50vmin)', position: 'fixed' });
   const time = params.has('now') ? Date.now() : moment(Number(params.get('utc') ?? 17.5));
   // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
-  const cosmos = new Cosmos(kit, { time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1 });
+  const cosmos = new Cosmos(kit, {
+    time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1,
+    ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}` } : {}),
+  });
   status('compiling shaders…', 0.7);
   const t0 = performance.now();
   const ready = await kit.ready();
@@ -83,6 +95,12 @@ async function boot() {
   status('', 1);
 
   const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
+  // Seven Havens' gardens, where the dive ends: built in the background once the page runs (gardens.ts; ?nogardens
+  // the meadow outside Boulder as before, and never on a dome)
+  if (GARDENS) {
+    const gardens = app.gardens = new Gardens(kit, cosmos, BASE);
+    setTimeout(() => gardens.start(), params.has('film') ? 0 : 1500);
+  }
   const capture = new Capture(kit);
   // hold the frame rate on smaller GPUs by trading resolution: by the GPU's timestamps where it has them, by the
   // frames' intervals where it hasn't (a phone's Safari; ?pace for the latter anywhere)
@@ -114,6 +132,8 @@ async function boot() {
     if (film instanceof Journey) app.journey = (dt) => film.direct(dt);
     else app.director = (dt) => film.direct(dt);
     $('loading').classList.add('gone');
+    // (a film that begins in the gardens waits for them)
+    if (app.gardens) await new Promise<void>((r) => { const t = setInterval(() => { if (app.gardens!.ready) { clearInterval(t); r(); } }, 100); });
     void film.run();
   }
   $('loading').classList.add('gone');
@@ -142,6 +162,8 @@ const HAZE: Record<string, Haze> = {
 const CRUMB: Record<string, string> = { nucleus: 'Nucleus', mito: 'Mitochondrion', er: 'Endoplasmic reticulum', golgi: 'Golgi' };
 
 export class App {
+  /** Seven Havens' gardens at the bottom of the dive (gardens.ts) */
+  gardens: Gardens | null = null;
   cut = 0;
   cutTarget = 1;
   fluo = 0;
@@ -496,7 +518,11 @@ export class App {
     if (this.mix < 1) this.cellFrame(dt);
     if (fading && this.realm === 'cell') cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
-      this.cosmos.frame(dt, this.mix);
+      // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
+      this.cosmos.update(dt, this.mix);
+      this.gardens?.update(dt);
+      this.cosmos.r.frame();
+      this.gardens?.after();
       if (this.realm === 'cosmos') this.cosmosHud(dt);
     }
   }

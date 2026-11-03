@@ -4,7 +4,7 @@
 // its own (its console flies the camera). The host either lets it run its frame (`frame`) or takes its GPU work
 // into its own (`update` then `run`).
 import type { Kit } from '@ericrius1/weft';
-import { Ladder } from './frames';
+import { Ladder, type Place } from './frames';
 import { WHO } from './figure/figure';
 import { CosmosControls } from './controls';
 import { CosmosRenderer, type DomeOptions } from './renderer';
@@ -30,6 +30,10 @@ export interface CosmosOptions {
   input?: boolean;
   /** the moment (ms) the Earth, its Sun and the planets are placed for */
   time?: number;
+  /** where on Earth the dive ends (default Boulder's meadow: frames.ts BOULDER), its ground in `data` */
+  place?: Place;
+  /** what the place is called in the crumbs (default 'Boulder') */
+  short?: string;
   /** where the real ground round the spot is: a folder's URL (earth.json and its files; default ./data/earth/), or a
    *  file's name to its URL (a host whose files live elsewhere: Boulder's asset()) */
   data?: string | ((file: string) => string);
@@ -54,10 +58,13 @@ export class Cosmos {
   readonly air: Air;
   readonly data: EarthData;
   time = 0;
+  /** the place's name in the crumbs */
+  readonly short: string;
   private loading = false;
 
   constructor(readonly kit: Kit, o: CosmosOptions = {}) {
-    this.ladder = new Ladder(o.time ?? moment());
+    this.ladder = new Ladder(o.time ?? moment(), o.place);
+    this.short = o.short ?? 'Boulder';
     this.controls = new CosmosControls(kit.canvas, this.ladder, o.input ?? true);
     this.r = new CosmosRenderer(kit, this.ladder, o.dome ?? null, o.volumeScale ?? 1);
     this.web = new Web(kit, this.r, this.ladder);
@@ -85,7 +92,7 @@ export class Cosmos {
     if (l > 9.9) return c;
     c.push('Earth');
     if (l > 4.6) return c;
-    c.push('Boulder');
+    c.push(this.short);
     if (l > -1.1) return c;
     c.push('An eye');
     return c;
