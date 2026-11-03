@@ -374,17 +374,22 @@ fn heightAtLevel(i: i32, xz: vec2f) -> f32 {
   return textureSampleLevel(heights, samp_linear, uv, i, 0.0).r;
 }
 
-// the finest level holding a point, with a smooth hand-over in the outer 15% of each level
+// the finest level holding a point, with a smooth hand-over in the outer 15% of each level. (Read finest first: past
+// the hand-over the coarser levels weigh nothing, so they're read only inside it — the same heights for a fifth of the
+// reads, which a phone's ground, four heights a pixel for its normal, was spending most of its frame on.)
 fn terrainHeight(xz: vec2f) -> f32 {
+  var f = 0;
+  while (f < TERRAIN_LEVELS - 1 && levelE(f, xz) >= 1.0) { f++; }
+  let hf = heightAtLevel(f, xz);
+  if (f == TERRAIN_LEVELS - 1) { return hf; }
+  let tf = smoothstep(0.85, 0.98, levelE(f, xz));
+  if (tf <= 0.0) { return hf; }
   var h = heightAtLevel(TERRAIN_LEVELS - 1, xz);
-  for (var i = TERRAIN_LEVELS - 2; i >= 0; i--) {
+  for (var i = TERRAIN_LEVELS - 2; i > f; i--) {
     let e = levelE(i, xz);
-    if (e < 1.0) {
-      let t = smoothstep(0.85, 0.98, e);
-      h = mix(heightAtLevel(i, xz), h, t);
-    }
+    if (e < 1.0) { h = mix(heightAtLevel(i, xz), h, smoothstep(0.85, 0.98, e)); }
   }
-  return h;
+  return mix(hf, h, tf);
 }
 
 fn terrainNormal(xz: vec2f, eps: f32) -> vec3f {
@@ -398,15 +403,22 @@ fn terrainNormal(xz: vec2f, eps: f32) -> vec3f {
 // smooth slope, not a staircase of the texels it skips)
 fn terrainHeightAt(xz: vec2f, spacing: f32) -> f32 {
   let last = TERRAIN_LEVELS - 1;
+  // (finest first, as terrainHeight)
+  var f = 0;
+  while (f < last && levelE(f, xz) >= 1.0) { f++; }
+  let hf = textureSampleLevel(heights, samp_linear, levelUv(f, xz), f, max(0.0, log2(spacing / world.terrainLevels[f].y))).r;
+  if (f == last) { return hf; }
+  let tf = smoothstep(0.85, 0.98, levelE(f, xz));
+  if (tf <= 0.0) { return hf; }
   var h = textureSampleLevel(heights, samp_linear, levelUv(last, xz), last, max(0.0, log2(spacing / world.terrainLevels[last].y))).r;
-  for (var i = TERRAIN_LEVELS - 2; i >= 0; i--) {
+  for (var i = TERRAIN_LEVELS - 2; i > f; i--) {
     let e = levelE(i, xz);
     if (e < 1.0) {
       let mip = max(0.0, log2(spacing / world.terrainLevels[i].y));
       h = mix(textureSampleLevel(heights, samp_linear, levelUv(i, xz), i, mip).r, h, smoothstep(0.85, 0.98, e));
     }
   }
-  return h;
+  return mix(hf, h, tf);
 }
 
 // the normal of the heights smoothed to a spacing (terrainHeightAt), over +-eps
@@ -419,14 +431,22 @@ fn terrainNormalAt(xz: vec2f, eps: f32, spacing: f32) -> vec3f {
 // the heightfield's own shadow (ray-marched toward the sun per texel when the sun moves), from the finest level holding
 // the point
 fn terrainSunVisibility(p: vec3f) -> f32 {
-  var v = textureSampleLevel(terrainShadow, samp_linear, levelUv(TERRAIN_LEVELS - 1, p.xz), TERRAIN_LEVELS - 1, 0.0).r;
-  for (var i = TERRAIN_LEVELS - 2; i >= 0; i--) {
+  // (finest first, as terrainHeight: the coarser levels read only in its hand-over)
+  let last = TERRAIN_LEVELS - 1;
+  var f = 0;
+  while (f < last && levelE(f, p.xz) >= 1.0) { f++; }
+  let vf = textureSampleLevel(terrainShadow, samp_linear, levelUv(f, p.xz), f, 0.0).r;
+  if (f == last) { return vf; }
+  let tf = smoothstep(0.85, 0.98, levelE(f, p.xz));
+  if (tf <= 0.0) { return vf; }
+  var v = textureSampleLevel(terrainShadow, samp_linear, levelUv(last, p.xz), last, 0.0).r;
+  for (var i = TERRAIN_LEVELS - 2; i > f; i--) {
     let e = levelE(i, p.xz);
     if (e < 1.0) {
       v = mix(textureSampleLevel(terrainShadow, samp_linear, levelUv(i, p.xz), i, 0.0).r, v, smoothstep(0.85, 0.98, e));
     }
   }
-  return v;
+  return mix(vf, v, tf);
 }
 
 // ------------------------------------------------------------------ misc
