@@ -21,6 +21,7 @@ import { cardFor, type Card } from './ui/info';
 import { Tour } from './ui/tour';
 import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
+import { StatsBox, trackGpuMemory } from './ui/stats';
 import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
 import { Score } from './audio/score';
@@ -48,6 +49,7 @@ async function boot() {
   status('waking the GPU…', 0.05);
   // (?phone: a phone's settings anywhere)
   const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900) || params.has('phone');
+  trackGpuMemory();
   const kit = await createKit(canvas, { maxPixelRatio: mobile ? 2 : 1.5, renderScale: mobile ? 0.7 : 1 });
   const quality = Number(params.get('q') ?? (mobile ? 0.5 : 1));
 
@@ -89,7 +91,19 @@ async function boot() {
     if (kit.profiler.available && !params.has('pace')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
     else pace = new FramePace({ min: mobile ? 0.4 : 0.5, max: mobile ? 0.8 : 1 });
   }
-  kit.loop(({ dt }) => { pace?.update(kit); app.frame(dt); });
+  // (the frame rate and the GPU's numbers with the interface, as on the site's other worlds; not in a film)
+  const fps = { fps: 0, ms: 0 };
+  const stats = new StatsBox({
+    get fps() { return fps.fps; }, get ms() { return fps.ms; },
+    gpuMs: () => (kit.profiler.active ? kit.profiler.frameMs : 0), scale: () => kit.renderScale,
+  }, () => !params.has('film') && !document.body.classList.contains('ui-off') && !document.body.classList.contains('nochrome'));
+  let fpsT = 0, fpsN = 0;
+  kit.loop(({ dt }) => {
+    pace?.update(kit); app.frame(dt);
+    stats.update(performance.now());
+    fpsT += dt; fpsN++;
+    if (fpsT > 0.5) { fps.fps = fpsN / fpsT; fps.ms = (fpsT / fpsN) * 1000; fpsT = 0; fpsN = 0; }
+  });
   if (params.has('film')) {
     // films step their own frames: no live loop, no visitor at the controls
     kit.manual = true;

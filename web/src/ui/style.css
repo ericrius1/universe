@@ -211,6 +211,8 @@ body.flying .card { z-index: 2; }
 
 /* phones: the buttons in a row above the places (whose two-line labels make that strip ~125px tall), the card above both */
 @media (max-width: 760px) {
+  /* (the frame rate, ui/stats.ts: top right under the toggle, opposite the scale; the bottom is the dock's and the places') */
+  body #stats-box { top: 64px; bottom: auto; right: 10px; font-size: 10px; padding: 6px 10px; }
   .brand { top: 12px; left: 14px; }
   .brand-name { font-size: 24px; }
   .brand { column-gap: 10px; }
