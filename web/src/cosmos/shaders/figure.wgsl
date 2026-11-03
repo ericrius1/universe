@@ -6,11 +6,12 @@
 // Going in, the drawn right eye holds the zoom: its iris grows fibres, crypts and a collarette once they're bigger
 // than a pixel, and the cornea's living cells come over it as the cell's world nears (deep.x).
 // Their colours are designed for the screen: each is drawn as the light that the film (film.wgsl, the frame's: F) shows
-// as that colour (filmLock), so they look as designed whatever the film's settings. Three ways in: into Seven Havens'
-// scene (vsW, fsW: the gardens, among the flowers, lit by its sun and casting into its shadow maps, vsShadowW: its
-// scene light, the film's divided by its exposure); into the frame's HDR alone once her eye fills it (fsF, a pass of
-// its own with its own depth); or, in the meadow (a planetarium's dome, ?nogardens), into a target of its own — colour
-// and coverage, and the inverse of the distance — that the meadow lays into its grass (c_ground.wgsl).
+// as that colour (filmLock), so they look as designed whatever the film's settings. Three ways in, the first two the
+// same draws (fsHdr: one compile on a phone): into Seven Havens' scene (the gardens, among the flowers: its camera's
+// projection and depth, its scene light — the film's divided by its exposure — and its sun's shadow maps, vsShadow);
+// into the frame's HDR alone once her eye fills it (a pass of its own with its own depth); or, in the meadow (a
+// planetarium's dome, ?nogardens), into a target of its own (fs) — colour and coverage, and the inverse of the
+// distance — that the meadow lays into its grass (c_ground.wgsl).
 #include "cosmos.wgsl"
 #include "tissue.wgsl"
 #include "film.wgsl"
@@ -33,10 +34,10 @@ struct HeroU {
   cel: array<vec4f, 16>, celShade: array<vec4f, 16>,
   // x how far the cornea's cells show (0..1), yz -, w the meadow's exposure (undone)
   deep: vec4f,
-  // x night (0 day .. 1), yzw -
+  // x night (0 day .. 1), y 1: in Seven Havens' scene (its camera's projection and depth), zw -
   sky: vec4f,
-  // the ground frame's origin in Seven Havens' world (its metres: where she lies), w its exposure's inverse (the film's
-  // units to its scene light)
+  // the ground frame's origin in Seven Havens' world (its metres: where she lies), w the film's units to the target's
+  // light (its exposure's inverse in Seven Havens' scene, 1 alone in the frame)
   world: vec4f,
   // palette slots not drawn here (a prop of the town's; -1 none)
   hide: vec4f,
@@ -72,8 +73,10 @@ fn bindPos(v: VIn) -> vec3f { return HU.qmin.xyz + vec3f(v.pm.xyz) / 65535.0 * (
 fn camPos() -> vec3f { return L.origin + L.eye; }
 // (a prop of the town's: not here)
 fn hidden(mat: u32) -> bool { return any(vec4f(f32(mat)) == HU.hide); }
-// a point from the camera, on the screen (reversed depth: near / distance)
+// a point from the camera, on the screen (reversed depth: near / distance); in Seven Havens' scene through its camera,
+// its depth with what it draws (its camera is this level's view moved to where she lies: the same basis)
 fn figClip(rel: vec3f) -> vec4f {
+  if (HU.sky.y > 0.5) { return frame.proj * vec4f(dot(rel, frame.camRight), dot(rel, frame.camUp), -dot(rel, frame.camFwd), 1.0); }
   var c = clipOf(rel);
   let near = L.scale * 1e-3;
   if (isDome()) { c.z = near / max(length(rel), 1e-12); }
@@ -409,10 +412,6 @@ fn celKey() -> vec3f {
   return normalize(k);
 }
 
-// a point from the camera on Seven Havens' screen, its depth with what it draws (its camera is this level's view moved
-// to where she lies: the same basis)
-fn worldClip(rel: vec3f) -> vec4f { return frame.proj * vec4f(dot(rel, frame.camRight), dot(rel, frame.camUp), -dot(rel, frame.camFwd), 1.0); }
-
 fn vertexOf(v: VIn) -> VOut {
   var o: VOut;
   let mat = v.pm.w & 0xffu;
@@ -428,13 +427,8 @@ fn vertexOf(v: VIn) -> VOut {
   return o;
 }
 @vertex fn vs(v: VIn) -> VOut { return vertexOf(v); }
-@vertex fn vsW(v: VIn) -> VOut {
-  var o = vertexOf(v);
-  if (!hidden(o.mat)) { o.pos = worldClip(o.rel); }
-  return o;
-}
-// (into the sun's shadow maps: each pass's view the cascade's)
-@vertex fn vsShadowW(v: VIn) -> @builtin(position) vec4f {
+// (into Seven Havens' sun's shadow maps: each pass's view the cascade's)
+@vertex fn vsShadow(v: VIn) -> @builtin(position) vec4f {
   if (hidden(v.pm.w & 0xffu)) { return vec4f(0.0, 0.0, -2.0, 1.0); }
   return frame.viewProj * vec4f(dqPointRD(HU.headR, HU.headD, bindPos(v)) + HU.world.xyz, 1.0);
 }
@@ -534,22 +528,17 @@ fn shade(in: VOut, ff: bool) -> vec3f {
   o.dist = vec4f(1.0 / max(length(in.rel), 1e-12), 0.0, 0.0, 1.0);
   return o;
 }
-@fragment fn fsW(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
+@fragment fn fsHdr(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   let D = shade(in, ff);
   if (underGround(in.rel)) { discard; }
   return vec4f(filmLock(F, D) * HU.world.w, 1.0);
-}
-@fragment fn fsF(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
-  let D = shade(in, ff);
-  if (underGround(in.rel)) { discard; }
-  return vec4f(filmLock(F, D), 1.0);
 }
 
 // the ink line: the mesh again, pushed out along its normals by a constant width on screen, back faces only, so a
 // dark rim shows round every silhouette; pushed a little away from the camera too, so it shows only where it clears
 // what's behind it; the face keeps a deep push, so its nose and cheeks never draw one over it
 struct LOut { @builtin(position) pos: vec4f, @location(0) rel: vec3f };
-fn outlineOf(v: VIn) -> LOut {
+@vertex fn vsOutline(v: VIn) -> LOut {
   var o: LOut;
   let mat = v.pm.w & 0xffu;
   let lp = bindPos(v);
@@ -566,12 +555,6 @@ fn outlineOf(v: VIn) -> LOut {
   o.rel = rel;
   return o;
 }
-@vertex fn vsOutline(v: VIn) -> LOut { return outlineOf(v); }
-@vertex fn vsOutlineW(v: VIn) -> LOut {
-  var o = outlineOf(v);
-  if (!hidden(v.pm.w & 0xffu)) { o.pos = worldClip(o.rel); }
-  return o;
-}
 // near-black, warm (the show's lines are dark brown-black), as dark in the shade as in the sun
 fn ink() -> vec3f { return vec3f(0.09, 0.06, 0.055) * celCondition(); }
 @fragment fn fsOutline(in: LOut) -> FOut {
@@ -581,11 +564,7 @@ fn ink() -> vec3f { return vec3f(0.09, 0.06, 0.055) * celCondition(); }
   o.dist = vec4f(1.0 / max(length(in.rel), 1e-12), 0.0, 0.0, 1.0);
   return o;
 }
-@fragment fn fsOutlineW(in: LOut) -> @location(0) vec4f {
+@fragment fn fsOutlineHdr(in: LOut) -> @location(0) vec4f {
   if (underGround(in.rel)) { discard; }
   return vec4f(filmLock(F, ink()) * HU.world.w, 1.0);
-}
-@fragment fn fsOutlineF(in: LOut) -> @location(0) vec4f {
-  if (underGround(in.rel)) { discard; }
-  return vec4f(filmLock(F, ink()), 1.0);
 }

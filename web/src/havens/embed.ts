@@ -22,7 +22,7 @@ import { Post } from './post/post';
 import { Slots } from './util/slots';
 import { tier } from './util/tier';
 import { ArchRenderer } from './arch/arch';
-import { partInstances } from './arch/instances';
+import { partInstances, type PartInstances } from './arch/instances';
 import { Rocks, catalogInWorker } from './rocks/rocks';
 import { placeRocksSliced } from './rocks/place';
 import { Flora, type Pusher } from './flora/flora';
@@ -54,6 +54,8 @@ export class Haven {
   readonly hdr: Texture;
   readonly depth: Texture;
   readonly samples: number;
+  /** the parts' small pieces drawn instanced (arch/instances.ts; null: none placed) */
+  readonly parts: Partial<Record<'city' | 'haven', PartInstances | null>> = {};
   rocks: Rocks | null = null;
   flora: Flora | null = null;
   water: Water | null = null;
@@ -99,7 +101,7 @@ export class Haven {
     const carved = terrain.ready.then(async () => carveHaven(terrain, (await floors).carve));
     // (its small parts drawn instanced first, as the game's: their lamps among its lights before the bake)
     const placed = (built: ReturnType<typeof buildPart> | null, slot: 'city' | 'haven') => built?.then(({ part }) => {
-      partInstances(arch, part, slot);
+      this.parts[slot] = partInstances(arch, part, slot);
       return arch.add(part, slot, lean ? { rounds: 0 } : {});
     }) ?? Promise.resolve();
     const parts = Promise.all([placed(city, 'city'), placed(haven, 'haven')]);

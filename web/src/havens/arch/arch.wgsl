@@ -316,6 +316,8 @@ fn cullTint(verdict: u32) -> vec3f {
 @vertex fn vsShadow(@builtin(instance_index) piece: u32, @location(0) q: vec4u) -> @builtin(position) vec4f {
   return frame.viewProj * vec4f(latticePos(piece & 0xffffffu, q.xyz), 1.0);
 }
+// (and nothing to colour, for the GPU cull's render bundles: WebKit rejects a pipeline with no fragment stage in one)
+@fragment fn fsDepth() {}
 
 // ==== the parts' instances (arch/instances.ts) ==================================================================
 // The small parts that repeat by the thousand (lanterns, merlons, balusters, brackets, grilles, finials), each

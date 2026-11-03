@@ -21,6 +21,15 @@ import { POSE_R } from './cosmos/figure/pose';
 import type { Place } from './cosmos/frames';
 import type { SpotWords } from './cosmos/places';
 
+/** one compile at a time (weft's SerialCompiler), each timed: the slowest named in the log (a phone's report reads it) */
+class TimedCompiler extends SerialCompiler {
+  readonly times: [string, number][] = [];
+  compile(rec: Parameters<SerialCompiler['compile']>[0], start: () => Promise<unknown>) {
+    return super.compile(rec, () => { const t = performance.now(); return start().finally(() => this.times.push([rec.label, performance.now() - t])); });
+  }
+  slowest(n: number) { return [...this.times].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, ms]) => `${k} ${Math.round(ms)}`).join(', '); }
+}
+
 /** where on Earth: Seven Havens' own site (its world/env.ts SITE, the Sonoran desert's red rock east of Phoenix), its
  *  ground the spot's (the canyon's floor 1.1 km above the sea, the star mesa's plateau 31 m over it); the ground round
  *  it, from the canyon itself (tools/ground-from-havens.mjs) */
@@ -82,8 +91,8 @@ export class Gardens {
       const { Haven, setAssetRoot } = await import('@havens/embed');
       // (its pipelines one at a time, a frame apart, while it's built: asked for all at once, a phone's GPU process
       // compiled them back to back and showed no frame for 10 s; the host's own compiled as before once it's in)
-      const was = kit.compiler;
-      kit.compiler = new SerialCompiler(kit);
+      const was = kit.compiler, serial = new TimedCompiler(kit);
+      kit.compiler = serial;
       const say = (what: string) => console.log(`gardens: ${what} at ${Math.round(performance.now() - t0)} ms`);
       say('code in');
       setAssetRoot(`${this.assets}havens`);
@@ -104,7 +113,7 @@ export class Gardens {
       const c0 = performance.now();
       const compiled = await kit.ready();
       kit.compiler = was;
-      say(`compiled (${compiled.pipelines} pipelines, ${Math.round(performance.now() - c0)} ms)`);
+      say(`compiled (${compiled.pipelines} pipelines, ${Math.round(performance.now() - c0)} ms; slowest ${serial.slowest(8)})`);
       this.ready = true;
       console.log(`gardens: in ${Math.round(performance.now() - t0)} ms`);
     })().catch((e) => console.warn('gardens: failed to build', e));
@@ -127,6 +136,7 @@ export class Gardens {
     R.film = this.weight > 0 ? mixFilm(this.base, this.film, this.weight) : this.base;
     if (!this.drawing || !h) {
       if (was && h) { h.unuse(); kit.camera.viewOverride = null; kit.camera.near = this.near; }
+      if (fig.face) fig.placeIn(SPOT, 1);
       return;
     }
     if (!was) this.near = kit.camera.near;

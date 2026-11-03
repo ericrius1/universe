@@ -33,6 +33,7 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
 
   // (each pass's GPU time where it can be timed: a phone's whole-frame span came out in seconds)
   kit.profiler.force = true;
+  // (?debug: each pass encoded under its own error scope, a validation error naming its pass)
   const lim = kit.device.limits;
   send('boot', {
     ua: navigator.userAgent, screen: [screen.width, screen.height], dpr: devicePixelRatio, css: kit.size.css, render: kit.size.render,
@@ -108,16 +109,20 @@ async function experiment(app: App) {
     return [() => { if (o) o[k] = v; }, () => { if (o) o[k] = was as T[K]; }];
   };
   const any = h as unknown as Record<string, any>;
-  // (the ground's shading a part at a time: Seven Havens' Terrain.debug, land.wgsl LAND_SKIP_*)
-  const land = (bits: number): [() => void, () => void] => [() => { any.terrain.debug = bits; }, () => { any.terrain.debug = 0; }];
+  // (draws by name in the scene and the sun's cascades, the cascades themselves, her)
+  const passes = [any.scene, ...any.env.shadows.passes] as { draws: { label?: string; enabled?: unknown }[] }[];
+  const draws = (re: RegExp): [() => void, () => void] => {
+    const ds = passes.flatMap((p) => p.draws.filter((d) => re.test(d.label ?? ''))), was = ds.map((d) => d.enabled);
+    return [() => ds.forEach((d) => { d.enabled = () => false; }), () => ds.forEach((d, i) => { d.enabled = was[i]; })];
+  };
+  const cascades = any.env.shadows.passes as { enabled?: unknown }[], cascOn = cascades.map((p) => p.enabled);
+  const fig = app.cosmos.surface.figure as unknown as Record<string, unknown>;
   const tries: [string, () => void, () => void][] = [
     ['terrain', ...stub(any.terrain, 'select', () => { any.terrain.nodeCount = 0; return 0; })],
-    ['land paint', ...land(1)],
-    ['land normal', ...land(2)],
-    ['land shadow', ...land(4)],
-    ['land sky', ...land(8)],
-    ['land air', ...land(16)],
-    ['land all', ...land(31)],
+    ['flora', ...draws(/flora/)],
+    ['rocks', ...draws(/rock/)],
+    ['shadows', () => cascades.forEach((p) => { p.enabled = false; }), () => cascades.forEach((p, i) => { p.enabled = cascOn[i]; })],
+    ['figure', () => { Object.defineProperty(fig, 'shown', { get: () => false, set: () => {}, configurable: true }); }, () => { delete fig.shown; fig.shown = true; }],
     ['city', () => parts.filter((p) => p.name === 'city').forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
     ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
   ];
@@ -156,6 +161,37 @@ async function eyeExperiment(app: App) {
   return out;
 }
 
+/** which of the gardens' newer parts a GPU validation error comes from (weft, per pass in debug: each kind reported
+ *  once, so forgotten each second): the errors a second as it is, then with each left out */
+async function gpuProbe(app: App) {
+  const kit = (window as unknown as { kit: Kit }).kit as unknown as Kit & { errors: Map<string, unknown> };
+  const h = app.gardens?.haven as unknown as Record<string, any> | undefined;
+  if (!h) return null;
+  let n: string[] = [];
+  const was = console.error;
+  console.error = (...a: unknown[]) => { const s = a.map(String).join(' '); if (/validation|uncaptured/.test(s)) n.push(s.slice(13, 60)); was(...a); };
+  const second = async () => { n = []; kit.errors.clear(); await new Promise((r) => setTimeout(r, 1000)); return [...new Set(n)].join(' | ') || 0; };
+  const shadows = h.env.shadows.passes as { draws: { label?: string; enabled?: unknown }[] }[];
+  const figs = shadows.flatMap((p) => p.draws.filter((d) => /figure/.test(d.label ?? '')));
+  const figOn = figs.map((d) => d.enabled);
+  const parts = Object.values(h.parts as Record<string, { hidden: boolean } | null>).filter(Boolean) as { hidden: boolean }[];
+  const cull = h.arch.settings.cull;
+  const tries: [string, () => void, () => void][] = [
+    ['figure shadow', () => figs.forEach((d) => { d.enabled = () => false; }), () => figs.forEach((d, i) => { d.enabled = figOn[i]; })],
+    ['parts', () => parts.forEach((p) => { p.hidden = true; }), () => parts.forEach((p) => { p.hidden = false; })],
+    ['arch cull', () => { h.arch.settings.cull = 0; }, () => { h.arch.settings.cull = cull; }],
+  ];
+  const out: Record<string, string | number> = { base: await second() };
+  for (const [k, off, on] of tries) { off(); await second(); out[k] = await second(); on(); }
+  for (const [, off] of tries) off();
+  await second();
+  out.none = await second();
+  for (const [, , on] of tries) on();
+  out.again = await second();
+  console.error = was;
+  return out;
+}
+
 /** the dive by itself: down to the gardens once they're in, her face, her eye; back up; again */
 async function dive(app: App, say: (s: string) => void) {
   const c = app.cosmos.controls;
@@ -168,9 +204,11 @@ async function dive(app: App, say: (s: string) => void) {
     say(`round ${round}: down`);
     await fly(7.3, -0.15); await hold(2);
     await fly(3.5, -0.42); say('gardens 3 km'); await hold(4);
+    if (round === 1) say(JSON.stringify({ gpu3km: await gpuProbe(app) }));
     if (round === 1 || round === 3) say(JSON.stringify(await experiment(app)));
     await fly(1.4, -0.6); say('temple 25 m'); await hold(4);
     await fly(0.35, -0.95); say('her 2 m'); await hold(5);
+    if (round === 1 || round === 3) say(JSON.stringify({ her: await experiment(app) }));
     await fly(-1.75, -1.1); say('her eye'); await hold(3);
     if (round === 1 || round === 3) say(JSON.stringify({ eye: await eyeExperiment(app) }));
     say('up');

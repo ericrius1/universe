@@ -55,6 +55,7 @@ export class Figure {
   private vb: StorageBuffer | null = null;
   private ib: StorageBuffer | null = null;
   private n = 0;
+  private night = 0;
   private readonly bind: Record<string, unknown>;
 
   /** meadow: drawn into a target of its own for the meadow to lay in (a dome's, ?nogardens) */
@@ -93,18 +94,18 @@ export class Figure {
   world(scene: RenderPass, into: (draw: () => void) => void, shadows: RenderPass[]) {
     const on = () => this.ready && this.inWorld && this.shown;
     into(() => {
-      scene.draw(shader, { ...this.draw(on), label: 'figure.w', vertex: 'vsW', fragment: 'fsW', cull: 'none' });
-      scene.draw(shader, { ...this.draw(on), label: 'figure.w.ink', vertex: 'vsOutlineW', fragment: 'fsOutlineW', cull: 'front' });
+      scene.draw(shader, { ...this.draw(on), label: 'figure.w', vertex: 'vs', fragment: 'fsHdr', cull: 'none' });
+      scene.draw(shader, { ...this.draw(on), label: 'figure.w.ink', vertex: 'vsOutline', fragment: 'fsOutlineHdr', cull: 'front' });
     });
-    for (const p of shadows) p.draw(shader, { ...this.draw(on), label: `${p.label}.figure`, vertex: 'vsShadowW', fragment: null, cull: 'none' });
+    for (const p of shadows) p.draw(shader, { ...this.draw(on), label: `${p.label}.figure`, vertex: 'vsShadow', fragment: null, cull: 'none' });
   }
 
   /** a pass that draws them alone into the frame's HDR (`target`, cleared) while `face`: her eye filling it, the
    *  world behind not seen; `depth` a single-sample depth target the render's size */
   facePass(target: Texture, depth: Texture) {
     const p = this.kit.pass({ label: 'figure.face', color: [{ target, clear: [0, 0, 0, 1] }], depth: { target: depth, clear: 0, store: false }, enabled: () => this.face && this.shown });
-    p.draw(shader, { ...this.draw(), label: 'figure.face', vertex: 'vs', fragment: 'fsF', cull: 'none' });
-    p.draw(shader, { ...this.draw(), label: 'figure.face.ink', vertex: 'vsOutline', fragment: 'fsOutlineF', cull: 'front' });
+    p.draw(shader, { ...this.draw(), label: 'figure.face', vertex: 'vs', fragment: 'fsHdr', cull: 'none' });
+    p.draw(shader, { ...this.draw(), label: 'figure.face.ink', vertex: 'vsOutline', fragment: 'fsOutlineHdr', cull: 'front' });
     return p;
   }
 
@@ -154,11 +155,14 @@ export class Figure {
 
   /** this frame: how far the cornea's cells show, the night, the meadow's exposure (to undo) */
   update(cells: number, night: number, exposure: number) {
+    this.night = night;
     this.u.set({ deep: [cells, 0, 0, exposure], sky: [night, 0, 0, 0] });
   }
 
-  /** where the ground frame's origin is in Seven Havens' world (m), and its exposure this frame (world) */
+  /** where the ground frame's origin is in Seven Havens' world (m), and this frame: drawn in its scene (inWorld: with
+   *  its exposure), or alone (face) */
   placeIn(spot: readonly number[], exposure: number) {
-    this.u.set({ world: [spot[0], spot[1], spot[2], 1 / Math.max(exposure, 1e-9)] });
+    const w = this.inWorld;
+    this.u.set({ sky: [this.night, w ? 1 : 0, 0, 0], world: [spot[0], spot[1], spot[2], w ? 1 / Math.max(exposure, 1e-9) : 1] });
   }
 }

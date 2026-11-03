@@ -44,8 +44,8 @@ const TEX_PX = tier.archTexPx;
  *  ARCH_LAMP) */
 const ARCH_LAMP = 10;
 
-/** the cull at first (?cull=cpu|frustum|gpu: ArchRenderer.settings.cull) */
-const CULL_MODE = ({ cpu: 0, frustum: 1, gpu: 2 } as Record<string, number>)[new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('cull') ?? 'gpu'] ?? 2;
+/** the cull at first (?cull=cpu|frustum|gpu: ArchRenderer.settings.cull; the profile's, util/tier.ts gpuCull) */
+const CULL_MODE = ({ cpu: 0, frustum: 1, gpu: 2 } as Record<string, number>)[new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('cull') ?? (tier.gpuCull ? 'gpu' : 'cpu')] ?? 2;
 
 /** no walk-in room (ArchU.room) */
 const NO_ROOM: [number, number, number, number][] = Array.from({ length: 6 }, () => [0, 0, 0, 0]);
@@ -287,11 +287,13 @@ export class ArchRenderer {
       bind: { chunks: d.chunks, AU: this.u, AE: this.eyeU, matTex: this.tex, fires: d.fireBuf } as never,
       enabled: () => !d.hidden, indirect: set.indirect(() => (this.settings.debug === 5 ? EVERY : SCENE)),
     }));
+    // (an empty fragment stage in the bundles: WebKit rejects a pipeline without one there, and the frame's whole
+    // command buffer with it — an iPhone drew nothing while the parts were in view)
     this.bundle('arch.occluders', () => this.cull.prez.bundle('arch.occluders')).draw(shader, {
-      label: `arch.occluders.${d.name}`, cull: 'back', ...depth, enabled: () => !d.hidden, indirect: set.indirect(OCCLUDERS),
+      label: `arch.occluders.${d.name}`, cull: 'back', ...depth, fragment: 'fsDepth', enabled: () => !d.hidden, indirect: set.indirect(OCCLUDERS),
     });
     this.env.shadows.passes.forEach((pass, k) => this.bundle(`${pass.label}.arch`, () => pass.bundle(`${pass.label}.arch`)).draw(shader, {
-      label: `${pass.label}.arch.${d.name}`, cull: 'none', ...depth, enabled: () => !d.hidden, indirect: set.indirect(CASCADE0 + k),
+      label: `${pass.label}.arch.${d.name}`, cull: 'none', ...depth, fragment: 'fsDepth', enabled: () => !d.hidden, indirect: set.indirect(CASCADE0 + k),
     }));
   }
 

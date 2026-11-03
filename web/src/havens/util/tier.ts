@@ -41,6 +41,10 @@ export interface Profile {
   /** an image's largest side kept on the GPU (px); the buildings' material textures (px a side) */
   maxImage: number;
   archTexPx: number;
+  /** the buildings' pieces culled on the GPU (arch/cull.ts: their draws indirect, in render bundles, behind the
+   *  occluders' pyramid) rather than on the CPU. Never in WebKit (Safari, every browser on an iPhone): at the gardens
+   *  an iPhone 16e drew a frame in 86-137 ms with it, 27 ms culled on the CPU */
+  gpuCull: boolean;
   /** the flora's levels' distances, scaled (flora.ts settings.quality); the cascades it casts into */
   floraReach: number;
   floraShadows: number;
@@ -59,7 +63,7 @@ export const PROFILES: Record<ProfileName, Profile> = {
     label: 'iPhone 16', phone: true, msaa: 1,
     shadowPx: 1024, terrainShadowPx: 512, cascades: 3, staggerFarCascades: true, terrainEvery: 12, cloudEvery: 3,
     bloomLevels: 4, smudge: false, ao: false, rays: false, motionBlur: false,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 2048, archTexPx: 512,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 2048, archTexPx: 512, gpuCull: false,
     floraReach: 0.5, floraShadows: 1,
     maxPixelRatio: 2, startScale: 0.7, minScale: 0.45, budget: 24, frameCap: 30,
   },
@@ -67,7 +71,7 @@ export const PROFILES: Record<ProfileName, Profile> = {
     label: 'M1 Pro · 16 GB', phone: false, msaa: 4,
     shadowPx: 1024, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: true, terrainEvery: 8, cloudEvery: 2,
     bloomLevels: 5, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024, gpuCull: true,
     floraReach: 0.75, floraShadows: 2,
     maxPixelRatio: 1.5, startScale: 0.8, minScale: 0.5, budget: 14, frameCap: 0,
   },
@@ -75,7 +79,7 @@ export const PROFILES: Record<ProfileName, Profile> = {
     label: 'M5 Air', phone: false, msaa: 4,
     shadowPx: 1280, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: true, terrainEvery: 6, cloudEvery: 2,
     bloomLevels: 5, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024, gpuCull: true,
     floraReach: 0.85, floraShadows: 2,
     maxPixelRatio: 1.5, startScale: 0.9, minScale: 0.5, budget: 14, frameCap: 0,
   },
@@ -84,7 +88,7 @@ export const PROFILES: Record<ProfileName, Profile> = {
     label: 'RTX 5090 · Maximum', phone: false, msaa: 4,
     shadowPx: 2048, terrainShadowPx: 1024, cascades: 4, staggerFarCascades: false, terrainEvery: 1, cloudEvery: 1,
     bloomLevels: 6, smudge: true, ao: true, rays: true, motionBlur: true,
-    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 8192, archTexPx: 1024,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 8192, archTexPx: 1024, gpuCull: true,
     floraReach: 1, floraShadows: 2,
     maxPixelRatio: 1.5, startScale: 1, minScale: 1, budget: 0, frameCap: 0,
   },
@@ -132,11 +136,15 @@ export function detectProfile(): { name: ProfileName; renderer: string; reason: 
   return { name: 'm5air', renderer, reason: 'an unknown desktop GPU' };
 }
 
+/** WebKit (Safari, and every browser on an iPhone or iPad: Chrome's there is CriOS, without Chrome's own token) */
+export const webkit = typeof navigator !== 'undefined' && /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium|Edg\//.test(navigator.userAgent);
+
 export const detected = detectProfile();
 export const tier: Profile = { ...PROFILES[detected.name] };
 {
   const msaa = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('msaa');
   if (msaa === '0' || msaa === '4') tier.msaa = msaa === '4' ? 4 : 1;
+  if (webkit) tier.gpuCull = false;
 }
 
 if (tier.phone && typeof document !== 'undefined') {
