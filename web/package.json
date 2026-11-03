@@ -10,7 +10,7 @@
     "havens": "node tools/havens-sync.mjs"
   },
   "dependencies": {
-    "@ericrius1/weft": "^0.2.1",
+    "@ericrius1/weft": "git+https://github.com/ericrius1/weft.git#dist/weft",
     "math": "^0.1.0"
   },
   "devDependencies": {

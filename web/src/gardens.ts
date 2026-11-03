@@ -9,7 +9,7 @@
 // The camera is the cosmos's: the ground level's view (metres, x east, y up, z south — the canyon's axes too), moved
 // to where she lies in the canyon; the canyon's clock is the cosmos's moment at the canyon's site. While the gardens
 // draw, the kit's globals are the canyon's World uniform and its camera theirs (Haven.use); the cell's back after.
-import { type Kit, type UniformBuffer } from '@ericrius1/weft';
+import { SerialCompiler, type Kit, type UniformBuffer } from '@ericrius1/weft';
 import { vec3, type Vec3 } from 'math';
 import type { Haven, Pusher } from '@havens/embed';
 import shader from './gardens.wgsl';
@@ -44,25 +44,6 @@ const UTC_OFFSET = -7;
  *  skin is in view there, and the meadow lays her in as the gardens do) */
 const BAND: Band = [4.4, 3.7, -1.7, -1.75];
 
-/** pipelines compiled one at a time, a frame between each (weft's compile scheduler hook): asked for all at once, a
- *  phone's GPU process compiles them back to back and shows no frame for seconds (10 s on an iPhone 16e) */
-function oneAtATime(kit: Kit) {
-  let chain: Promise<unknown> = Promise.resolve();
-  const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
-  return {
-    holding: false,
-    compile(_rec: unknown, start: () => Promise<unknown>) {
-      const p = chain.then(frame).then(start);
-      chain = p.catch(() => {});
-      return p;
-    },
-    now(rec: { shader: never; makeNow: ((m: GPUShaderModule) => unknown) | null; pipeline: unknown }) {
-      const m = kit.moduleNow(rec.shader);
-      if (m && rec.makeNow) rec.pipeline = rec.makeNow(m);
-    },
-  };
-}
-
 export class Gardens {
   haven: Haven | null = null;
   /** built and compiled */
@@ -92,9 +73,10 @@ export class Gardens {
       const t0 = performance.now();
       const kit = this.kit, R = this.cosmos.r, fig = this.cosmos.surface.figure;
       const { Haven, setAssetRoot } = await import('@havens/embed');
-      // (its pipelines a frame apart while it's built, the host's own compiled as before once it's in)
+      // (its pipelines one at a time, a frame apart, while it's built: asked for all at once, a phone's GPU process
+      // compiled them back to back and showed no frame for 10 s; the host's own compiled as before once it's in)
       const was = kit.compiler;
-      kit.compiler = oneAtATime(kit) as never;
+      kit.compiler = new SerialCompiler(kit);
       const say = (what: string) => console.log(`gardens: ${what} at ${Math.round(performance.now() - t0)} ms`);
       say('code in');
       setAssetRoot(`${this.base}havens`);

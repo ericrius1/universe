@@ -30,6 +30,8 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
   const was = console.log.bind(console);
   console.log = (...a: unknown[]) => { const s = a.map(String).join(' '); if (/gardens|profile/.test(s)) errors.push(`log: ${s.slice(0, 200)}`); was(...a); };
 
+  // (each pass's GPU time where it can be timed: a phone's whole-frame span came out in seconds)
+  kit.profiler.force = true;
   const lim = kit.device.limits;
   send('boot', {
     ua: navigator.userAgent, screen: [screen.width, screen.height], dpr: devicePixelRatio, css: kit.size.css, render: kit.size.render,
@@ -39,21 +41,30 @@ export function startReport(kit: Kit, app: App, auto: boolean) {
 
   // the frames: their intervals this second, and the stalls
   let iv: number[] = [], last = performance.now(), n = 0;
+  const cpu: number[][] = [[], [], [], [], [], [], []];
   const stalls: string[] = [];
   const tick = (t: number) => {
     const d = t - last; last = t; iv.push(d);
     if (d > 50) stalls.push(`${Math.round(d)}ms@${app.cosmos.controls.logS.toFixed(1)}`);
+    const c = app.cpu;
+    cpu[0].push(c.cosmos); cpu[1].push(c.gardens); cpu[2].push(c.run); cpu[3].push(c.cosmos + c.gardens + c.run);
+    const hc = app.gardens?.haven?.cpu;
+    if (hc) { cpu[4].push(hc.env); cpu[5].push(hc.terrain); cpu[6].push(hc.rocks); }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
   setInterval(() => {
     const s = iv.slice().sort((a, b) => a - b), q = (p: number) => s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : 0;
     const g = app.gardens;
+    const med = (a: number[]) => { const s = a.splice(0).sort((x, y) => x - y); return s.length ? +s[s.length >> 1].toFixed(1) : 0; };
+    const [cc, cg, cr, ct, he, ht, hr] = cpu.map(med);
     send('second', {
+      cpu: { total: ct, cosmos: cc, gardens: cg, run: cr, env: he, terrain: ht, rocks: hr }, gpu: kit.profiler.available ? +kit.profiler.frameMs.toFixed(1) : null,
       fps: iv.length, p50: +q(0.5).toFixed(1), p95: +q(0.95).toFixed(1), max: Math.round(q(1)), stalls: stalls.splice(0),
       scale: +kit.renderScale.toFixed(2), render: kit.size.render, vramMB: MB(gpuMemory.bytes), logS: +app.cosmos.controls.logS.toFixed(2),
       realm: app.realm, gardens: g ? (g.ready ? +g.weight.toFixed(2) : 'building') : 'off', errors: errors.splice(0),
       ...(++n % 5 === 0 ? { top: [...gpuMemory.by].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `${k} ${MB(v)}`) } : {}),
+      ...(n % 3 === 0 ? { passes: [...kit.profiler.ms].sort((a, b) => b[1] - a[1]).slice(0, 18).map(([k, v]) => `${k} ${v.toFixed(2)}`), passSum: +[...kit.profiler.ms.values()].reduce((a, b) => a + b, 0).toFixed(1) } : {}),
     });
     iv = [];
   }, 1000);
@@ -69,6 +80,7 @@ async function experiment(app: App) {
   if (!h) return {};
   const auto = kit.autoRes, scale = kit.renderScale;
   kit.autoRes = null;
+  const forced = kit.profiler.force;
   kit.profiler.force = true;
   const measure = async () => {
     await new Promise((r) => setTimeout(r, 700));
@@ -92,6 +104,7 @@ async function experiment(app: App) {
   for (const [k, off, on] of tries) { off(); out[k] = await measure(); on(); }
   out.again = await measure();
   kit.autoRes = auto;
+  kit.profiler.force = forced;
   return out;
 }
 

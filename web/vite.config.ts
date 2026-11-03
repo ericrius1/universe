@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import type { Plugin } from 'vite';
 
-// weft comes from npm (@ericrius1/weft). WEFT_LOCAL=1 compiles it from its source checkout instead (../../weft, a
-// sibling repo), so a change to the kit hot-reloads here like the app's own code while it's being worked on; publish
-// it and bump the version here once it's done.
+// weft comes from its GitHub branch (dist/weft: `npm update @ericrius1/weft` takes the latest, as every project does).
+// WEFT_LOCAL=1 compiles it from its source checkout instead (../../weft, a sibling repo), so a change to the kit
+// hot-reloads here like the app's own code while it's being worked on; push it to weft's main once it's done.
 const WEFT = resolve(__dirname, '../../weft/packages/weft');
 const local = !!process.env.WEFT_LOCAL;
 // Seven Havens' gardens (src/gardens.ts) come from its project: a copy in src/havens (tools/havens-sync.mjs, npm run

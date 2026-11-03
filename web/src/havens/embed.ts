@@ -139,14 +139,20 @@ export class Haven {
   /** this frame, after the kit's camera is set to the host's view: the sky and light, the view's matrices, what's in
    *  view, the flora parted round `pushers` */
   update(dt: number, pushers: Pusher[] = []) {
-    const cam = this.kit.camera;
+    const cam = this.kit.camera, t0 = performance.now();
     // (the view's matrices first: the cascades fit the camera as it is, as the game's frame has them)
     this.kit.mainView.update(true);
     this.env.update(dt, cam);
+    const t1 = performance.now();
     this.terrain.select(cam);
+    const t2 = performance.now();
     this.rocks?.update(cam);
+    const t3 = performance.now();
     this.flora?.update(pushers);
+    this.cpu.env = t1 - t0; this.cpu.terrain = t2 - t1; this.cpu.rocks = t3 - t2;
   }
+  /** the last update's CPU time (ms): the sky, light and shadows' fit; the ground's patches; the rocks' lists */
+  readonly cpu = { env: 0, terrain: 0, rocks: 0 };
 
   /** this frame's GPU work, to run with the host's */
   passes(): RunEntry[] {

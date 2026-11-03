@@ -169,6 +169,8 @@ const CRUMB: Record<string, string> = { nucleus: 'Nucleus', mito: 'Mitochondrion
 export class App {
   /** Seven Havens' gardens at the bottom of the dive (gardens.ts) */
   gardens: Gardens | null = null;
+  /** the last frame's CPU time (ms) above the cell: the cosmos's views, the gardens' update, the GPU work recorded */
+  readonly cpu = { cosmos: 0, gardens: 0, run: 0 };
   cut = 0;
   cutTarget = 1;
   fluo = 0;
@@ -524,10 +526,15 @@ export class App {
     if (fading && this.realm === 'cell') cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
       // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
+      const t0 = performance.now();
       this.cosmos.update(dt, this.mix);
+      const t1 = performance.now();
       this.gardens?.update(dt);
+      const t2 = performance.now();
       this.cosmos.r.frame();
       this.gardens?.after();
+      // (the frame's CPU time, its parts: the report's, ui/report.ts)
+      this.cpu.cosmos = t1 - t0; this.cpu.gardens = t2 - t1; this.cpu.run = performance.now() - t2;
       if (this.realm === 'cosmos') this.cosmosHud(dt);
     }
   }
