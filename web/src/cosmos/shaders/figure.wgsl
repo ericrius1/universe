@@ -5,10 +5,15 @@
 // still, every bone has the same skin transform (figure/pose.ts), so the head's space is the bind space.
 // Going in, the drawn right eye holds the zoom: its iris grows fibres, crypts and a collarette once they're bigger
 // than a pixel, and the cornea's living cells come over it as the cell's world nears (deep.x).
-// Drawn into its own target (colour and coverage, and the inverse of its distance) for the meadow to lay into its
-// grass (c_ground.wgsl).
+// Their colours are designed for the screen: each is drawn as the light that the film (film.wgsl, the frame's: F) shows
+// as that colour (filmLock), so they look as designed whatever the film's settings. Three ways in: into Seven Havens'
+// scene (vsW, fsW: the gardens, among the flowers, lit by its sun and casting into its shadow maps, vsShadowW: its
+// scene light, the film's divided by its exposure); into the frame's HDR alone once her eye fills it (fsF, a pass of
+// its own with its own depth); or, in the meadow (a planetarium's dome, ?nogardens), into a target of its own — colour
+// and coverage, and the inverse of the distance — that the meadow lays into its grass (c_ground.wgsl).
 #include "cosmos.wgsl"
 #include "tissue.wgsl"
+#include "film.wgsl"
 
 struct HeroU {
   qmin: vec4f,            // the quantisation box (bind space); w the nose tip's height
@@ -26,10 +31,13 @@ struct HeroU {
   actor: vec4f, actorIris: vec4f, actor2: vec4f, actor3: vec4f, actor4: vec4f,
   // the colour model per palette slot (display rgb, w 1) and its shade multiple
   cel: array<vec4f, 16>, celShade: array<vec4f, 16>,
-  // x how far the cornea's cells show (0..1), y the grade's contrast, z its saturation, w the level's exposure (undone)
+  // x how far the cornea's cells show (0..1), yz -, w the meadow's exposure (undone)
   deep: vec4f,
-  // x night (0 day .. 1), y 1: drawn for Seven Havens' picture (display colours, not locked through this one's grade)
+  // x night (0 day .. 1), yzw -
   sky: vec4f,
+  // the ground frame's origin in Seven Havens' world (its metres: where she lies), w its exposure's inverse (the film's
+  // units to its scene light)
+  world: vec4f,
   // palette slots not drawn here (a prop of the town's; -1 none)
   hide: vec4f,
   // the dive's target (bind space) and the skin's way out there: the drawn eye's chart on that plane up close
@@ -38,6 +46,7 @@ struct HeroU {
   sheetX: vec4f, sheetZ: vec4f,
 }
 @group(2) @binding(1) var<uniform> HU: HeroU;
+@group(2) @binding(2) var<uniform> F: FilmU;
 
 struct VIn {
   @location(0) pm: vec4u,
@@ -382,35 +391,6 @@ fn celShadeMul(mat: u32) -> vec3f {
 fn faceDepth(hp: vec3f) -> f32 { return smoothstep(-0.01, 0.02, hp.z) * (1.0 - smoothstep(HU.face.w + 0.02, HU.face.w + 0.035, hp.z)); }
 fn faceZoneOf(hp: vec3f) -> f32 { return faceDepth(hp) * step(HU.face.y - 0.045, hp.y) * step(hp.y, HU.face.x + 0.03) * step(abs(hp.x), 0.085); }
 
-// ---- the display lock: the colour model's display colour, back through this level's exposure and the grade
-// (c_post.wgsl: AgX, its saturation and contrast; the screen shows its result to the 1 / 2.2)
-fn agxPoly(x: f32) -> f32 {
-  let x2 = x * x; let x4 = x2 * x2;
-  return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
-}
-fn agxPolyD(x: f32) -> f32 {
-  let x2 = x * x; let x4 = x2 * x2;
-  return 93.0 * x4 * x - 200.7 * x4 + 127.84 * x2 * x - 20.604 * x2 + 0.8596 * x + 0.1191;
-}
-fn agxPolyInv(y: f32) -> f32 {
-  var x = clamp(y * 0.6 + 0.2, 0.0, 1.0);
-  for (var i = 0; i < 6; i++) { x = clamp(x - (agxPoly(x) - y) / max(agxPolyD(x), 0.05), 0.0, 1.0); }
-  return x;
-}
-fn celLock(D0: vec3f) -> vec3f {
-  // (laid over Seven Havens' picture, after its own post chain: the display colours as they are, HU.sky.y)
-  if (HU.sky.y > 0.5) { return D0; }
-  var g = pow(max(D0, vec3f(0.0)), vec3f(2.2));
-  g = (g - 0.5) / max(HU.deep.y, 0.01) + 0.5;
-  let l = luma(g);
-  g = l + (g - l) / max(HU.deep.z, 0.01);
-  let inset = mat3x3f(vec3f(0.842, 0.0423, 0.0424), vec3f(0.0784, 0.878, 0.0784), vec3f(0.0792, 0.0792, 0.879));
-  let outset = mat3x3f(vec3f(1.197, -0.0528, -0.0529), vec3f(-0.098, 1.152, -0.098), vec3f(-0.099, -0.099, 1.152));
-  var d = inset * clamp(g, vec3f(0.0), vec3f(1.0));
-  d = vec3f(agxPolyInv(d.x), agxPolyInv(d.y), agxPolyInv(d.z));
-  let c = outset * exp2(d * 16.5 - 12.47);
-  return max(c, vec3f(0.0)) / max(HU.deep.w, 1e-6);
-}
 /** the colour model's light: noon as designed, golden hour warmer, night moonlit (darker, bluer) */
 fn celCondition() -> vec3f {
   let sunUp = L.sun.y;
@@ -429,7 +409,11 @@ fn celKey() -> vec3f {
   return normalize(k);
 }
 
-@vertex fn vs(v: VIn) -> VOut {
+// a point from the camera on Seven Havens' screen, its depth with what it draws (its camera is this level's view moved
+// to where she lies: the same basis)
+fn worldClip(rel: vec3f) -> vec4f { return frame.proj * vec4f(dot(rel, frame.camRight), dot(rel, frame.camUp), -dot(rel, frame.camFwd), 1.0); }
+
+fn vertexOf(v: VIn) -> VOut {
   var o: VOut;
   let mat = v.pm.w & 0xffu;
   let lp = bindPos(v);
@@ -443,8 +427,20 @@ fn celKey() -> vec3f {
   o.bake = vec4f(v.nrm.w, v.flow.w, v.flow.x, v.flow.y);
   return o;
 }
+@vertex fn vs(v: VIn) -> VOut { return vertexOf(v); }
+@vertex fn vsW(v: VIn) -> VOut {
+  var o = vertexOf(v);
+  if (!hidden(o.mat)) { o.pos = worldClip(o.rel); }
+  return o;
+}
+// (into the sun's shadow maps: each pass's view the cascade's)
+@vertex fn vsShadowW(v: VIn) -> @builtin(position) vec4f {
+  if (hidden(v.pm.w & 0xffu)) { return vec4f(0.0, 0.0, -2.0, 1.0); }
+  return frame.viewProj * vec4f(dqPointRD(HU.headR, HU.headD, bindPos(v)) + HU.world.xyz, 1.0);
+}
 
-@fragment fn fs(in: VOut, @builtin(front_facing) ff: bool) -> FOut {
+/** their colour as designed for the screen: the colour model lit, the face drawn, the cornea's cells, the rim */
+fn shade(in: VOut, ff: bool) -> vec3f {
   let mat = in.mat;
   let E = HU.eye;
   // (lying still, the head's space is the bind space; the drawn face's chart and its pixel, derivatives in uniform
@@ -526,19 +522,34 @@ fn celKey() -> vec3f {
   let back = smoothstep(0.2, 0.7, dot(-V, L.sun)) * (1.0 - HU.sky.x);
   let rim = smoothstep(0.82, 0.86, 1.0 - nv) * back * (1.0 - lit);
   col = mix(col, fill * vec3f(1.25, 1.12, 1.0), rim * 0.85);
-  // (under the meadow — long hair down the back, lying on it — nothing)
+  return pow(max(col, vec3f(0.0)), vec3f(1.0 / 2.2)) * celCondition();
+}
+
+// (under the ground — long hair down the back, lying on it — nothing)
+@fragment fn fs(in: VOut, @builtin(front_facing) ff: bool) -> FOut {
+  let D = shade(in, ff);
   if (underGround(in.rel)) { discard; }
   var o: FOut;
-  o.col = vec4f(celLock(pow(max(col, vec3f(0.0)), vec3f(1.0 / 2.2)) * celCondition()), 1.0);
+  o.col = vec4f(filmLock(F, D) / max(HU.deep.w, 1e-6), 1.0);
   o.dist = vec4f(1.0 / max(length(in.rel), 1e-12), 0.0, 0.0, 1.0);
   return o;
+}
+@fragment fn fsW(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
+  let D = shade(in, ff);
+  if (underGround(in.rel)) { discard; }
+  return vec4f(filmLock(F, D) * HU.world.w, 1.0);
+}
+@fragment fn fsF(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
+  let D = shade(in, ff);
+  if (underGround(in.rel)) { discard; }
+  return vec4f(filmLock(F, D), 1.0);
 }
 
 // the ink line: the mesh again, pushed out along its normals by a constant width on screen, back faces only, so a
 // dark rim shows round every silhouette; pushed a little away from the camera too, so it shows only where it clears
 // what's behind it; the face keeps a deep push, so its nose and cheeks never draw one over it
 struct LOut { @builtin(position) pos: vec4f, @location(0) rel: vec3f };
-@vertex fn vsOutline(v: VIn) -> LOut {
+fn outlineOf(v: VIn) -> LOut {
   var o: LOut;
   let mat = v.pm.w & 0xffu;
   let lp = bindPos(v);
@@ -555,11 +566,26 @@ struct LOut { @builtin(position) pos: vec4f, @location(0) rel: vec3f };
   o.rel = rel;
   return o;
 }
+@vertex fn vsOutline(v: VIn) -> LOut { return outlineOf(v); }
+@vertex fn vsOutlineW(v: VIn) -> LOut {
+  var o = outlineOf(v);
+  if (!hidden(v.pm.w & 0xffu)) { o.pos = worldClip(o.rel); }
+  return o;
+}
+// near-black, warm (the show's lines are dark brown-black), as dark in the shade as in the sun
+fn ink() -> vec3f { return vec3f(0.09, 0.06, 0.055) * celCondition(); }
 @fragment fn fsOutline(in: LOut) -> FOut {
-  // near-black, warm (the show's lines are dark brown-black), as dark in the shade as in the sun
   if (underGround(in.rel)) { discard; }
   var o: FOut;
-  o.col = vec4f(celLock(vec3f(0.09, 0.06, 0.055) * celCondition()), 1.0);
+  o.col = vec4f(filmLock(F, ink()) / max(HU.deep.w, 1e-6), 1.0);
   o.dist = vec4f(1.0 / max(length(in.rel), 1e-12), 0.0, 0.0, 1.0);
   return o;
+}
+@fragment fn fsOutlineW(in: LOut) -> @location(0) vec4f {
+  if (underGround(in.rel)) { discard; }
+  return vec4f(filmLock(F, ink()) * HU.world.w, 1.0);
+}
+@fragment fn fsOutlineF(in: LOut) -> @location(0) vec4f {
+  if (underGround(in.rel)) { discard; }
+  return vec4f(filmLock(F, ink()), 1.0);
 }

@@ -57,6 +57,16 @@ export interface TCell {
   s: number;
   nuc: Vec3;
 }
+export interface FilmU {
+  a: Vec4;
+  glow: Vec4;
+  look: Vec4;
+  tone: Vec4;
+  vig: Vec4;
+  grade: Vec4;
+  sun: Vec4;
+  out: Vec4;
+}
 export interface HeroU {
   qmin: Vec4;
   qmax: Vec4;
@@ -81,6 +91,7 @@ export interface HeroU {
   celShade: ArrayLike<number> | Vec4[];
   deep: Vec4;
   sky: Vec4;
+  world: Vec4;
   hide: Vec4;
   focus: Vec4;
   focusN: Vec4;
@@ -113,5 +124,5 @@ export interface LOut {
   rel: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; TCell: TCell; HeroU: HeroU; VIn: VIn; VOut: VOut; FOut: FOut; FaceInk: FaceInk; LOut: LOut }, 'frame' | 'L' | 'HU' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; TCell: TCell; FilmU: FilmU; HeroU: HeroU; VIn: VIn; VOut: VOut; FOut: FOut; FaceInk: FaceInk; LOut: LOut }, 'frame' | 'L' | 'HU' | 'F' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -1,13 +1,16 @@
 // Seven Havens drawn inside another app on its kit (Universe: the dive from the edge of the universe ends in the
 // gardens): the canyon, the Haven and its gardens, the city, the rocks, the flora and the water, under the canyon's
-// own sky and through its own post chain into a texture (`out`, the canvas's format) the host lays over its frame. No
-// player, cast, bending, input or interface; the device's profile as the game's (util/tier.ts).
+// own sky, laid into the host's own frame (`layer`: its HDR, exposed) for the host's film to finish — its bloom, AgX and
+// grade with this one's settings (`film`), so the canyon looks as it does in the game. No player, cast, bending, input
+// or interface; the device's profile as the game's (util/tier.ts).
 //
 // The host owns the kit and its camera. Each frame it's on: `use()` (the kit's globals are the World uniform while the
 // canyon draws: env.ts), the camera set to the host's view in the canyon's metres (x east, y up, z south) and the
-// clock to the host's moment (`time`), then `update(dt, pushers)`, `passes()` run among its own, and `after()` once
-// they're sent; `unuse()` gives the host its globals back. `overlay` is the pass right after the scene (its colour the
-// scene's HDR, `sceneZ` its distances) for what the host draws into the canyon itself.
+// clock to the host's moment (`time`), then `update(dt, pushers)`, `passes()` run before its own and a layer pass after
+// its scene, and `after()` once they're sent; `unuse()` gives the host its globals back. What the host draws into the
+// canyon itself goes into the scene pass (`order`'s slots: Universe's figure in 'hero') and the sun's shadow passes
+// (env.shadows.passes); `overlay` is the pass right after the scene (its colour the scene's HDR, `sceneZ` its
+// distances).
 import { type Kit, type RenderPass, type RunEntry, type Texture } from '@ericrius1/weft';
 import { SCENE_ORDER, type SceneSlot } from './world/order';
 import { Terrain } from './world/terrain';
@@ -19,6 +22,7 @@ import { Post } from './post/post';
 import { Slots } from './util/slots';
 import { tier } from './util/tier';
 import { ArchRenderer } from './arch/arch';
+import { partInstances } from './arch/instances';
 import { Rocks, catalogInWorker } from './rocks/rocks';
 import { placeRocksSliced } from './rocks/place';
 import { Flora, type Pusher } from './flora/flora';
@@ -46,8 +50,6 @@ export class Haven {
   readonly scene: RenderPass;
   readonly order: Slots<SceneSlot>;
   readonly arch: ArchRenderer;
-  /** the picture, post-processed, in the canvas's format */
-  readonly out: Texture;
   /** the scene's HDR and depth (multisampled with MSAA), and its distances after the scene (post/fx.ts sceneZ) */
   readonly hdr: Texture;
   readonly depth: Texture;
@@ -86,8 +88,8 @@ export class Haven {
     this.scene = kit.pass({ label: 'haven.scene', color: [hdrMs ? { target: hdrMs, clear: [0, 0, 0, 0], resolve: this.hdr, store: false } : { target: this.hdr, clear: [0, 0, 0, 0] }], depth: { target: this.depth, clear: 0 } });
     const scene = this.scene;
     const order = this.order = new Slots(scene, SCENE_ORDER, 'opaque');
-    this.out = kit.texture({ label: 'haven.out', format: kit.format, size: 'render', usage: ['render', 'sample'] });
-    const post = this.post = new Post(kit, this.hdr, this.depth, tier.bloomLevels, this.out);
+    // (no bloom or final pass of its own: the host's film finishes the picture)
+    const post = this.post = new Post(kit, this.hdr, this.depth, tier.bloomLevels, null);
     post.motionBlur.allowed = false;
     env.clouds.attach(post.fx.overlay, post.fx.sceneZ);
     order.into('terrain', () => land.draw(terrain, scene));
@@ -95,7 +97,11 @@ export class Haven {
 
     const arch = this.arch = new ArchRenderer(kit, env, scene, order);
     const carved = terrain.ready.then(async () => carveHaven(terrain, (await floors).carve));
-    const placed = (built: ReturnType<typeof buildPart> | null, slot: 'city' | 'haven') => built?.then(({ part }) => arch.add(part, slot, lean ? { rounds: 0 } : {})) ?? Promise.resolve();
+    // (its small parts drawn instanced first, as the game's: their lamps among its lights before the bake)
+    const placed = (built: ReturnType<typeof buildPart> | null, slot: 'city' | 'haven') => built?.then(({ part }) => {
+      partInstances(arch, part, slot);
+      return arch.add(part, slot, lean ? { rounds: 0 } : {});
+    }) ?? Promise.resolve();
     const parts = Promise.all([placed(city, 'city'), placed(haven, 'haven')]);
     const rocksIn = Promise.all([carved, catalog, land.textures]).then(async ([, cat]) => {
       const slopeAt = (x: number, z: number) => {
@@ -156,9 +162,40 @@ export class Haven {
   /** the last update's CPU time (ms): the sky, light and shadows' fit; the ground's patches; the rocks' lists */
   readonly cpu = { env: 0, terrain: 0, rocks: 0 };
 
-  /** this frame's GPU work, to run with the host's */
+  /** this frame's GPU work, to run before the host's (the layer after the host's scene) */
   passes(): RunEntry[] {
-    return [...(this.flora?.passes() ?? []), ...this.env.passes(), this.scene, ...this.post.fx.pre(), ...this.post.run()];
+    return [...(this.flora?.passes() ?? []), ...this.arch.passes(), ...this.env.passes(), this.scene, ...this.post.fx.pre(), ...this.post.run()];
+  }
+
+  /** the picture laid into the host's frame (`target`: its HDR, in its film's units), over what's there by `shows`
+   *  (blended), or in place of it (whole) */
+  layer(target: Texture) { return this.post.layer(target); }
+  get shows() { return this.post.settings.layer; }
+  set shows(w: number) { this.post.settings.layer = w; }
+
+  /** the scene's light to the host's film units (the eye's exposure: what the layer multiplies by) */
+  get exposure() { return this.env.exposure * 2 ** this.post.settings.exposure; }
+
+  /** the film the host finishes the picture with: this post chain's look (post.wgsl fs, by the names of Universe's
+   *  cosmos/film.ts) on the host's bloom chain of six levels, and the sun and the sky for the grade by the time of day
+   *  (fx.wgsl fxGrade) */
+  film() {
+    const s = this.post.settings, f = this.post.fx.settings, sky = this.env.state;
+    const ss = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const alt = (Math.asin(Math.max(-1, Math.min(1, sky.sun.dir[1]))) * 180) / Math.PI;
+    const k = this.post.fx.bloomWeight;
+    let w = 0;
+    for (let i = 0, kk = 1; i < 6; i++, kk *= k) w += kk;
+    return {
+      exposure: 1, bloomShare: s.bloom, bloomAdd: 0, bloomNorm: 6 / w, bloomWeight: k, bloomEven: 1,
+      glow: s.glow, glowFrom: s.glowFrom, halation: f.halation,
+      warmth: s.warmth, punch: s.punchy, saturation: s.saturation, saturationAfter: 1,
+      contrast: s.contrast, toe: 0, power: 1,
+      vignette: 0, vignetteQ: s.vignette, dither: 1 + s.grain * 6, grain: f.grain, grainMids: 1,
+      grade: f.grade, split: s.split, rich: s.rich,
+      golden: ss(-3, 2, alt) * (1 - ss(8, 18, alt)), dusk: ss(-13, -5, alt) * (1 - ss(-3, 1, alt)), noon: ss(25, 50, alt),
+      night: sky.night, cover: this.env.clouds.shownCover * ss(-4, 4, alt),
+    };
   }
 
   /** once the frame is sent (the exposure's readbacks) */

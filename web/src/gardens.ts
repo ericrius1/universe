@@ -1,19 +1,21 @@
 // The dive ends in Seven Havens' gardens: the canyon, the golden temple on its promontory and the terraced gardens
 // round it, drawn by Seven Havens' own code (src/havens, its embed.ts: tools/havens-sync.mjs) on this kit, under its
-// own sky and through its own post chain, and laid over the cosmos's frame (gardens.wgsl) from a few kilometres up
-// down to her face — the meadow (cosmos/levels/surface.ts) hidden under it, and taking over again once her eye fills
-// the frame. She lies in a bed of pink flowers beside the temple; they part round her and sway in the canyon's wind.
-// It's fetched and built in the background once the page runs (its code a chunk of its own, its builders in workers,
-// its pipelines compiled), the meadow showing in its place until it's in.
+// own sky, and laid into the cosmos's frame (Haven.layer: its HDR, before the bloom) from a few kilometres up down to
+// her eye — one frame and one film from the edge of the universe to her eye (cosmos/film.ts: the cosmos's settings
+// above, Seven Havens' below, mixed as the gardens come in). She lies in a bed of pink flowers beside the temple, drawn
+// into the canyon's own scene (figure.ts world: lit by its sun, in its shadow maps); the flowers part round her and sway
+// in the canyon's wind. Once her eye fills the frame the canyon isn't drawn: she's drawn alone (figure.ts facePass), on
+// down to the cornea's cells. It's fetched and built in the background once the page runs (its code a chunk of its own,
+// its builders in workers, its pipelines compiled); until it's in the dive waits a little above it (controls.floor).
 //
 // The camera is the cosmos's: the ground level's view (metres, x east, y up, z south — the canyon's axes too), moved
 // to where she lies in the canyon; the canyon's clock is the cosmos's moment at the canyon's site. While the gardens
 // draw, the kit's globals are the canyon's World uniform and its camera theirs (Haven.use); the cell's back after.
-import { SerialCompiler, type Kit, type UniformBuffer } from '@ericrius1/weft';
+import { SerialCompiler, type Kit } from '@ericrius1/weft';
 import { vec3, type Vec3 } from 'math';
 import type { Haven, Pusher } from '@havens/embed';
-import shader from './gardens.wgsl';
 import { bandWeight, type Band } from './cosmos/renderer';
+import { COSMOS_FILM, mixFilm, type Film } from './cosmos/film';
 import type { Cosmos } from './cosmos';
 import { POSE_R } from './cosmos/figure/pose';
 import type { Place } from './cosmos/frames';
@@ -41,9 +43,11 @@ export const HAVENS_CAPTIONS = {
 export const SPOT: Vec3 = [78.8, 32.25, 0.0];
 /** the canyon's site (Seven Havens' world/env.ts SITE): its clock's offset from UTC (h) */
 const UTC_OFFSET = -7;
-/** over the zoom (log10 m): in from a few kilometres up, out once her eye fills the frame (a cut: nothing but her
- *  skin is in view there, and the meadow lays her in as the gardens do) */
-const BAND: Band = [4.4, 3.7, -1.7, -1.75];
+/** over the zoom (log10 m): in from a few kilometres up (its film too), on down to her eye; the dive held above it until
+ *  it's in */
+const BAND: Band = [4.4, 3.7, -99, -100];
+/** where her eye fills the frame (log10 m): the canyon cut there (nothing but her skin in view), she alone below */
+const EYE = -1.75;
 
 export class Gardens {
   haven: Haven | null = null;
@@ -54,14 +58,16 @@ export class Gardens {
   private drawing = false;
   /** the cell's near plane, given back when the gardens stop drawing */
   private near = 0.05;
-  private u: UniformBuffer<any>;
   private building = false;
+  /** the cosmos's own film, and Seven Havens' (this frame's) */
+  private readonly base: Film;
+  private film: Film = { ...COSMOS_FILM };
   private readonly view = new Float32Array(16);
   /** her body's line in the ground frame (feet to head) and where her middle is, for the flowers to part round */
   private readonly along: Vec3;
 
-  constructor(private kit: Kit, private cosmos: Cosmos, private base: string) {
-    this.u = kit.uniforms(shader.structs.HavenU, 'gardens');
+  constructor(private kit: Kit, private cosmos: Cosmos, private assets: string) {
+    this.base = { ...cosmos.r.film };
     // (the bind-space up of the figure — feet to head — as she lies: figure/pose.ts)
     this.along = vec3.transformQuat(vec3.create(), [0, 1, 0], [...POSE_R] as never) as Vec3;
   }
@@ -80,22 +86,21 @@ export class Gardens {
       kit.compiler = new SerialCompiler(kit);
       const say = (what: string) => console.log(`gardens: ${what} at ${Math.round(performance.now() - t0)} ms`);
       say('code in');
-      setAssetRoot(`${this.base}havens`);
+      setAssetRoot(`${this.assets}havens`);
       const h = this.haven = new Haven(kit);
       await h.built;
       say('built');
       // (a clearing round her in the bed: no tree or shrub over her, the flowers left)
       if (h.flora) h.flora.clearing = { x: SPOT[0], z: SPOT[2], radius: 3, height: 0.9 };
-      const ground = this.cosmos.surface.ground;
-      // (over the cosmos's frame while they cross-fade; while they fill it, alone: the cosmos's scene, bloom and final
-      // pass not run at all, cosmos/renderer.ts covered)
-      const bind = { L: ground.L, HV: this.u, havenTex: h.out, sceneZ: h.sceneZ, figCol: fig.col, figDist: fig.dist } as never;
-      const lay = kit.pass({ label: 'gardens', color: [{ target: 'screen', clear: false }] });
-      lay.fullscreen(shader, { label: 'gardens', blend: 'alpha', bind });
-      const whole = kit.pass({ label: 'gardens.whole', color: [{ target: 'screen', clear: [0, 0, 0, 1] }] });
-      whole.fullscreen(shader, { label: 'gardens.whole', bind });
+      // her, in its scene and its shadow maps; alone once her eye fills the frame (the depth the canyon's where it has one
+      // sample a pixel: it isn't drawn then)
+      fig.world(h.scene, (draw) => h.order.into('hero', draw), h.env.shadows.passes);
+      const face = fig.facePass(R.hdr, h.samples === 1 ? h.depth : kit.texture({ label: 'figure.face.depth', format: 'depth32float', size: 'render' }));
+      // (over the cosmos's scene while they cross-fade; while they fill the frame, in place of it: its levels not drawn,
+      // cosmos/renderer.ts covered)
+      const { over, whole } = h.layer(R.hdr);
       R.first = () => (this.drawing ? h.passes() : []);
-      R.last = () => (this.drawing ? [R.covered ? whole : lay] : []);
+      R.afterScene = () => (this.drawing ? [R.covered ? whole : over] : fig.face ? [face] : []);
       const c0 = performance.now();
       const compiled = await kit.ready();
       kit.compiler = was;
@@ -107,17 +112,21 @@ export class Gardens {
 
   /** this frame (after the cosmos's update: its levels' views are this frame's) */
   update(dt: number) {
-    const c = this.cosmos, h = this.haven, kit = this.kit;
-    const ground = c.surface.ground;
-    this.weight = this.ready && h && !c.r.dome ? bandWeight(c.controls.logS, BAND) * (ground.weight > 0.002 ? 1 : 0) : 0;
+    const c = this.cosmos, h = this.haven, kit = this.kit, R = c.r, fig = c.surface.figure;
+    const ground = c.surface.ground, l = c.controls.logS;
+    // (the dive held a little above the gardens until they're in)
+    c.controls.floor = this.ready ? null : BAND[0];
+    this.weight = this.ready && h && !R.dome ? bandWeight(l, BAND) * (ground.weight > 0.002 ? 1 : 0) : 0;
     const was = this.drawing;
-    this.drawing = this.weight > 0.002;
+    // (the canyon drawn down to her eye; she alone past it)
+    fig.face = this.weight > 0.002 && l < EYE;
+    this.drawing = fig.inWorld = this.weight > 0.002 && !fig.face;
     c.surface.hidden = this.weight > 0.998;
-    c.r.covered = this.weight > 0.998 && !c.r.over;
-    c.surface.figure.display = this.drawing;
+    R.covered = this.weight > 0.998;
+    // the film: Seven Havens' as the gardens come in (as it last was, past her eye)
+    R.film = this.weight > 0 ? mixFilm(this.base, this.film, this.weight) : this.base;
     if (!this.drawing || !h) {
       if (was && h) { h.unuse(); kit.camera.viewOverride = null; kit.camera.near = this.near; }
-      c.r.covered = false;
       return;
     }
     if (!was) this.near = kit.camera.near;
@@ -139,7 +148,10 @@ export class Gardens {
     // the flowers parted round her: her head, her middle, her legs
     const a = this.along, push: Pusher[] = [0.1, -0.55, -1.15].map((k) => ({ at: [SPOT[0] + a[0] * k, SPOT[1] + 0.1, SPOT[2] + a[2] * k], radius: 0.6, strength: 1.5 }));
     h.update(dt, push);
-    this.u.set({ a: [this.weight, c.surface.figure.shown ? 1 : 0, 0, 0] });
+    h.shows = this.weight;
+    fig.placeIn(SPOT, h.exposure);
+    this.film = h.film();
+    R.film = mixFilm(this.base, this.film, this.weight);
   }
 
   /** once the frame is sent */

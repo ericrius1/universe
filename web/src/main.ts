@@ -88,7 +88,7 @@ async function boot() {
   // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
   const cosmos = new Cosmos(kit, {
     time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1,
-    ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}` } : {}),
+    ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}`, meadow: false } : {}),
   });
   status('compiling shaders…', 0.7);
   const t0 = performance.now();

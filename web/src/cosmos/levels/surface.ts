@@ -17,16 +17,18 @@ export class Surface {
   readonly figure: Figure;
   /** how dark it is outside (0 day … 1 night) */
   night = 0;
-  /** the meadow not drawn (a host draws its own ground there, the figure laid into it: Universe's gardens) */
+  /** the meadow not drawn (a host draws its own ground there, and them into it: Universe's gardens) */
   hidden = false;
 
   private G: UniformBuffer<any>;
 
-  constructor(kit: Kit, R: CosmosRenderer, private ladder: Ladder, air: Air, private data: EarthData, figureUrl: string) {
+  /** meadow: her figure drawn for the meadow to lay in (false: a host draws her into its own ground — Universe's
+   *  gardens — and the meadow is only what shows close up while that's loading, without her) */
+  constructor(kit: Kit, R: CosmosRenderer, private ladder: Ladder, air: Air, private data: EarthData, figureUrl: string, meadow = true) {
     // (the meadow holds the dive all the way in: Eli's eye and its cells are drawn with it)
     this.ground = R.level('ground', ladder.ground, [4.9, 4.65, -99, -100]);
-    this.figure = new Figure(kit, this.ground, R.dome, figureUrl);
-    R.before.push(this.figure.pass);
+    this.figure = new Figure(kit, this.ground, R, figureUrl, meadow);
+    if (this.figure.pass) R.before.push(this.figure.pass);
     this.G = kit.uniforms(ground.structs.GroundU, 'ground.u');
     // the grass they press flat, worked out once (shaders/figpress.wgsl)
     const press: Texture = kit.texture({ label: 'ground.press', format: 'rgba16float', size: [256, 128], usage: ['sample', 'storage'] });

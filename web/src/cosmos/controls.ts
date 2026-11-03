@@ -17,6 +17,10 @@ export class CosmosControls {
   readonly max = 27.15;
   enabled = true;
   driven = false;
+  /** how far down the zoom goes for now (null: all the way): a host's world below still loading (Universe's gardens),
+   *  the dive waits above it — a flight there too — and goes on once it's in. Only from above: coming up from the cell
+   *  it's not in the way */
+  floor: number | null = null;
   /** the camera's orientation in the top frame, and its basis there (refreshed by update) */
   readonly q: Quat = quat.create();
   readonly forward: Vec3 = [0, 0, -1];
@@ -138,17 +142,22 @@ export class CosmosControls {
   }
 
   update(dt: number) {
+    const was = this.logS;
     if (this.flight) {
       const f = this.flight;
-      f.t += dt;
-      const u = Math.min(1, f.t / f.dur);
+      const u = Math.min(1, (f.t + dt) / f.dur);
       // ease in and out, the zoom's speed even in decades
       const s = u * u * u * (u * (u * 6 - 15) + 10);
-      this.logS = f.l0 + (f.l1 - f.l0) * s;
-      this.yaw = f.y0 + (f.y1 - f.y0) * s;
-      this.pitch = f.p0 + (f.p1 - f.p0) * s;
-      this.zoomTarget = this.logS;
-      if (u >= 1) { this.flight = null; f.done?.(); }
+      const l = f.l0 + (f.l1 - f.l0) * s;
+      // (held at the floor: the flight waits there)
+      if (!(this.floor !== null && was >= this.floor && l < this.floor && l < was)) {
+        f.t += dt;
+        this.logS = l;
+        this.yaw = f.y0 + (f.y1 - f.y0) * s;
+        this.pitch = f.p0 + (f.p1 - f.p0) * s;
+        this.zoomTarget = this.logS;
+        if (u >= 1) { this.flight = null; f.done?.(); }
+      }
     } else if (!this.driven) {
       this.logS += (this.zoomTarget - this.logS) * (1 - Math.exp(-dt * 7));
       if (!this.pointers.size) {
@@ -161,6 +170,7 @@ export class CosmosControls {
     if (this.logS < this.min && this.zoomTarget < this.min && !this.driven && !this.following) { this.logS = this.min; this.onBelow?.(); }
     // (keeping to the cell's camera it goes on in past `min`, as the cell does)
     this.logS = clamp(this.logS, this.following ? this.min - 1 : this.min, this.max);
+    if (this.floor !== null && was >= this.floor) this.logS = Math.max(this.logS, this.floor);
     this.following = false;
     this.basis();
   }

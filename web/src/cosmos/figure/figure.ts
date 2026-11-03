@@ -1,14 +1,16 @@
 // Someone of Boulder's cast lying on their back in the meadow at Chautauqua, looking up (cast.ts; pose.ts says who):
 // their own mesh (Boulder's DNC1 file from its Blender pipeline, public/data/figure/) drawn as Boulder draws them (shaders/
 // figure.wgsl, after its hero.wgsl). Lying still, the whole body has one skin transform (pose.ts, written by
-// tools/figure-pose.mjs). Drawn before the scene into its own target, four samples a pixel — its colour and coverage,
-// and the inverse of its distance — which the meadow (c_ground.wgsl) lays into its grass, the blades in front of them
-// in front. The dive goes into their drawn right eye (FIGURE_EYE), which holds the zoom down to the cornea's cells.
+// tools/figure-pose.mjs). The dive goes into their drawn right eye (FIGURE_EYE), which holds the zoom down to the
+// cornea's cells. Drawn into Seven Havens' scene and its shadow maps (world: Universe's gardens), then once her eye
+// fills the frame into its HDR alone (facePass); or, in the meadow (meadow: a planetarium's dome, ?nogardens), before
+// the scene into a target of its own, four samples a pixel — its colour and coverage, and the inverse of its distance
+// — which the meadow (c_ground.wgsl) lays into its grass, the blades in front of them in front.
 /** who lies there */
 export const WHO = CAST[FIGURE];
 import { Ref, type Kit, type RenderPass, type StorageBuffer, type Texture, type UniformBuffer } from '@ericrius1/weft';
 import shader from '../shaders/figure.wgsl';
-import type { DomeOptions, Level } from '../renderer';
+import type { CosmosRenderer, Level } from '../renderer';
 import { vec3 } from 'math';
 import { FIGURE, FIGURE_FOCUS, FIGURE_FOCUS_N, POSE_D, POSE_R } from './pose';
 import { EYE_ROT } from '../frames';
@@ -36,28 +38,36 @@ async function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
 }
 
 export class Figure {
-  /** what the meadow lays in: colour (premultiplied) and coverage; the inverse distance (m) and coverage */
+  /** what the meadow lays in: colour (premultiplied) and coverage; the inverse distance (m) and coverage (a texel of
+   *  nothing each where there's no meadow) */
   readonly col: Texture;
   readonly dist: Texture;
-  readonly pass: RenderPass;
+  /** the meadow's pass (null: no meadow) */
+  readonly pass: RenderPass | null;
   readonly u: UniformBuffer<any>;
   ready = false;
   /** drawn at all (not while they'd be under a few pixels: the meadow and the gardens leave them out then) */
   shown = true;
-  /** drawn for Seven Havens' picture (levels/haven.ts): its display colours, not locked through the cosmos's grade */
-  display = false;
+  /** drawn this frame into Seven Havens' scene (world), or alone into the frame (facePass) */
+  inWorld = false;
+  face = false;
   private loading = false;
   private vb: StorageBuffer | null = null;
   private ib: StorageBuffer | null = null;
   private n = 0;
+  private readonly bind: Record<string, unknown>;
 
-  constructor(private kit: Kit, ground: Level, dome: DomeOptions | null, private url: string) {
+  /** meadow: drawn into a target of its own for the meadow to lay in (a dome's, ?nogardens) */
+  constructor(private kit: Kit, ground: Level, R: CosmosRenderer, private url: string, meadow: boolean) {
+    const dome = R.dome;
     const size: [number, number] | 'render' = dome ? [dome.size, dome.size] : 'render';
     const ms = (label: string, format: GPUTextureFormat) => kit.texture({ label, format, size, samples: 4 });
-    this.col = kit.texture({ label: 'figure.col', format: 'rgba16float', size });
-    this.dist = kit.texture({ label: 'figure.dist', format: 'rgba16float', size });
+    const own = (label: string) => kit.texture({ label, format: 'rgba16float', size: meadow ? size : [1, 1] });
+    this.col = own('figure.col');
+    this.dist = own('figure.dist');
     this.u = kit.uniforms(shader.structs.HeroU, 'figure');
-    this.pass = kit.pass({
+    this.bind = { L: ground.L, HU: this.u, F: R.P };
+    this.pass = meadow ? kit.pass({
       label: 'figure',
       color: [
         { target: ms('figure.col.ms', 'rgba16float'), resolve: this.col, clear: [0, 0, 0, 0], store: false },
@@ -65,14 +75,37 @@ export class Figure {
       ],
       depth: { target: ms('figure.depth', 'depth32float'), clear: 0, store: false },
       enabled: () => ground.on() && this.shown,
-    });
-    const draw = {
-      vertexBuffers: [{ layout: LAYOUT, buffer: new Ref(() => this.vb) }], indices: { buffer: new Ref(() => this.ib), format: 'uint32' as GPUIndexFormat },
-      count: () => this.n, bind: { L: ground.L, HU: this.u } as never, enabled: () => this.ready,
-    };
-    this.pass.draw(shader, { ...draw, label: 'figure', vertex: 'vs', fragment: 'fs', cull: 'none' });
+    }) : null;
+    if (!this.pass) return;
+    this.pass.draw(shader, { ...this.draw(), label: 'figure', vertex: 'vs', fragment: 'fs', cull: 'none' });
     // (the ink hull's back faces: a dome's fisheye mirrors the picture, so its winding turns over)
-    this.pass.draw(shader, { ...draw, label: 'figure.ink', vertex: 'vsOutline', fragment: 'fsOutline', cull: 'front', frontFace: dome ? 'cw' : 'ccw' });
+    this.pass.draw(shader, { ...this.draw(), label: 'figure.ink', vertex: 'vsOutline', fragment: 'fsOutline', cull: 'front', frontFace: dome ? 'cw' : 'ccw' });
+  }
+
+  private draw(enabled = () => this.ready) {
+    return {
+      vertexBuffers: [{ layout: LAYOUT, buffer: new Ref(() => this.vb) }], indices: { buffer: new Ref(() => this.ib), format: 'uint32' as GPUIndexFormat },
+      count: () => this.n, bind: this.bind as never, enabled,
+    };
+  }
+
+  /** drawn into Seven Havens' scene pass (its slot for the cast) and its shadow passes while `inWorld` */
+  world(scene: RenderPass, into: (draw: () => void) => void, shadows: RenderPass[]) {
+    const on = () => this.ready && this.inWorld && this.shown;
+    into(() => {
+      scene.draw(shader, { ...this.draw(on), label: 'figure.w', vertex: 'vsW', fragment: 'fsW', cull: 'none' });
+      scene.draw(shader, { ...this.draw(on), label: 'figure.w.ink', vertex: 'vsOutlineW', fragment: 'fsOutlineW', cull: 'front' });
+    });
+    for (const p of shadows) p.draw(shader, { ...this.draw(on), label: `${p.label}.figure`, vertex: 'vsShadowW', fragment: null, cull: 'none' });
+  }
+
+  /** a pass that draws them alone into the frame's HDR (`target`, cleared) while `face`: her eye filling it, the
+   *  world behind not seen; `depth` a single-sample depth target the render's size */
+  facePass(target: Texture, depth: Texture) {
+    const p = this.kit.pass({ label: 'figure.face', color: [{ target, clear: [0, 0, 0, 1] }], depth: { target: depth, clear: 0, store: false }, enabled: () => this.face && this.shown });
+    p.draw(shader, { ...this.draw(), label: 'figure.face', vertex: 'vs', fragment: 'fsF', cull: 'none' });
+    p.draw(shader, { ...this.draw(), label: 'figure.face.ink', vertex: 'vsOutline', fragment: 'fsOutlineF', cull: 'front' });
+    return p;
   }
 
   /** fetch the mesh (once, when the dive comes near) */
@@ -119,8 +152,13 @@ export class Figure {
     this.ready = true;
   }
 
-  /** this frame: how far the cornea's cells show, the night, the grade and the meadow's exposure (to undo) */
+  /** this frame: how far the cornea's cells show, the night, the meadow's exposure (to undo) */
   update(cells: number, night: number, exposure: number) {
-    this.u.set({ deep: [cells, 1.08, 1.08, exposure], sky: [night, this.display ? 1 : 0, 0, 0] });
+    this.u.set({ deep: [cells, 0, 0, exposure], sky: [night, 0, 0, 0] });
+  }
+
+  /** where the ground frame's origin is in Seven Havens' world (m), and its exposure this frame (world) */
+  placeIn(spot: readonly number[], exposure: number) {
+    this.u.set({ world: [spot[0], spot[1], spot[2], 1 / Math.max(exposure, 1e-9)] });
   }
 }

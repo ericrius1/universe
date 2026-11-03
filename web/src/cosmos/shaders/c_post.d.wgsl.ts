@@ -48,7 +48,8 @@ export interface FilmU {
 export interface Lvl {
   texel: Vec2;
   mip: number;
-  last: number;
+  weight: number;
+  first: Vec4;
 }
 
 declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Cell3: Cell3; FilmU: FilmU; Lvl: Lvl }, 'frame' | 'F' | 'B' | 'srcTex' | 'bloomTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;

@@ -3,28 +3,36 @@
 // as the dive goes from one to the other (mixFilm). The renderer packs the one in force into its uniform each frame.
 
 export interface Film {
-  /** exposure; bloom's share mixed in, bloom added, bloom's normaliser (1 / the chain's summed level weights) */
-  exposure: number; bloomShare: number; bloomAdd: number; bloomNorm: number;
+  /** exposure; bloom's share mixed in, bloom added, bloom's normaliser (on its summed levels); each wider level's
+   *  weight going up the chain (1 even, more a wider glow) */
+  exposure: number; bloomShare: number; bloomAdd: number; bloomNorm: number; bloomWeight: number;
+  /** the bloom's first level against fireflies: its taps' groups averaged weighted by their brightness (1: an even field
+   *  kept as it is), or their average compressed (0) */
+  bloomEven: number;
   /** the glow on what's brighter than its knee (film units), film's red halation round highlights */
   glow: number; glowFrom: number; halation: number;
   /** white balance (+ warm), AgX's punch (0 base .. 1 punchy), saturation in the look and after it */
   warmth: number; punch: number; saturation: number; saturationAfter: number;
   /** contrast round mid-grey and its toe (0 straight, 1 soft); the screen's power (1/2.2, or 1: AgX's own curve) */
   contrast: number; toe: number; power: number;
-  /** vignettes (round, quadratic), the fixed dither (255ths), grain */
-  vignette: number; vignetteQ: number; dither: number; grain: number;
+  /** vignettes (round, quadratic), the fixed dither (255ths), grain, and how much it keeps to the mids (0 even, 1 film's:
+   *  little in the shadows and the highlights) */
+  vignette: number; vignetteQ: number; dither: number; grain: number; grainMids: number;
   /** the time-of-day grade: strength, the warm-cool split, the reds' richness; where the sun is (0..1 each: golden hour,
    *  dusk, noon, night) and the cloud cover */
   grade: number; split: number; rich: number; golden: number; dusk: number; noon: number; night: number; cover: number;
 }
 
+/** the bloom chain's levels (renderer.ts) */
+export const BLOOM_LEVELS = 6;
+
 /** the cosmos's frames, as graded before there was a shared film (c_post.wgsl's) */
 export const COSMOS_FILM: Film = {
-  exposure: 1, bloomShare: 0, bloomAdd: 0.012, bloomNorm: 1 / 6,
+  exposure: 1, bloomShare: 0, bloomAdd: 0.012, bloomNorm: 1 / 6, bloomWeight: 1, bloomEven: 0,
   glow: 0, glowFrom: 1, halation: 0,
   warmth: 0, punch: 0, saturation: 1, saturationAfter: 1.08,
   contrast: 1.08, toe: 1, power: 1 / 2.2,
-  vignette: 0.45, vignetteQ: 0, dither: 0, grain: 0.004,
+  vignette: 0.45, vignetteQ: 0, dither: 0, grain: 0.004, grainMids: 0,
   grade: 0, split: 0, rich: 0, golden: 0, dusk: 0, noon: 0, night: 0, cover: 0,
 };
 
@@ -37,10 +45,12 @@ export function mixFilm(a: Film, b: Film, t: number): Film {
 
 /** the film uniform's fields (film.wgsl FilmU) for these settings, `alpha` and the target's kind */
 export function filmFields(f: Film, alpha: number, encode: boolean, disc: boolean) {
+  let sum = 0;
+  for (let i = 0, w = 1; i < BLOOM_LEVELS; i++, w *= f.bloomWeight) sum += w;
   return {
-    a: [f.exposure, f.bloomShare, f.bloomAdd, f.bloomNorm], glow: [f.glow, f.glowFrom, f.halation, 0],
+    a: [f.exposure, f.bloomShare, f.bloomAdd, f.bloomNorm], glow: [f.glow, f.glowFrom, f.halation, f.bloomNorm * sum],
     look: [f.warmth, f.punch, f.saturation, f.saturationAfter], tone: [f.contrast, f.toe, f.power, f.grain],
-    vig: [f.vignette, f.vignetteQ, f.dither, 0], grade: [f.grade, f.split, f.rich, f.night],
+    vig: [f.vignette, f.vignetteQ, f.dither, f.grainMids], grade: [f.grade, f.split, f.rich, f.night],
     sun: [f.golden, f.dusk, f.noon, f.cover], out: [alpha, encode ? 1 : 0, disc ? 1 : 0, 0],
   };
 }

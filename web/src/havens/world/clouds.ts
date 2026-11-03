@@ -124,6 +124,8 @@ export class Clouds {
   private over = 1;
   /** how much of the sky's dome the clouds cover this frame (0..1) */
   get skyCover() { return this.dome.cover; }
+  /** as the sky shows it (cloudSky.dome.x: the post's grade reads it) */
+  get shownCover() { return this.dome.cover * this.over; }
   private puffBand = 2500;
 
   constructor(readonly kit: Kit) {

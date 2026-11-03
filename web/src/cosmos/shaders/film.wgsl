@@ -10,10 +10,11 @@
 
 struct FilmU {
   a: vec4f,      // x exposure, y bloom's share (mixed in), z bloom added, w bloom's normaliser (1 / its levels' weights)
-  glow: vec4f,   // x the glow on what's bright, y its knee (film units), z halation (less of it by night), w -
+  glow: vec4f,   // x the glow on what's bright, y its knee (film units), z halation (less of it by night), w the bloom's
+                 // gain over an even field (its normaliser times its levels' summed weights)
   look: vec4f,   // x warmth (white balance), y punch (0 AgX's base look, 1 punchy), z saturation in the look, w after it
   tone: vec4f,   // x contrast, y its toe (0 a straight line, 1 soft), z the screen's power (1/2.2, or 1: AgX's own curve), w grain
-  vig: vec4f,    // x vignette (round, aspect-true), y vignette (quadratic), z dither (in 255ths), w -
+  vig: vec4f,    // x vignette (round, aspect-true), y vignette (quadratic), z dither (in 255ths), w the grain kept to the mids
   grade: vec4f,  // x the time-of-day grade's strength, y the warm-cool split, z the reds' and golds' richness, w night (0..1)
   sun: vec4f,    // x golden hour, y dusk, z noon, w cloud cover (0..1)
   out: vec4f,    // x alpha (over the cell's frame while the two hand over), y 1: the screen's curve written (0: an sRGB
@@ -117,14 +118,17 @@ fn filmFinish(F: FilmU, d0: vec3f, uv: vec2f, px: vec2f, aspect: f32, n0: f32, n
   let dc = uv - 0.5;
   d *= 1.0 - F.vig.x * smoothstep(0.25, 0.95, length(dc * vec2f(aspect, 1.0)) / max(aspect, 1.0) * 1.5);
   d *= 1.0 - F.vig.y * dot(dc, dc) * 1.6;
-  // (a fixed dither against banding in the sky, then the grain: n0 fixed per pixel, n1 new each frame)
-  d += (n0 - 0.5) * F.vig.z / 255.0 + (n1 - 0.5) * F.tone.w;
+  // (a fixed dither against banding in the sky, then the grain: n0 fixed per pixel, n1 new each frame; film's grain
+  // mostly in the mids, as strong as Seven Havens' triangular noise)
+  let l = dot(clamp(d, vec3f(0.0), vec3f(1.0)), FILM_LUMA);
+  d += (n0 - 0.5) * F.vig.z / 255.0 + (n1 - 0.5) * F.tone.w * mix(1.0, 1.41 * (0.15 + 3.0 * l * (1.0 - l)), F.vig.w);
   d = pow(max(d, vec3f(0.0)), vec3f(F.tone.z));
   return select(pow(d, vec3f(2.2)), d, F.out.y > 0.5);
 }
 
-/** the film run backwards (ignoring the toe, the bloom's own light, the grade, the vignette and the grain): the scene
- *  colour, in film units, that shows as `D0` designed for the screen. A colour model's characters are drawn so */
+/** the film run backwards (ignoring the toe, the grade, the vignette and the grain; the bloom, its glow and halation
+ *  as over an even field of the colour): the scene colour, in film units, that shows as `D0` designed for the screen.
+ *  A colour model's characters are drawn so */
 fn filmLock(F: FilmU, D0: vec3f) -> vec3f {
   var g = pow(max(D0, vec3f(0.0)), vec3f(1.0 / max(F.tone.z, 1e-3)));
   g = (g - 0.5) / max(F.tone.x, 0.01) + 0.5;
@@ -136,5 +140,10 @@ fn filmLock(F: FilmU, D0: vec3f) -> vec3f {
   d = pow(max(d, vec3f(1e-5)), vec3f(1.0 / filmPower(F)));
   d = vec3f(filmPolyInv(d.x), filmPolyInv(d.y), filmPolyInv(d.z));
   let c = FILM_OUTSET * exp2(d * (FILM_MAX_EV - FILM_MIN_EV) + FILM_MIN_EV);
-  return max(c, vec3f(0.0)) / (filmWarmth(F) * max(F.a.x * (1.0 - F.a.y), 1e-9));
+  let x = max(c, vec3f(0.0)) / (filmWarmth(F) * max(F.a.x, 1e-9));
+  // (an even field's bloom is the field times the gain: mixed in by its share, added, its halation; and the glow past
+  // the knee — linear on each side of it)
+  let G = F.glow.w; let s = F.a.y;
+  let A = vec3f(1.0 - s + s * G + F.a.z * G / max(F.a.w, 1e-9)) + vec3f(1.0, 0.32, 0.1) * G * F.glow.z * s * (1.0 - 0.75 * F.grade.w);
+  return select((x + F.glow.x * F.glow.y) / (A + F.glow.x * G), x / A, x <= A * F.glow.y / max(G, 1e-9));
 }

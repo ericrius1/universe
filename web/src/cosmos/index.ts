@@ -42,6 +42,9 @@ export interface CosmosOptions {
   /** the resolution the volumes (the cosmic web, the microwave background, the Milky Way) march at, a fraction of the
    *  frame's: below 1 for a phone (default 1; a dome always 1) */
   volumeScale?: number;
+  /** the meadow at the bottom of the dive, whoever lies there drawn into it (default true; false: a host draws its own
+   *  ground there and lays them into it — Universe's gardens — the meadow only a stand-in close up while that loads) */
+  meadow?: boolean;
 }
 export type { DomeOptions };
 
@@ -75,7 +78,7 @@ export class Cosmos {
     this.data = new EarthData(kit, typeof data === 'string' ? (f) => data + f : data);
     this.air = new Air(kit, this.r, this.ladder);
     this.earth = new Earth(kit, this.r, this.ladder, this.air, this.data);
-    this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data, o.figure ?? new URL(`data/figure/${WHO.file}`, document.baseURI).href);
+    this.surface = new Surface(kit, this.r, this.ladder, this.air, this.data, o.figure ?? new URL(`data/figure/${WHO.file}`, document.baseURI).href, o.meadow ?? true);
   }
 
   /** where the view is, coarsest first */

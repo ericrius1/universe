@@ -129,7 +129,7 @@ async function experiment(app: App) {
   return out;
 }
 
-/** at her eye (the gardens off: the meadow's shader and her figure draw it), what each part costs, as experiment does */
+/** at her eye (the canyon not drawn: she alone, figure.ts facePass), what each part costs, as experiment does */
 async function eyeExperiment(app: App) {
   const kit = (window as unknown as { kit: Kit }).kit, sf = app.cosmos.surface as unknown as Record<string, any>;
   const auto = kit.autoRes, scale = kit.renderScale;
@@ -147,7 +147,6 @@ async function eyeExperiment(app: App) {
     [() => { Object.defineProperty(o, k, { get: () => v, set: () => {}, configurable: true }); }, () => { delete o[k]; }];
   const tries: [string, () => void, () => void][] = [
     ['figure', ...pin(sf.figure, 'shown', false)],
-    ['meadow', ...pin(sf, 'hidden', true)],
     ['half res', () => { kit.renderScale = scale * 0.6; }, () => { kit.renderScale = scale; }],
   ];
   const out: Record<string, string | number> = { scale: scale.toFixed(2), base: await measure() };

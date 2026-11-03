@@ -4,6 +4,9 @@
 // split, the reds' and golds' richness, by the time of day), vignette and dithering. (The cast's display lock —
 // hero.wgsl, aang's air and glider — runs the bloom's share, the exposure, the warmth, AgX, its look and the contrast
 // backwards: those stay as they are; the grade after them falls on the cast as on everything.)
+// Or (`layer`) laid into a host's frame for the host's film to finish (embed.ts: Universe's dive, one film from the
+// edge of the universe to her eye): the scene through the lens, the light in the air, exposed, night vision — the host
+// blooms it, and its film (Seven Havens' settings: embed.ts film) does the rest as `fs` would.
 #include "./../world/world.wgsl"
 #include "./fx.wgsl"
 #include "weft/fullscreen"
@@ -12,7 +15,7 @@ struct Post {
   ev: vec4f,        // x exposure bias (stops), y bloom strength, z vignette, w grain
   grade: vec4f,     // x saturation, y contrast, z warmth, w agx look (0 base, 1 punchy)
   look: vec4f,      // x the glow on what's bright, y the brightness on the screen it glows from, z night vision, w the warm-cool split
-  look2: vec4f,     // x the reds' and golds' richness, yzw -
+  look2: vec4f,     // x the reds' and golds' richness, y how much a host's frame shows of it (`layer`), zw -
 }
 @group(2) @binding(0) var<uniform> P: Post;
 @group(2) @binding(1) var hdr: texture_2d<f32>;
@@ -60,6 +63,18 @@ fn agxLook(c: vec3f) -> vec3f {
 // the night's colour as the rods see it: blue-violet (its luminance 1)
 const NIGHT_HUE = vec3f(0.74, 0.92, 2.36);
 
+// night vision on the exposed light: as the light fails the rods take over, the land's colour draining to a cool
+// blue-violet (mesopic: what's bright enough — a lantern, the fire — keeps its colour; the sky is painted as the eye
+// takes it already, the aurora and the moon in it)
+fn nightVision(c: vec3f, uv: vec2f) -> vec3f {
+  let lum = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+  let land = textureLoad(fxSceneZ, vec2i(uv * vec2f(textureDimensions(fxSceneZ))), 0).x < 6e4;
+  // (it comes on as the twilight fails, from the sun 8 degrees down: the dusk keeps its warmth on the land)
+  // (not in the caverns under the Haven: the eye is set by their crystals there, night or day)
+  let scot = smoothstep(-0.139, -0.276, world.sunTrue.y) * P.look.z * (1.0 - smoothstep(0.03, 0.4, lum)) * select(0.0, 1.0, land) * (1.0 - underground(frame.camPos));
+  return mix(c, lum * NIGHT_HUE, scot);
+}
+
 @fragment fn fs(i: FullscreenOut) -> @location(0) vec4f {
   var c = fxScene(i.uv, EDGE_AA > 0.5);
   let b = textureSampleLevel(bloom, samp_linear, i.uv, 0.0).rgb * FX.grade.y;
@@ -70,16 +85,7 @@ const NIGHT_HUE = vec3f(0.74, 0.92, 2.36);
   // halation (film's red glow round highlights; little of it by night, when the moon's halo is cool), and the light in
   // the air and the lens
   c += b * vec3f(1.0, 0.32, 0.1) * FX.lens.w * P.ev.y * (1.0 - 0.75 * world.sunTrue.w) + fxLight(i.uv);
-  c *= toScreen;
-  // night vision: as the light fails the rods take over, the land's colour draining to a cool blue-violet
-  // (mesopic: what's bright enough — a lantern, the fire — keeps its colour; the sky is painted as the eye takes it
-  // already, the aurora and the moon in it)
-  let lum = dot(c, vec3f(0.2126, 0.7152, 0.0722));
-  let land = textureLoad(fxSceneZ, vec2i(i.uv * vec2f(textureDimensions(fxSceneZ))), 0).x < 6e4;
-  // (it comes on as the twilight fails, from the sun 8 degrees down: the dusk keeps its warmth on the land)
-  // (not in the caverns under the Haven: the eye is set by their crystals there, night or day)
-  let scot = smoothstep(-0.139, -0.276, world.sunTrue.y) * P.look.z * (1.0 - smoothstep(0.03, 0.4, lum)) * select(0.0, 1.0, land) * (1.0 - underground(frame.camPos));
-  c = mix(c, lum * NIGHT_HUE, scot);
+  c = nightVision(c * toScreen, i.uv);
   // warmth (white balance shift) before the curve
   c *= vec3f(1.0 + P.grade.z * 0.08, 1.0, 1.0 - P.grade.z * 0.08);
   var d = agx(c);
@@ -96,4 +102,11 @@ const NIGHT_HUE = vec3f(0.74, 0.92, 2.36);
   d += n / 255.0 * (1.0 + P.ev.w * 6.0);
   d = fxGrain(d, i.pos.xy);
   return vec4f(clamp(d, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+
+// the scene for a host's film: through the lens, the light in the air added, exposed, night vision; over the host's
+// frame by how much it shows (blended), or in place of it
+@fragment fn layer(i: FullscreenOut) -> @location(0) vec4f {
+  let c = fxScene(i.uv, EDGE_AA > 0.5) + fxLight(i.uv);
+  return vec4f(nightVision(c * world.exposure * exp2(P.ev.x), i.uv), P.look2.y);
 }

@@ -120,7 +120,7 @@ export class PostFx {
    *  fewer levels keep the glow's strength) */
   get bloomWeight() { return 0.55 + 0.9 * this.settings.bloomRadius; }
   levels = 6;
-  private bloomNorm() { let w = 0, k = 1; for (let i = 0; i < this.levels; i++) { w += k; k *= this.bloomWeight; } return 6 / w; }
+  bloomNorm() { let w = 0, k = 1; for (let i = 0; i < this.levels; i++) { w += k; k *= this.bloomWeight; } return 6 / w; }
 
   /** work that needs the scene's distances and draws into the overlay (Katara's bent water: its screen-space passes) */
   beforeOverlay: () => RunEntry[] = () => [];

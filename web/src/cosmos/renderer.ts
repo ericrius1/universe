@@ -1,7 +1,8 @@
 // The frame above the cell: every level draws into one HDR target in order, coarsest first (the cosmic web, the Milky
 // Way, the Sun's neighbours, the solar system, the Earth, the meadow, the skin), each with its weight for the zoom —
 // sprites add their light, surfaces lay theirs over what's behind with their coverage, so a daytime sky hides the
-// stars and a night one doesn't. Then bloom and the grade, to the screen, or over the cell's frame while they hand over.
+// stars and a night one doesn't. A host's picture can be laid into it after (Universe's: Seven Havens' gardens, and
+// her face). Then bloom and the film, to the screen, or over the cell's frame while they hand over.
 //
 // Each level's view is worked out here in doubles and handed over relative to its own floating origin (the zoom's
 // target in its frame, rounded to float32): a level never sees a number bigger than its own few thousand units.
@@ -12,9 +13,9 @@ import post from './shaders/c_post.wgsl';
 import volShader from './shaders/c_vol.wgsl';
 import type { Frame, Ladder } from './frames';
 import type { CosmosControls } from './controls';
-import { COSMOS_FILM, filmFields, type Film } from './film';
+import { BLOOM_LEVELS, COSMOS_FILM, filmFields, type Film } from './film';
 
-const BLOOM_MIPS = 6;
+const BLOOM_MIPS = BLOOM_LEVELS;
 export const TIME_WRAP = 4096;
 
 /** a level's weight over the zoom (log10 m): 0 above a, rising to 1 at b, 1 down to c, 0 by d (a > b ≥ c > d) */
@@ -55,14 +56,14 @@ export class CosmosRenderer {
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
   readonly before: RunEntry[] = [];
-  /** a host's own work this frame, before all of it and after the picture's on the screen (Universe's: Seven Havens'
-   *  gardens drawn, and laid over the frame) */
+  /** a host's own work this frame: before all of it, and after the scene, into its HDR before the bloom (Universe's:
+   *  Seven Havens' gardens drawn, then laid into the frame) */
   first: () => RunEntry[] = () => [];
-  last: () => RunEntry[] = () => [];
+  afterScene: () => RunEntry[] = () => [];
   /** over the cell's frame (the hand-over) rather than in place of it */
   over = false;
-  /** wholly covered by a host's picture (Universe's gardens): only the work before the scene (the figure, the air's
-   *  tables) and the host's, not the scene, its bloom or its final pass */
+  /** wholly covered by what a host lays in after the scene (Universe's gardens, her face): the scene's levels not
+   *  drawn at all */
   covered = false;
   private items: RunEntry[];
   private bloomLv: UniformBuffer<any>[] = [];
@@ -166,7 +167,6 @@ export class CosmosRenderer {
         up: lv.up, time: time % TIME_WRAP, pxAngle, view,
       });
     }
-    this.sizeBloom();
   }
 
   /** the target's size (px) */
@@ -177,20 +177,20 @@ export class CosmosRenderer {
     const size = (m: number) => [Math.max(1, Math.round(w * 0.5) >> m), Math.max(1, Math.round(h * 0.5) >> m)];
     for (let i = 0; i < BLOOM_MIPS; i++) {
       const src = i === 0 ? [w, h] : size(i - 1);
-      this.bloomLv[i].set({ texel: [1 / src[0], 1 / src[1]], mip: i, last: 0 });
+      this.bloomLv[i].set({ texel: [1 / src[0], 1 / src[1]], mip: i, weight: 1, first: [this.film.bloomEven, 0, 0, 0] });
     }
     for (let i = BLOOM_MIPS - 2; i >= 0; i--) {
       const s = size(i + 1);
-      this.bloomLv[BLOOM_MIPS + (BLOOM_MIPS - 2 - i)].set({ texel: [1 / s[0], 1 / s[1]], mip: i, last: 0 });
+      this.bloomLv[BLOOM_MIPS + (BLOOM_MIPS - 2 - i)].set({ texel: [1 / s[0], 1 / s[1]], mip: i, weight: this.film.bloomWeight });
     }
   }
 
   /** this frame's GPU work, for a host that runs it with its own */
   run(): RunEntry[] {
-    // (the film's settings as they stand now: a host's mixed in after the views were worked out)
+    // (the film's settings as they stand now: a host's mixed in after the views were worked out; its bloom's too)
     this.P.set(filmFields(this.film, this.alpha, this.encode, !!this.dome));
-    if (this.covered) return [...this.first(), ...this.before, ...this.last()];
-    return [...this.first(), ...this.before, this.scene, ...this.items, ...this.last()];
+    this.sizeBloom();
+    return [...this.first(), ...this.before, ...(this.covered ? [] : [this.scene]), ...this.afterScene(), ...this.items];
   }
 
   frame() { this.kit.run(this.run()); }
