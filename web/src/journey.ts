@@ -29,7 +29,7 @@ const hold = (a: number[], dur: number, caption?: string, title?: string) => up(
 
 const SHOTS: Shot[] = [
   // out (under two minutes, all of it: the places held a breath, the empty decades crossed quickly)
-  hold(LYING, 3.5, 'from someone lying in the grass, to the edge of everything, and back', 'Universe'),
+  hold(LYING, 3.5, '@lying', 'Universe'),
   go(LYING, BOULDER, 4.5), hold(BOULDER, 1.0, '@spot'),
   go(BOULDER, EARTH, 4.5), hold(EARTH, 1.2, 'the Earth'),
   go(EARTH, SOLAR, 4), hold(SOLAR, 1.2, 'the solar system, where its planets are today'),
@@ -122,7 +122,10 @@ export class Journey {
     const t1 = this.starts[this.shot] + (s.kind === 'in' ? s.fly + s.hold : s.dur);
     const a = Math.max(0, Math.min(1, (t - t0) / 0.7, (t1 - t) / 0.5));
     // (the bottom of the dive called as the app has it: Seven Havens' gardens, or Boulder's meadow under ?nogardens)
-    const caption = s.caption === '@spot' ? (this.app.gardens ? HAVENS_CAPTIONS.journeySpot : 'Boulder, Colorado · the Flatirons') : s.caption, title = s.kind === 'up' ? s.title : undefined;
+    const inGardens = !!this.app.gardens;
+    const caption = s.caption === '@spot' ? (inGardens ? HAVENS_CAPTIONS.journeySpot : 'Boulder, Colorado · the Flatirons')
+      : s.caption === '@lying' ? (inGardens ? HAVENS_CAPTIONS.journeyLying : 'from someone lying in the grass, to the edge of everything, and back') : s.caption;
+    const title = s.kind === 'up' ? s.title : undefined;
     if (a > 0 && (caption || title)) {
       g.save();
       g.globalAlpha = a;
@@ -186,6 +189,9 @@ export class Journey {
     // (the first frame asks for the ground round the spot: wait till it's in)
     const save = this.t;
     for (let k = 0; k < 600 && !this.app.cosmos.data.ready; k++) { await this.capture.step(0); await new Promise((r) => setTimeout(r, 50)); }
+    // (and a few seconds more, the clock still, for what the gardens finish after they're in — their first shadows, the
+    // sky's light: the first take lit the bed at its 23rd frame)
+    if (this.app.gardens) for (let k = 0; k < 90; k++) { await this.capture.step(0); await new Promise((r) => setTimeout(r, 50)); }
     this.t = save;
     const w = window as unknown as Record<string, unknown>;
     for (this.frameNo = 0; this.frameNo < this.total; this.frameNo++) {

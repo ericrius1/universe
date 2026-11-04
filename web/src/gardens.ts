@@ -44,6 +44,7 @@ export const HAVENS_CAPTIONS = {
   tourSpot: '<small>3 km</small>Seven Havens: a walled city in a red sandstone canyon, and above it on its promontory the golden temple in its terraced gardens.',
   tourPerson: '<small>2 m</small>Someone lying among the flowers beside the temple, looking up at all of it.',
   journeySpot: 'Seven Havens · the temple and its gardens',
+  journeyLying: 'from someone lying in the flowers, to the edge of everything, and back',
 };
 
 /** where the spot's ground is in the canyon (its metres): the pink flower bed beside the citadel's temple on its east
