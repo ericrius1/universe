@@ -1,6 +1,7 @@
 // The cell's sound: a generative score in pure Web Audio — no samples. Two pads of detuned voices (a low one that
-// belongs to the view from outside, a high one to the inside) breathe through slow filters; their chord follows the
-// compartment (the nucleus darker, a mitochondrion warmer and pulsing) and their register, brightness and texture
+// belongs to the view from outside, a high one to the inside) breathe through slow filters, thinning out and back every
+// minute or so; their chords, a slow progression, follow the compartment (the nucleus darker, a mitochondrion warmer
+// and pulsing) and their register, brightness and texture
 // follow the zoom: wide, low and slow over the tissue, a breathing pad among the organelles, and at the molecular
 // scale a fine shimmer of sine grains and the soft crackle of Brownian motion, denser the closer you go. Glassy FM
 // bells ring now and then; crossing a power of ten rings a low one. Everything runs through one bus: a generated
@@ -28,17 +29,27 @@ function mulberry32(seed: number) {
   };
 }
 
-// chords per compartment (MIDI, low register; the high pad plays them an octave or two up). Voice i always takes
-// tone i, so a change of place is five voices gliding to their nearest new note.
-const CHORDS: Record<string, number[]> = {
-  outside: [38, 45, 52, 57, 64],   // D A E A E — open, suspended, wide
-  cytosol: [38, 45, 54, 57, 64],   // D add9 — warm
-  nucleus: [38, 45, 53, 60, 64],   // D minor 9 — darker
-  mito: [41, 48, 57, 60, 67],      // F add9 — warmer, brighter
-  er: [34, 41, 50, 57, 64],        // B♭ maj7♯11 — dreamy
-  golgi: [43, 50, 57, 59, 66],     // G maj9
+// chords per compartment (MIDI, low register; the high pad plays them an octave or two up), each a slow progression
+// (a chord every CHORD_HOLD seconds: one chord held for minutes wore on the ear). Voice i always takes tone i, so a
+// change of chord or of place is five voices gliding to their nearest new note.
+const CHORDS: Record<string, number[][]> = {
+  // D sus, open and wide; B minor 7; G 6/9; A
+  outside: [[38, 45, 52, 57, 64], [35, 42, 50, 57, 62], [43, 50, 54, 57, 64], [45, 52, 57, 61, 64]],
+  // D add9, warm; G maj9; E minor 9
+  cytosol: [[38, 45, 54, 57, 64], [43, 50, 54, 59, 64], [40, 47, 54, 55, 62]],
+  // D minor 9, darker; B♭ maj7; C add9
+  nucleus: [[38, 45, 53, 60, 64], [34, 41, 50, 57, 60], [36, 43, 52, 55, 62]],
+  // F add9, warmer, brighter; D minor 9; A minor over C
+  mito: [[41, 48, 57, 60, 67], [38, 45, 53, 57, 64], [36, 43, 52, 57, 64]],
+  // B♭ maj7♯11, dreamy; C add9
+  er: [[34, 41, 50, 57, 64], [36, 43, 50, 55, 64]],
+  // G maj9; E minor 9
+  golgi: [[43, 50, 57, 59, 66], [40, 47, 55, 59, 66]],
 };
-const chordOf = (c: string) => CHORDS[c] ?? CHORDS.cytosol;
+/** seconds a chord holds; the pads' tide (a slow thinning out and back, room for the air and the bells) */
+const CHORD_HOLD = 16;
+const TIDE = 72;
+const chordOf = (c: string, i: number) => { const p = CHORDS[c] ?? CHORDS.cytosol; return p[i % p.length]; };
 
 interface Voice { o1: OscillatorNode; o2: OscillatorNode; drift: OscillatorNode; g: GainNode }
 interface Pad { voices: Voice[]; filter: BiquadFilterNode; gain: GainNode; lfo: OscillatorNode; lfoDepth: GainNode; octave: number }
@@ -65,6 +76,8 @@ class Engine {
   private sources: AudioScheduledSourceNode[] = [];
   private last = new Map<AudioParam, number>();
   private comp = '';
+  /** the progression's chord now (CHORD_HOLD seconds each) */
+  private step = 0;
   private lz = 4;
   private decade = NaN;
   private tickCooldown = 0;
@@ -91,7 +104,7 @@ class Engine {
     hp.connect(comp).connect(this.master).connect(c.destination);
 
     this.noise = this.noiseBuffer(2);
-    this.low = this.pad(-0, 'sawtooth', 0.18);
+    this.low = this.pad(-0, 'triangle', 0.2);
     this.high = this.pad(12, 'triangle', 0.32);
     this.low.gain.connect(this.bus); this.low.gain.connect(this.send(0.55));
     this.pulseGain = c.createGain();
@@ -241,6 +254,7 @@ class Engine {
   start(t: number, scale: number, compartment: string) {
     this.lz = Math.log10(Math.max(1, scale));
     this.comp = '';
+    this.step = Math.floor(t / CHORD_HOLD);
     this.setChord(compartment, t, true);
     this.control(t, 0, scale, compartment, true);
     for (const s of this.sources) s.start(t);
@@ -256,9 +270,11 @@ class Engine {
   }
 
   private setChord(compartment: string, t: number, prime = false) {
-    if (compartment === this.comp) return;
+    const step = Math.floor(t / CHORD_HOLD);
+    if (compartment === this.comp && step === this.step) return;
     this.comp = compartment;
-    const ch = chordOf(compartment);
+    this.step = step;
+    const ch = chordOf(compartment, step);
     const glide = (pad: Pad, i: number, m: number) => {
       const v = pad.voices[i], f = mtof(m + pad.octave + (pad.octave && i >= 3 ? 12 : 0));
       // (staggered: the chord blooms voice by voice)
@@ -283,11 +299,13 @@ class Engine {
     const mid = clamp01(1 - far - near);
     this.setChord(compartment, t, prime);
     const outside = compartment === 'outside';
-    this.to(this.low.gain.gain, (0.34 + 0.5 * far) * (1 - 0.55 * near), t, 0.6, prime);
-    this.to(this.high.gain.gain, (0.4 + 0.75 * (1 - far)) * (1 - 0.25 * near), t, 0.6, prime);
+    // (the tide: the pads and the sub full, thinning to a third over half a minute, and back)
+    const tide = 0.62 + 0.38 * Math.cos((2 * Math.PI * t) / TIDE);
+    this.to(this.low.gain.gain, (0.34 + 0.5 * far) * (1 - 0.55 * near) * tide, t, 0.6, prime);
+    this.to(this.high.gain.gain, (0.4 + 0.75 * (1 - far)) * (1 - 0.25 * near) * (0.3 + 0.7 * tide), t, 0.6, prime);
     this.to(this.low.filter.frequency, 320 + 600 * (1 - far) + 250 * near, t, 0.5, prime);
     this.to(this.high.filter.frequency, 900 + 1700 * (1 - far) + 1100 * near, t, 0.5, prime);
-    this.to(this.subGain.gain, 0.025 + 0.075 * far, t, 0.8, prime);
+    this.to(this.subGain.gain, (0.025 + 0.075 * far) * tide, t, 0.8, prime);
     this.to(this.airGain.gain, (outside ? 0.05 : 0.012) * (0.4 + 0.6 * far), t, 1.0, prime);
     this.to(this.airFilter.frequency, outside ? 380 : 900, t, 1.0, prime);
     this.to(this.crackle[0].gain.gain, 0.5 * near + 0.05 * mid, t, 0.4, prime);
@@ -316,7 +334,7 @@ class Engine {
   }
   /** a chord tone in octaves lo..hi (MIDI) */
   private toneHigh(lo: number, hi: number) {
-    const ch = chordOf(this.comp);
+    const ch = chordOf(this.comp, this.step);
     const m = ch[Math.floor(this.rnd() * ch.length)] % 12;
     const oct = lo + Math.floor(this.rnd() * (hi - lo + 1));
     return 12 * (oct + 1) + m + 2;   // (+2: the chords are spelled from C; D is the home)
@@ -414,7 +432,7 @@ class Engine {
 
   event(name: string, strength: number, t: number) {
     const s = Math.max(0, Math.min(2, strength));
-    const ch = chordOf(this.comp);
+    const ch = chordOf(this.comp, this.step);
     switch (name) {
       case 'click': this.tone(t, 'sine', 1650, 1500, 0.03, 0.002, 0.05, 0.05 * s, 0.4); this.bell(ch[2] % 12 + 86, 0.012 * s, t, 1.2); break;
       case 'hover': this.tone(t, 'sine', 2640, 2640, 0, 0.003, 0.03, 0.012 * s, 0.5); break;
