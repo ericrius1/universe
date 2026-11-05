@@ -168,6 +168,12 @@ export const webkit = typeof navigator !== 'undefined' && /AppleWebKit/.test(nav
 export const detected = detectProfile();
 export const tier: Profile = { ...PROFILES[detected.name] };
 {
+  // (an Apple GPU, a Mac's as a phone's, is a tile GPU: MSAA has the multisampled depth the post chain reads written out
+  // every frame, so it draws without on any profile, the final pass's edge blend instead, no worse to look at. An M3 Max
+  // on the M5 Air profile, 2041x1326: the gardens 11.9 ms a frame with it, 9.5 without; the plaza 13.0, 12.5; boulder
+  // two to four times)
+  const r = detected.renderer || rendererName();
+  if (/Apple/.test(r) || (typeof navigator !== 'undefined' && /Macintosh/.test(navigator.userAgent) && !/Intel|AMD|NVIDIA/i.test(r))) tier.msaa = 1;
   const msaa = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get('msaa');
   if (msaa === '0' || msaa === '4') tier.msaa = msaa === '4' ? 4 : 1;
   if (webkit) tier.gpuCull = false;
