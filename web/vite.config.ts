@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import type { Plugin } from 'vite';
 
-// weft comes from its GitHub branch (dist/weft: `npm update @ericrius1/weft` takes the latest, as every project does).
+// weft and loom come from their GitHub branches (dist/weft, dist/loom: `npm run weft` takes the latest, as every project
+// does); loom's shaders by `#include "loom/<name>"` (the film every picture of the dive goes through: loom/film).
 // WEFT_LOCAL=1 compiles it from its source checkout instead (../../weft, a sibling repo), so a change to the kit
 // hot-reloads here like the app's own code while it's being worked on; push it to weft's main once it's done.
 const WEFT = resolve(__dirname, '../../weft/packages/weft');
@@ -35,7 +36,7 @@ function reportSink(): Plugin {
 
 export default defineConfig({
   base: process.env.BASE ?? '/',
-  plugins: [weft(), filmSink({ dir: resolve(__dirname, '../film') }), reportSink()],
+  plugins: [weft({ libs: { loom: '@ericrius1/loom' } }), filmSink({ dir: resolve(__dirname, '../film') }), reportSink()],
   resolve: {
     alias: [
       { find: /^@havens\//, replacement: `${HAVENS}/` },

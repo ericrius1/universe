@@ -106,7 +106,9 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
     let c = mix(fil, vec3f(1.0, 0.62, 0.28) * 1.4, d.y);
     // (what's about the view's distance away counts most: from inside, the walls round you, not all 14 Gpc at once)
     let q = t / (1.3 * L.scale);
-    col += c * d.x * dt / (1.0 + q * q * q * q);
+    // (and a hollow round the eye: a filament the zoom flies through passes as the galaxies do, not a flood of light
+    // across the frame for the few frames it's at the lens)
+    col += c * d.x * dt / (1.0 + q * q * q * q) * ss(0.1 * L.scale, 0.4 * L.scale, t);
   }
   col *= L.c.x / L.scale;
   // (the faint sum of everything far behind kept down, so the voids stay black and the filaments stand out)

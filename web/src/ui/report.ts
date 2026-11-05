@@ -8,7 +8,7 @@
 // when the server has a new build (no one need be at the phone).
 import type { Kit } from '@ericrius1/weft';
 import type { App } from '../main';
-import { gpuMemory } from './stats';
+import { gpuMemory } from '@ericrius1/loom/ui/stats';
 
 const MB = (b: number) => Math.round(b / 1e5) / 10;
 

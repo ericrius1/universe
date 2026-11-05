@@ -161,7 +161,8 @@ export class Gardens {
     h.update(dt, push);
     h.shows = this.weight;
     fig.placeIn(SPOT, h.exposure);
-    this.film = h.film();
+    // (its film's settings over the cosmos's: what it doesn't set, the cosmos's — the bloom's knee)
+    this.film = { ...this.base, ...h.film() };
     R.film = mixFilm(this.base, this.film, this.weight);
   }
 

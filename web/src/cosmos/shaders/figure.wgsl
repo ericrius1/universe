@@ -5,7 +5,7 @@
 // still, every bone has the same skin transform (figure/pose.ts), so the head's space is the bind space.
 // Going in, the drawn right eye holds the zoom: its iris grows fibres, crypts and a collarette once they're bigger
 // than a pixel, and the cornea's living cells come over it as the cell's world nears (deep.x).
-// Their colours are designed for the screen: each is drawn as the light that the film (film.wgsl, the frame's: F) shows
+// Their colours are designed for the screen: each is drawn as the light that the film (loom/film, the frame's: F) shows
 // as that colour (filmLock), so they look as designed whatever the film's settings. Three ways in, the first two the
 // same draws (fsHdr: one compile on a phone): into Seven Havens' scene (the gardens, among the flowers: its camera's
 // projection and depth, its scene light — the film's divided by its exposure — and its sun's shadow maps, vsShadow);
@@ -14,7 +14,7 @@
 // distance — that the meadow lays into its grass (c_ground.wgsl).
 #include "cosmos.wgsl"
 #include "tissue.wgsl"
-#include "film.wgsl"
+#include "loom/film"
 
 struct HeroU {
   qmin: vec4f,            // the quantisation box (bind space); w the nose tip's height

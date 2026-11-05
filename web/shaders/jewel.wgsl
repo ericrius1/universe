@@ -108,7 +108,9 @@ fn motes(ro: vec3f, rd: vec3f) -> f32 {
     var o = refract(rd, -normalize(p2 - c), 1.5);
     if (dot(o, o) < 0.5) { o = reflect(rd, -normalize(p2 - c)); }
     let b = textureSampleLevel(litTex, samp_linear, clamp(uvOfP(p2 + o * back), vec2f(0.001), vec2f(0.999)), 1.0).rgb;
-    inner = graded(w.rgb) + b * (1.0 - w.a) * J.tint.rgb;
+    // (the cell through the gaps only as the eye nears the glass to leave it: deep in, their world alone, so the cell
+    // round the bead comes into its sky gently on the way out rather than all at once)
+    inner = graded(w.rgb) + b * (1.0 - w.a) * J.tint.rgb * ssj(r * 0.8, r * 1.1, dist);
   }
   if (inGlass) { return vec4f(inner, 1.0); }
   let p = ro + rd * h.x;

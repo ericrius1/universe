@@ -13,6 +13,7 @@
     "weft": "node tools/engine-latest.mjs --strict"
   },
   "dependencies": {
+    "@ericrius1/loom": "git+https://github.com/ericrius1/weft.git#dist/loom",
     "@ericrius1/weft": "git+https://github.com/ericrius1/weft.git#dist/weft",
     "math": "^0.1.0"
   },

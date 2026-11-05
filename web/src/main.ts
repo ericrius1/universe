@@ -3,7 +3,7 @@
 // Boot: the GPU, the world (layout.ts), its systems (organelles, filaments, molecules, walkers), the camera, the
 // interface; then every frame the globals (scale, cut, haze), the molecular field, the run, and a read of what's under
 // the cursor.
-import { createKit, Capture, AutoResolution, WebGPUUnavailable, type Kit } from '@ericrius1/weft';
+import { createKit, Capture, AutoResolution, WebGPUUnavailable, type Kit, type RunEntry } from '@ericrius1/weft';
 import { vec3, type Vec3 } from 'math';
 import { buildWorld, sdOrganelle, Kind, WEDGE, type World } from './world/layout';
 import { packOrganelles, Organelles } from './world/organelles';
@@ -22,7 +22,7 @@ import { cardFor, type Card } from './ui/info';
 import { Tour } from './ui/tour';
 import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
-import { StatsBox, trackGpuMemory } from './ui/stats';
+import { StatsBox, trackGpuMemory } from '@ericrius1/loom/ui/stats';
 import { startReport } from './ui/report';
 import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS } from './gardens';
 import { TOUR } from './ui/tour';
@@ -30,6 +30,7 @@ import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
+import { CELL_FILM, mixFilm, type Film as Look } from './cosmos/film';
 import { Journey } from './journey';
 import { Loop } from './loop';
 import { JEWEL_GLASS, WORLD_C, WORLD_R, logSOf, type BeyondView } from './cosmos/levels/beyond';
@@ -225,6 +226,17 @@ export class App {
   mixDriven = false;
   /** one bead made glass, the keepers' world inside it (src/loop.ts): its middle (nm) and radius */
   jewel: { at: Vec3; r: number } | null = null;
+  /** a film's: molecules fading shrink whole, not their beads in place (beads.wgsl) */
+  shrinkWhole = false;
+  /** the cell's film (cosmos/film.ts): its frame is laid into the cosmos's and graded with it, this mixed in by its share */
+  cellFilm: Look = CELL_FILM;
+  private cellWork: RunEntry[] = [];
+  /** the cell's share of the frame this time, laid in and in the film (App.frame) */
+  private cellShare = 0;
+  /** the zoom (nm) over which the membranes go from solid to glass (a film's own: src/loop.ts) */
+  shellGlass: [number, number] = [300, 900];
+  /** a film's: the zoom (nm) over which the empty background goes from the haze's own colour to its darker one */
+  hazeBg: [number, number] | null = null;
   /** a film's own haze, from one compartment's toward another's (the same at the same zoom, unlike the eased one) */
   hazeMix: [string, string, number] | null = null;
 
@@ -272,6 +284,11 @@ export class App {
       this.hud.setActive('tour', !!s);
       if (s?.cut) this.cutTarget = 1;
     });
+    // one film for the whole dive (cosmos/film.ts): the cell's frame laid into the cosmos's HDR — under the cosmos's own
+    // as the two hand over, alone below them — and graded with it, the cell's film mixed in by its share
+    const lay = r.layInto(cosmos.r.hdr);
+    cosmos.r.lay = () => (this.mix < 1 ? [lay] : []);
+    cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
     this.wire();
     this.hud.setActive('cut', true);
     // browsers only start audio from a gesture
@@ -561,16 +578,19 @@ export class App {
     // them, the cosmos laid over after)
     const early = fading && !!this.jewel && !!this.cosmos.beyond && cc.logS > 26;
     if (early) {
-      this.cosmos.update(dt, this.mix);
+      this.cosmos.update(dt);
       this.gardens?.update(dt);
       this.kit.run(this.cosmos.r.offscreen());
     }
-    if (this.mix < 1) this.cellFrame(dt);
+    // (the cell's frame, laid into the film below — cosmos/renderer.ts lay — by its share; crossing with the keepers'
+    // world, much darker than it, a share that comes in later, or its light would show through theirs too soon)
+    this.cellShare = this.mix >= 1 ? 0 : early ? (1 - this.mix) ** 3 : 1 - this.mix;
+    if (this.mix < 1) { this.r.post.set({ lay: this.cellShare }); this.cellFrame(dt); }
     if (fading && this.realm === 'cell' && !this.mixDriven) cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
       // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
       const t0 = performance.now();
-      if (!early) this.cosmos.update(dt, this.mix);
+      if (!early) this.cosmos.update(dt);
       const t1 = performance.now();
       if (!early) this.gardens?.update(dt);
       const t2 = performance.now();
@@ -579,6 +599,12 @@ export class App {
       // (the frame's CPU time, its parts: the report's, ui/report.ts)
       this.cpu.cosmos = t1 - t0; this.cpu.gardens = t2 - t1; this.cpu.run = performance.now() - t2;
       if (this.realm === 'cosmos') this.cosmosHud(dt);
+    } else {
+      // (the cell alone: its frame and the film's, none of the cosmos's own work, one submission)
+      const R = this.cosmos.r;
+      R.hostOnly = true;
+      this.kit.run([...this.cellWork, ...R.run()]);
+      R.hostOnly = false;
     }
   }
 
@@ -632,23 +658,38 @@ export class App {
     const pxAngle = (2 * Math.tan(fov / 2)) / kit.size.render[1];
     const outside = this.compartmentName === 'outside';
     const fogK = outside ? 6 : 1.4 + 1.6 * Math.min(1, Math.max(0, Math.log10(S / 100) / 2));
-    const solid = Math.min(1, Math.max(0, (900 - S) / 600));
+    const [g0, g1] = this.shellGlass;
+    const solid = Math.min(1, Math.max(0, (g1 - S) / (g1 - g0)));
+    const hb = this.hazeBg ? Math.min(1, Math.max(0, Math.log(this.hazeBg[1] / S) / Math.log(this.hazeBg[1] / this.hazeBg[0]))) : 0;
     this.r.globals.set({
       focus: rel(c.pivot), scale: S, keyDir: key, level: Math.log2(Math.max(S, 1) / 30),
       cutCenter: rel(WEDGE.center), cut: this.cut > 0.01 ? this.cut : 0, cutN1: n1, cutN2: n2, cutRadius: WEDGE.radius,
       bioTime: gpuTime(this.bioTime), timeScale: this.timeScale, fluo: this.fluo,
       fogColor: this.haze[0].map((x) => x * (1 - this.fluo)) as Vec3, bgColor: this.haze[1].map((x) => x * (1 - this.fluo)) as Vec3,
-      fogDist: S * fogK, exposure: 0.85, clearRadius: S * 0.42, pxAngle,
+      fogDist: S * fogK, clearRadius: S * 0.42, pxAngle,
       organelleCount: this.world.organelles.length, hover: this.hover, selected: this.selected, highlight: 1,
-      quality: 1, flags: 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin,
+      quality: 1, flags: this.shrinkWhole ? 1 : 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin, hazeBg: hb * hb * (3 - 2 * hb),
     });
     this.r.globals.set({ jewel: this.jewel ? [...rel(this.jewel.at), this.jewel.r] as never : [0, 0, 0, 0] });
+    // how far off a nucleosome (10.74 nm) and a base pair (1.1 nm) still count as over 9 px, the haze taken in
+    // (world.wgsl lodPx: falls with distance, so halving finds it)
+    const fogDist = S * fogK;
+    const reach = (r: number) => {
+      let lo = 0, hi = r / (9 * pxAngle);
+      for (let i = 0; i < 40; i++) { const d = (lo + hi) / 2; if ((r / (d * pxAngle)) * Math.exp((-0.5 * d) / fogDist) > 9) lo = d; else hi = d; }
+      return lo;
+    };
+    // (chromatin's reach round the focus: everywhere, but round a film's jewel made out from it as the view widens — the
+    // strands round the bead the eye has just left not flying past the lens — open by ~15 nm)
+    const chrom = this.jewel ? 2.6 * S * (1 + (S / 4) ** 3) : 1e30;
+    this.r.globals.set({ lodReach: [reach(10.74), reach(1.1), chrom, 0] as never });
     this.jewelFrame(dt);
     // the molecular field: the motors walking (games add their own actors first), then generation round the focus
     if (!this.game) this.field.actorCount = 0;
     this.walkers.update(this.bioTime, c.pivot, S);
     this.field.update(c.pivot, eye, S, pxAngle);
-    this.r.frame();
+    // (run with the film's work after it when the cell's alone — App.frame — else now, before the cosmos moves the camera)
+    if (this.mix > 0) this.r.frame(); else this.cellWork = this.r.work();
     this.probe();
 
     // the interface

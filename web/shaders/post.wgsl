@@ -1,6 +1,7 @@
-// The film: ambient occlusion with a radius proportional to depth (so contact shadows read the same at ten microns and
-// at ten nanometres), the haze of the crowded cytoplasm (its reach follows the zoom), bloom from a mip chain, and the
-// grade — an AgX-style curve, a vignette, a touch of grain.
+// The cell's frame after its scene: ambient occlusion with a radius proportional to depth (so contact shadows read the
+// same at ten microns and at ten nanometres), the haze of the crowded cytoplasm (its reach follows the zoom), the depth
+// of field; then laid into the one film every picture of the dive goes through (the cosmos's: cosmos/film.ts CELL_FILM,
+// its bloom and its grade).
 #include "world.wgsl"
 #include "../src/cosmos/shaders/tissue.wgsl"
 #include "weft/fullscreen"
@@ -8,27 +9,19 @@
 struct Post {
   aoRadius: f32,      // @range(0, 0.3) fraction of the depth
   aoStrength: f32,    // @range(0, 2)
-  bloom: f32,         // @range(0, 1)
-  bloomRadius: f32,   // @range(0.2, 1.5)
-  vignette: f32,      // @range(0, 1)
-  grain: f32,         // @range(0, 0.1)
-  saturation: f32,    // @range(0, 2)
-  contrast: f32,      // @range(0.5, 1.5)
   dofMax: f32,        // @range(0, 30) widest blur, pixels at 1080 lines
   dofRange: f32,      // @range(0.02, 1) how far from the focus (fraction of its distance) blur reaches full
-  pad0: f32, pad1: f32,
+  lay: f32,           // the frame's weight laid into the film's (1 alone; less under the cosmos's as the two hand over)
+  pad0: f32, pad1: f32, pad2: f32,
 }
 @group(2) @binding(8) var<uniform> P: Post;
 @group(2) @binding(0) var depthTex: texture_depth_2d;
 @group(2) @binding(1) var nrmTex: texture_2d<f32>;
 @group(2) @binding(2) var hdrTex: texture_2d<f32>;
 @group(2) @binding(3) var aoTex: texture_2d<f32>;
-@group(2) @binding(4) var bloomTex: texture_2d<f32>;
 @group(2) @binding(5) var srcTex: texture_2d<f32>;
 @group(2) @binding(6) var idTex: texture_2d<u32>;
 
-struct Lvl { texel: vec2f, mip: f32, last: f32 }
-@group(2) @binding(7) var<uniform> L: Lvl;
 @group(2) @binding(9) var accumTex: texture_2d<f32>;
 @group(2) @binding(10) var revealTex: texture_2d<f32>;
 @group(2) @binding(11) var dofTex: texture_2d<f32>;
@@ -81,6 +74,8 @@ fn background(uv: vec2f) -> vec3f {
   var c = G.bgColor * (0.65 + 0.7 * k * k);
   let sp = cellular(r * 180.0, 1.0);
   c += G.fogColor * 0.35 * smoothstep(0.08, 0.0, sp.d1) * step(0.8, sp.id.x);
+  // (a film's, while the haze is thick: the haze itself, so no darker gaps between the things it has all but hidden)
+  c = mix(c, G.fogColor, G.hazeBg);
   // the tissue's sheet going on beyond the cells round this one (cosmos/tissue.ts: the cosmos paints the same sheet on
   // Lyra's cornea, so coming in from there it's all one), in the haze, while the view takes in the tissue
   let far = smoothstep(12000.0, 30000.0, G.scale);
@@ -150,32 +145,6 @@ fn glassOver(c: vec3f, px: vec2i) -> vec3f {
 }
 
 // ---------------------------------------------------------------- bloom: down a mip chain, back up with a tent
-@fragment fn fs_down(in: FullscreenOut) -> @location(0) vec4f {
-  let t = L.texel;
-  var c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb * 0.5;
-  c += textureSampleLevel(srcTex, samp_linear, in.uv + vec2f(-t.x, -t.y), 0.0).rgb * 0.125;
-  c += textureSampleLevel(srcTex, samp_linear, in.uv + vec2f(t.x, -t.y), 0.0).rgb * 0.125;
-  c += textureSampleLevel(srcTex, samp_linear, in.uv + vec2f(-t.x, t.y), 0.0).rgb * 0.125;
-  c += textureSampleLevel(srcTex, samp_linear, in.uv + vec2f(t.x, t.y), 0.0).rgb * 0.125;
-  if (L.mip < 0.5) {
-    // the first step keeps only what's bright (soft knee)
-    let l = max(c.r, max(c.g, c.b));
-    c *= smoothstep(1.1, 3.2, l);
-  }
-  return vec4f(c, 1.0);
-}
-@fragment fn fs_up(in: FullscreenOut) -> @location(0) vec4f {
-  let t = L.texel * P.bloomRadius;
-  var c = vec3f(0.0);
-  for (var y = -1; y <= 1; y++) {
-    for (var x = -1; x <= 1; x++) {
-      let w = (2.0 - abs(f32(x))) * (2.0 - abs(f32(y))) / 16.0;
-      c += textureSampleLevel(srcTex, samp_linear, in.uv + vec2f(f32(x), f32(y)) * t, 0.0).rgb * w;
-    }
-  }
-  return vec4f(c, 1.0);
-}
-
 // ---------------------------------------------------------------- depth of field
 // circle of confusion in pixels (signed: negative nearer than the focus), from the ratio of distances, so a macro
 // lens's look holds at every zoom
@@ -222,43 +191,21 @@ fn coc(d: f32) -> f32 {
   return vec4f((acc + center.rgb * own) / (wsum + own), 1.0);
 }
 
-// ---------------------------------------------------------------- the grade
-fn agx(c0: vec3f) -> vec3f {
-  // AgX-style: a log encode in a slightly desaturating basis, a sigmoid, back out
-  let m = mat3x3f(vec3f(0.842, 0.0423, 0.0424), vec3f(0.0784, 0.878, 0.0784), vec3f(0.0792, 0.0792, 0.879));
-  let mi = mat3x3f(vec3f(1.197, -0.0528, -0.0529), vec3f(-0.098, 1.152, -0.098), vec3f(-0.099, -0.099, 1.152));
-  var c = m * max(c0, vec3f(1e-10));
-  c = clamp(log2(c), vec3f(-12.47), vec3f(4.03));
-  c = (c + 12.47) / 16.5;
-  let x2 = c * c; let x4 = x2 * x2;
-  c = 15.5 * x4 * x2 - 40.14 * x4 * c + 31.96 * x4 - 6.868 * x2 * c + 0.4298 * x2 + 0.1191 * c - 0.00232;
-  return clamp(mi * c, vec3f(0.0), vec3f(1.0));
-}
-
-@fragment fn fs_final(in: FullscreenOut) -> @location(0) vec4f {
-  // a whisper of lateral chromatic aberration toward the corners
+// ---------------------------------------------------------------- laid into the film
+// The frame as the film takes it: a whisper of lateral chromatic aberration toward the corners, the blurred image where
+// this pixel's circle of confusion is wide — weighted by P.lay, premultiplied, so it lies under the cosmos's own frame
+// while the two hand over (the film's own HDR, its bloom and grade after: cosmos/renderer.ts)
+@fragment fn fs_lay(in: FullscreenOut) -> @location(0) vec4f {
   let dc = in.uv - 0.5;
   let ca = dc * dot(dc, dc) * 0.006;
   var c = vec3f(
     textureSampleLevel(srcTex, samp_linear, in.uv - ca, 0.0).r,
     textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).g,
     textureSampleLevel(srcTex, samp_linear, in.uv + ca, 0.0).b);
-  // depth of field: the blurred image where this pixel's circle of confusion is wide
   if (G.dof > 0.0) {
     let dims = vec2f(textureDimensions(depthTex));
     let k = abs(coc(textureLoad(depthTex, vec2i(in.uv * dims), 0)));
     c = mix(c, textureSampleLevel(dofTex, samp_linear, in.uv, 0.0).rgb, smoothstep(0.6, 2.5, k));
   }
-  c += textureSampleLevel(bloomTex, samp_linear, in.uv, 0.0).rgb * P.bloom;
-  c *= G.exposure;
-  var g = agx(c);
-  let l = dot(g, vec3f(0.2126, 0.7152, 0.0722));
-  g = mix(vec3f(l), g, P.saturation);
-  g = clamp((g - 0.5) * P.contrast + 0.5, vec3f(0.0), vec3f(1.0));
-  let vig = 1.0 - P.vignette * smoothstep(0.25, 0.95, length(dc * vec2f(frame.aspect, 1.0)) / max(frame.aspect, 1.0) * 1.5);
-  g *= vig;
-  let n = hash3u(vec3u(vec2u(in.pos.xy), frame.frame)).x - 0.5;
-  g += n * P.grain;
-  // (the swapchain is non-sRGB on most platforms: encode)
-  return vec4f(pow(max(g, vec3f(0.0)), vec3f(1.0 / 2.2)), 1.0);
+  return vec4f(clean(c) * P.lay, P.lay);
 }

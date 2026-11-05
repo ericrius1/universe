@@ -11,6 +11,7 @@
 // canyon itself goes into the scene pass (`order`'s slots: Universe's figure in 'hero') and the sun's shadow passes
 // (env.shadows.passes); `overlay` is the pass right after the scene (its colour the scene's HDR, `sceneZ` its
 // distances).
+import type { Film } from '@ericrius1/loom/render/film';
 import { type Kit, type RenderPass, type RunEntry, type Texture } from '@ericrius1/weft';
 import { SCENE_ORDER, type SceneSlot } from './world/order';
 import { Terrain } from './world/terrain';
@@ -178,10 +179,10 @@ export class Haven {
   /** the scene's light to the host's film units (the eye's exposure: what the layer multiplies by) */
   get exposure() { return this.env.exposure * 2 ** this.post.settings.exposure; }
 
-  /** the film the host finishes the picture with: this post chain's look (post.wgsl fs, by the names of Universe's
-   *  cosmos/film.ts) on the host's bloom chain of six levels, and the sun and the sky for the grade by the time of day
+  /** the film the host finishes the picture with (loom's: loom/film, render/film's Film): this post chain's look
+   *  (post.wgsl fs) on the host's bloom chain of six levels, and the sun and the sky for the grade by the time of day
    *  (fx.wgsl fxGrade) */
-  film() {
+  film(): Film {
     const s = this.post.settings, f = this.post.fx.settings, sky = this.env.state;
     const ss = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
     const alt = (Math.asin(Math.max(-1, Math.min(1, sky.sun.dir[1]))) * 180) / Math.PI;
@@ -189,7 +190,7 @@ export class Haven {
     let w = 0;
     for (let i = 0, kk = 1; i < 6; i++, kk *= k) w += kk;
     return {
-      exposure: 1, bloomShare: s.bloom, bloomAdd: 0, bloomNorm: 6 / w, bloomWeight: k, bloomEven: 1,
+      exposure: 1, bloomShare: s.bloom, bloomAdd: 0, bloomNorm: 6 / w, bloomWeight: k, bloomEven: 1, knee: 0, kneeLo: 1.1, kneeHi: 3.2,
       glow: s.glow, glowFrom: s.glowFrom, halation: f.halation,
       warmth: s.warmth, punch: s.punchy, saturation: s.saturation, saturationAfter: 1,
       contrast: s.contrast, toe: 0, power: 1,

@@ -2,7 +2,7 @@
 // Way, the Sun's neighbours, the solar system, the Earth, the meadow, the skin), each with its weight for the zoom —
 // sprites add their light, surfaces lay theirs over what's behind with their coverage, so a daytime sky hides the
 // stars and a night one doesn't. A host's picture can be laid into it after (Universe's: Seven Havens' gardens, and
-// her face). Then bloom and the film, to the screen, or over the cell's frame while they hand over.
+// her face; the cell's frame, under this one's as the two hand over, or alone). Then bloom and the film, to the screen.
 //
 // Each level's view is worked out here in doubles and handed over relative to its own floating origin (the zoom's
 // target in its frame, rounded to float32): a level never sees a number bigger than its own few thousand units.
@@ -47,13 +47,16 @@ export class CosmosRenderer {
   readonly hdr: Texture;
   readonly bloom: Texture;
   readonly scene: RenderPass;
-  /** the film's uniform (shaders/film.wgsl), and its settings this frame: the cosmos's own, or a host's mixed in */
+  /** the film's uniform (loom/film), and its settings this frame: the cosmos's own, or a host's mixed in */
   readonly P: UniformBuffer<any>;
   film: Film;
   /** its alpha: 1, or less over the cell's frame while the two hand over (index.ts) */
   alpha = 1;
   /** a level's own grade over whatever film is in force (levels/beyond.ts: the keepers' world, graded for itself) */
   grade: ((f: Film) => Film) | null = null;
+  /** a host's film for what it lays in last (`lay`), mixed with this one's own (Universe's: the cell's, cosmos/film.ts
+   *  CELL_FILM, as the two hand over) */
+  host: ((f: Film) => Film) | null = null;
   private encode: boolean;
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
@@ -64,7 +67,12 @@ export class CosmosRenderer {
    *  Seven Havens' gardens drawn, then laid into the frame) */
   first: () => RunEntry[] = () => [];
   afterScene: () => RunEntry[] = () => [];
-  /** over the cell's frame (the hand-over) rather than in place of it */
+  /** a host's own frame laid into the HDR last, before the bloom (Universe's: the cell's — under this one's as the two
+   *  hand over, alone when it's all that's seen: `hostOnly`) */
+  lay: () => RunEntry[] = () => [];
+  /** the host's frame alone this time: none of this one's own work, just its film on what `lay` lays in */
+  hostOnly = false;
+  /** over a frame already on the screen (a host's, graded its own way) rather than in place of it */
   over = false;
   /** wholly covered by what a host lays in after the scene (Universe's gardens, her face): the scene's levels not
    *  drawn at all */
@@ -176,34 +184,38 @@ export class CosmosRenderer {
   /** the target's size (px) */
   size(): [number, number] { return this.dome ? [this.dome.size, this.dome.size] : [this.kit.size.render[0], this.kit.size.render[1]]; }
 
-  private sizeBloom() {
+  private sizeBloom(f: Film) {
     const [w, h] = this.size();
     const size = (m: number) => [Math.max(1, Math.round(w * 0.5) >> m), Math.max(1, Math.round(h * 0.5) >> m)];
     for (let i = 0; i < BLOOM_MIPS; i++) {
       const src = i === 0 ? [w, h] : size(i - 1);
-      this.bloomLv[i].set({ texel: [1 / src[0], 1 / src[1]], mip: i, weight: 1, first: [this.film.bloomEven, 0, 0, 0] });
+      this.bloomLv[i].set({ texel: [1 / src[0], 1 / src[1]], mip: i, weight: 1, first: [f.bloomEven, f.kneeLo, f.kneeHi, f.knee] });
     }
     for (let i = BLOOM_MIPS - 2; i >= 0; i--) {
       const s = size(i + 1);
-      this.bloomLv[BLOOM_MIPS + (BLOOM_MIPS - 2 - i)].set({ texel: [1 / s[0], 1 / s[1]], mip: i, weight: this.film.bloomWeight });
+      this.bloomLv[BLOOM_MIPS + (BLOOM_MIPS - 2 - i)].set({ texel: [1 / s[0], 1 / s[1]], mip: i, weight: f.bloomWeight });
     }
   }
 
   /** this frame's GPU work, for a host that runs it with its own */
   run(): RunEntry[] {
     this.prep();
-    return [...this.first(), ...this.before, ...(this.covered ? [] : [this.scene]), ...this.after, ...this.afterScene(), ...this.items];
+    if (this.hostOnly) return [...this.lay(), ...this.items];
+    return [...this.first(), ...this.before, ...(this.covered ? [] : [this.scene]), ...this.after, ...this.afterScene(), ...this.lay(), ...this.items];
   }
-  /** (the film's settings as they stand now: a host's mixed in after the views were worked out; its bloom's too) */
+  /** (the film's settings as they stand now: a level's grade and a host's mixed in after the views were worked out; its
+   *  bloom's too) */
   private prep() {
-    this.P.set(filmFields(this.grade ? this.grade(this.film) : this.film, this.alpha, this.encode, !!this.dome));
-    this.sizeBloom();
+    let f = this.grade ? this.grade(this.film) : this.film;
+    if (this.host) f = this.host(f);
+    this.P.set(filmFields(f, this.alpha, this.encode, !!this.dome));
+    this.sizeBloom(f);
   }
 
   /** the frame in two halves, for a host that reads the HDR in between (Universe's jewel: the keepers' world, drawn
    *  here, read by the cell before this is laid over it): the scene and its own work after it, then the rest */
   offscreen(): RunEntry[] { return [...this.before, this.scene, ...this.after]; }
-  finish(): RunEntry[] { this.prep(); return [...this.afterScene(), ...this.items]; }
+  finish(): RunEntry[] { this.prep(); return [...this.afterScene(), ...this.lay(), ...this.items]; }
 
   frame() { this.kit.run(this.run()); }
 }

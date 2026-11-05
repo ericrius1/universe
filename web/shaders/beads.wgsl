@@ -70,8 +70,10 @@ fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
     let ca = cos(a); let sa = sin(a);
     lp = vec3f(lp.x * ca - lp.z * sa, lp.y, lp.x * sa + lp.z * ca);
   }
-  let c = inst.pos + qrot(inst.rot, lp * select(1.0, inst.scale, (T.flags & F_VESICLE) != 0u));
-  // (a vesicle is one bead the size it's given; everything else keeps its size and fades in by shrinking)
+  // (a vesicle is one bead the size it's given; everything else keeps its size and fades in by shrinking — its beads
+  // in place, or, a film's (G.flags 1), the whole of it, a solid going off rather than a dust)
+  let whole = (T.flags & F_VESICLE) != 0u || (G.flags & 1u) != 0u;
+  let c = inst.pos + qrot(inst.rot, lp * select(1.0, inst.scale, whole));
   var r = b.w * inst.scale;
   if ((T.flags & F_VESICLE) != 0u) { r = inst.scale; }
   // the coarsest level's lumps swell to merge into one soft shape (no sand of tiny spheres)

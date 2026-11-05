@@ -1,34 +1,18 @@
-// The film's settings (shaders/film.wgsl), by name: the cosmos's own (COSMOS_FILM: as its frames have always been
-// graded), a host's for what it lays into the frame (Universe's gardens: Seven Havens' look), and the mix of the two
-// as the dive goes from one to the other (mixFilm). The renderer packs the one in force into its uniform each frame.
+// The film's settings (loom/film: the film, its settings, mixFilm and filmFields, loom's render/film) for each part
+// of the dive: the cosmos's own (COSMOS_FILM: as its frames have always been graded), the keepers' world past it, the
+// cell's laid in under it (CELL_FILM); a host's for what it lays into the frame (Universe's gardens: Seven Havens' look)
+// mixed in as the dive goes from one to the other. The renderer packs the one in force into its uniform each frame.
+import type { Film } from '@ericrius1/loom/render/film';
 
-export interface Film {
-  /** exposure; bloom's share mixed in, bloom added, bloom's normaliser (on its summed levels); each wider level's
-   *  weight going up the chain (1 even, more a wider glow) */
-  exposure: number; bloomShare: number; bloomAdd: number; bloomNorm: number; bloomWeight: number;
-  /** the bloom's first level against fireflies: its taps' groups averaged weighted by their brightness (1: an even field
-   *  kept as it is), or their average compressed (0) */
-  bloomEven: number;
-  /** the glow on what's brighter than its knee (film units), film's red halation round highlights */
-  glow: number; glowFrom: number; halation: number;
-  /** white balance (+ warm), AgX's punch (0 base .. 1 punchy), saturation in the look and after it */
-  warmth: number; punch: number; saturation: number; saturationAfter: number;
-  /** contrast round mid-grey and its toe (0 straight, 1 soft); the screen's power (1/2.2, or 1: AgX's own curve) */
-  contrast: number; toe: number; power: number;
-  /** vignettes (round, quadratic), the fixed dither (255ths), grain, and how much it keeps to the mids (0 even, 1 film's:
-   *  little in the shadows and the highlights) */
-  vignette: number; vignetteQ: number; dither: number; grain: number; grainMids: number;
-  /** the time-of-day grade: strength, the warm-cool split, the reds' richness; where the sun is (0..1 each: golden hour,
-   *  dusk, noon, night) and the cloud cover */
-  grade: number; split: number; rich: number; golden: number; dusk: number; noon: number; night: number; cover: number;
-}
+export type { Film };
+export { mixFilm, filmFields } from '@ericrius1/loom/render/film';
 
 /** the bloom chain's levels (renderer.ts) */
 export const BLOOM_LEVELS = 6;
 
 /** the cosmos's frames, as graded before there was a shared film (c_post.wgsl's) */
 export const COSMOS_FILM: Film = {
-  exposure: 1, bloomShare: 0, bloomAdd: 0.012, bloomNorm: 1 / 6, bloomWeight: 1, bloomEven: 0,
+  exposure: 1, bloomShare: 0, bloomAdd: 0.012, bloomNorm: 1 / 6, bloomWeight: 1, bloomEven: 0, knee: 0, kneeLo: 1.1, kneeHi: 3.2,
   glow: 0, glowFrom: 1, halation: 0,
   warmth: 0, punch: 0, saturation: 1, saturationAfter: 1.08,
   contrast: 1.08, toe: 1, power: 1 / 2.2,
@@ -46,21 +30,11 @@ export const BEYOND_FILM: Film = {
   vignette: 0.55, vignetteQ: 0.15, dither: 0.6, grain: 0.022, grainMids: 0.6,
 };
 
-/** a's settings toward b's by t (0..1) */
-export function mixFilm(a: Film, b: Film, t: number): Film {
-  const o = { ...a };
-  for (const k of Object.keys(a) as (keyof Film)[]) o[k] = a[k] + (b[k] - a[k]) * t;
-  return o;
-}
-
-/** the film uniform's fields (film.wgsl FilmU) for these settings, `alpha` and the target's kind */
-export function filmFields(f: Film, alpha: number, encode: boolean, disc: boolean) {
-  let sum = 0;
-  for (let i = 0, w = 1; i < BLOOM_LEVELS; i++, w *= f.bloomWeight) sum += w;
-  return {
-    a: [f.exposure, f.bloomShare, f.bloomAdd, f.bloomNorm], glow: [f.glow, f.glowFrom, f.halation, f.bloomNorm * sum],
-    look: [f.warmth, f.punch, f.saturation, f.saturationAfter], tone: [f.contrast, f.toe, f.power, f.grain],
-    vig: [f.vignette, f.vignetteQ, f.dither, f.grainMids], grade: [f.grade, f.split, f.rich, f.night],
-    sun: [f.golden, f.dusk, f.noon, f.cover], out: [alpha, encode ? 1 : 0, disc ? 1 : 0, 0],
-  };
-}
+/** the cell's frames (src/engine/renderer.ts, laid into this film), as they were graded with their own: only what's
+ *  bright blooms, added; its exposure, AgX with more saturation after it, a straight contrast, its vignette and grain */
+export const CELL_FILM: Film = {
+  ...COSMOS_FILM,
+  exposure: 0.85, bloomShare: 0, bloomAdd: 0.22, bloomEven: 1, knee: 1, kneeLo: 1.1, kneeHi: 3.2,
+  saturationAfter: 1.12, contrast: 1.14, toe: 0, power: 1 / 2.2,
+  vignette: 0.55, vignetteQ: 0, dither: 0, grain: 0.012, grainMids: 0,
+};

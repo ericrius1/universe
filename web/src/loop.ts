@@ -129,6 +129,18 @@ export class Loop {
     app.mixDriven = true;
     app.jewel = JEWEL;
     app.controls.minScale = 0.25;
+    // (the cell's crowd made out round the focus from the first frame, so zooming out finds it there in the haze; the
+    // membranes glass throughout, so what's beyond the nucleus comes out of the haze as the view widens rather than
+    // showing through all at once as they turn; and the empty background the haze's own colour while it's thick, as
+    // the solid membranes behind everything made it, darkening as it thins)
+    app.field.minRadius = 200;
+    // (the crowd never on the line the eye backs away along, so what's flown past comes in from the frame's edge and goes
+    // rather than swelling up in front of the lens; and as the crowd thins, each molecule going shrinks whole, as if off
+    // into the haze, rather than to a dust of beads)
+    app.field.nearByRadius = true;
+    app.shrinkWhole = true;
+    app.shellGlass = [0, 1];
+    app.hazeBg = [150, 2500];
     // (the zoom past the keepers' sky: out to where the jewel hands back)
     app.cosmos.controls.max = Z_END + 0.2;
     // the keepers' every motion a whole number of turns in the loop

@@ -10,12 +10,15 @@ struct Globals {
   cutN1: vec3f, bioTime: f32,       // the wedge's two half-space normals; biological time (s, slowed when close)
   cutN2: vec3f, fluo: f32,          // fluorescence-microscope look (0..1)
   fogColor: vec3f, fogDist: f32,    // the haze and the distance (nm) it takes ~63% of the light
-  bgColor: vec3f, exposure: f32,
+  bgColor: vec3f, pad1: f32,
   clearRadius: f32, pxAngle: f32, cutRadius: f32, organelleCount: u32,   // pxAngle: radians per pixel
   hover: u32, selected: u32, quality: u32, flags: u32,
   timeScale: f32, shellSolid: f32, highlight: f32, dof: f32,    // shellSolid: membranes opaque (1) or glass (0)
-  origin: vec3f, pad0: f32,         // the floating origin (nm): every position the GPU computes with is relative to it
+  origin: vec3f, hazeBg: f32,       // the floating origin (nm): every position the GPU computes with is relative to it;
+                                    // how far the empty background is the haze itself (a film's: src/loop.ts)
   jewel: vec4f,                     // the jewel (src/loop.ts): its middle (relative) and radius; no bead inside it
+  lodReach: vec4f,                  // how far off (nm) a nucleosome, and a base pair, are still molecules (lodPx over 9);
+                                    // z: how far round the focus chromatin is (a film's, round its jewel: chromReach)
 }
 @group(0) @binding(1) var<uniform> G: Globals;
 
@@ -141,6 +144,28 @@ fn organelleNormal(o: Organelle, p: vec3f, h: f32) -> vec3f {
 fn qrot(q: vec4f, v: vec3f) -> vec3f { let t = 2.0 * cross(q.xyz, v); return v + q.w * t + cross(q.xyz, t); }
 fn qmul(a: vec4f, b: vec4f) -> vec4f { return vec4f(a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz), a.w * b.w - dot(a.xyz, b.xyz)); }
 fn qaxis(axis: vec3f, ang: f32) -> vec4f { return vec4f(axis * sin(ang * 0.5), cos(ang * 0.5)); }
+fn basis(x: vec3f, y: vec3f) -> vec4f {
+  // the rotation whose columns are x, y, x×y (orthonormalised), as a quaternion
+  let X = normalize(x - y * dot(x, y));
+  let Y = y;
+  let Z = cross(X, Y);
+  let tr = X.x + Y.y + Z.z;
+  var q: vec4f;
+  if (tr > 0.0) {
+    let s = sqrt(tr + 1.0) * 2.0;
+    q = vec4f((Y.z - Z.y) / s, (Z.x - X.z) / s, (X.y - Y.x) / s, 0.25 * s);
+  } else if (X.x > Y.y && X.x > Z.z) {
+    let s = sqrt(1.0 + X.x - Y.y - Z.z) * 2.0;
+    q = vec4f(0.25 * s, (Y.x + X.y) / s, (Z.x + X.z) / s, (Y.z - Z.y) / s);
+  } else if (Y.y > Z.z) {
+    let s = sqrt(1.0 + Y.y - X.x - Z.z) * 2.0;
+    q = vec4f((Y.x + X.y) / s, 0.25 * s, (Z.y + Y.z) / s, (Z.x - X.z) / s);
+  } else {
+    let s = sqrt(1.0 + Z.z - X.x - Y.y) * 2.0;
+    q = vec4f((Z.x + X.z) / s, (Z.y + Y.z) / s, 0.25 * s, (X.y - Y.x) / s);
+  }
+  return normalize(q);
+}
 // the rotation taking +Y to n
 fn qfromY(n: vec3f) -> vec4f {
   let d = n.y;
@@ -156,6 +181,45 @@ fn randQuat(h: vec3f) -> vec4f {
 
 // the haze between the eye and a point d nm away
 fn fogAmount(d: f32) -> f32 { return 1.0 - exp(-max(d, 0.0) / G.fogDist); }
+
+// ---------------------------------------------------------------- chromatin
+// a filament segment (src/world/filaments.ts)
+struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32, len: f32 }
+// Chromatin's nucleosomes: one every 11 nm in a zig-zag round the fibre. field.wgsl makes them molecules while they're
+// big on screen; past that filament.wgsl draws the very same ones itself, as the molecule's coarsest level — its five
+// lumps — would be drawn, so the hand-over can't be seen, and the fibre is the same thing from a micron off as up close
+// (no tube swelling up round the beads as the view widens).
+struct Nuc { c: vec3f, rad: vec3f, next: vec3f, T: vec3f, tilt: f32 }   // next: where its linker DNA goes (the next one's middle)
+fn nucleosome(s: Seg, j: i32) -> Nuc {
+  let ax = s.b - s.a;
+  let T = normalize(ax);
+  let R0 = normalize(cross(T, vec3f(0.31, 1.0, 0.17)));
+  let R1 = cross(T, R0);
+  let hj = hash3i(vec3i(j, i32(s.fil), 7));
+  let th = f32(j) * 3.5 + hj.x * 0.6;
+  var n: Nuc;
+  n.rad = R0 * cos(th) + R1 * sin(th);
+  n.c = s.a + ax * ((f32(j) * 11.0 - s.s0) / s.len) + n.rad * 8.5;
+  n.T = T;
+  n.tilt = hj.y * 1.2 - 0.6;
+  let thn = f32(j + 1) * 3.5 + hash3i(vec3i(j + 1, i32(s.fil), 7)).x * 0.6;
+  n.next = n.c + T * 11.0 + (R0 * cos(thn) + R1 * sin(thn) - n.rad) * 8.5;
+  return n;
+}
+fn nucRot(n: Nuc) -> vec4f { return qmul(basis(n.rad, n.T), qaxis(vec3f(1.0, 0.0, 0.0), n.tilt)); }
+// the size (px) a molecule of radius r counts as for its level of detail this far off: its size on screen, less as the
+// haze hides it (a twentieth of it showing, it counts as a quarter its size)
+fn lodPx(r: f32, dist: f32) -> f32 { return r / max(dist * G.pxAngle, 1e-9) * exp(-0.5 * dist / G.fogDist); }
+// whether a nucleosome this far off is one of the molecules: while it counts as over 9 px (its type's radius 10.74 nm,
+// the molecule data) — the field's lod1 line (src/world/field.ts), so the molecules never come to their coarsest level
+// (the distance where it crosses the line worked out on the CPU: main.ts lodReach)
+fn nucMolecule(dist: f32) -> bool { return dist < G.lodReach.x; }
+// and whether a base pair is (theirs 1.1 nm): past that line each is drawn as one sphere, so a linker of them is a rod,
+// and filament.wgsl draws it as one
+fn bpMolecule(dist: f32) -> bool { return dist < G.lodReach.y; }
+// chromatin's reach round the focus (1 within it, fading to 0 at its edge): everywhere, but for a film's jewel, where the
+// strands round the bead the eye has just left are made out from it as the view widens (src/loop.ts)
+fn chromReach(p: vec3f) -> f32 { let R = G.lodReach.z; return 1.0 - smoothstep(0.7 * R, R, length(p - G.focus)); }
 
 // Light for living matter: soft, wet and a little translucent. A warm key whose terminator bleeds into the material's
 // deeper colour (subsurface scattering, wrapped), light passing through thin edges from behind (transmission), a cool

@@ -21,10 +21,10 @@ struct Field {
   total: u32, segCount: u32, actorCount: u32, seed: u32,
   pxAngle: f32, lod0: f32, lod1: f32, cull: f32,
   p0: vec4f, p1: vec4f, p2: vec4f, p3: vec4f, p4: vec4f, p5: vec4f,   // frustum planes
-  latticeOn: f32, wobble: f32, pad0: f32, pad1: f32,
+  latticeOn: f32, wobble: f32, latticeR: f32, nearByRadius: f32,   // latticeR: how far round the focus filaments are
+                                    // decorated; nearByRadius: 1, a molecule kept from the lens by its own size (emit), not by `clear`
 }
 struct CompEntry { mtype: u32, cum: f32 }
-struct Seg { a: vec3f, ra: f32, b: vec3f, rb: f32, kind: u32, fil: u32, s0: f32, len: f32 }
 
 @group(2) @binding(1) var<storage, read_write> insts: array<Inst>;
 @group(2) @binding(2) var<storage, read_write> lists: array<u32>;
@@ -47,17 +47,31 @@ fn planeOut(p: vec3f, r: f32) -> bool {
   return dot(F.p0.xyz, p) + F.p0.w < -r || dot(F.p1.xyz, p) + F.p1.w < -r || dot(F.p2.xyz, p) + F.p2.w < -r ||
          dot(F.p3.xyz, p) + F.p3.w < -r || dot(F.p4.xyz, p) + F.p4.w < -r || dot(F.p5.xyz, p) + F.p5.w < -r;
 }
-fn emit(inst0: Inst) {
+fn emit(inst0: Inst, crowd: bool) {
   var inst = inst0;
   let T = types[inst.mtype];
+  // (a film's crowd: none on the line the eye backs away along — any there would meet the lens, so they're never
+  // there at all — and a small clear right at the lens; the rest, flown past, come in from the frame's edge and go,
+  // rather than swelling up in front of it as a clear round the lens lets them out)
+  if (crowd && F.nearByRadius > 0.5) {
+    let a = normalize(F.camPos - F.focus);
+    let v = inst.pos - F.focus;
+    let along = dot(v, a);
+    let lat = length(v - a * along);
+    let rr = T.radius * 1.3 + F.clear * 0.1;
+    inst.scale *= select(1.0, smoothstep(rr, rr * 1.8, lat), along > 0.0);
+    inst.scale *= smoothstep(min(2.0 * T.radius, F.clear * 0.6), min(3.0 * T.radius, F.clear), length(inst.pos - F.camPos));
+  }
   let r = T.radius * inst.scale;
   if (r <= 0.0) { return; }
   let dc = length(inst.pos - F.camPos);
   let px = r / max(dc * F.pxAngle, 1e-9);
   if (px < F.cull) { return; }
   if (planeOut(inst.pos, r)) { return; }
+  // (its level of detail by the size it counts as, the haze taken in: world.wgsl lodPx)
+  let lpx = px * exp(-0.5 * dc / G.fogDist);
   var lod = 2u;
-  if (px > F.lod0) { lod = 0u; } else if (px > F.lod1) { lod = 1u; }
+  if (lpx > F.lod0) { lod = 0u; } else if (lpx > F.lod1) { lod = 1u; }
   inst.lod = lod;
   let i = atomicAdd(&counts[NLISTS], 1u);
   if (i >= F.maxInst) { return; }
@@ -145,10 +159,12 @@ fn wobble(h: vec3f, r: f32) -> vec3f {
 
   let d = length(p - F.focus);
   if (d > F.radius) { return; }
+  // (none crowding the jewel, src/loop.ts: its first frame's view of it clear)
+  if (G.jewel.w > 0.0 && length(p - G.jewel.xyz) < G.jewel.w * 25.0) { return; }
   let wD = 1.0 - smoothstep(0.7 * F.radius, F.radius, d);
   let wL = clamp((absL + 1.0 - F.level) / 0.6, 0.0, 1.0);
   let dc = length(p - F.camPos);
-  let wC = smoothstep(F.clear * 0.6, F.clear, dc);
+  let wC = select(smoothstep(F.clear * 0.6, F.clear, dc), 1.0, F.nearByRadius > 0.5);
   var w = wD * wL * wC;
   if (w <= 0.01) { return; }
   if (isCut(p)) { return; }
@@ -188,36 +204,14 @@ fn wobble(h: vec3f, r: f32) -> vec3f {
     inst.mtype = u32(mt);
   }
   inst.scale = w;
-  emit(inst);
+  emit(inst, true);
 }
 
 // ---------------------------------------------------------------- filament lattices
-fn basis(x: vec3f, y: vec3f) -> vec4f {
-  // the rotation whose columns are x, y, x×y (orthonormalised), as a quaternion
-  let X = normalize(x - y * dot(x, y));
-  let Y = y;
-  let Z = cross(X, Y);
-  let tr = X.x + Y.y + Z.z;
-  var q: vec4f;
-  if (tr > 0.0) {
-    let s = sqrt(tr + 1.0) * 2.0;
-    q = vec4f((Y.z - Z.y) / s, (Z.x - X.z) / s, (X.y - Y.x) / s, 0.25 * s);
-  } else if (X.x > Y.y && X.x > Z.z) {
-    let s = sqrt(1.0 + X.x - Y.y - Z.z) * 2.0;
-    q = vec4f(0.25 * s, (Y.x + X.y) / s, (Z.x + X.z) / s, (Y.z - Z.y) / s);
-  } else if (Y.y > Z.z) {
-    let s = sqrt(1.0 + Y.y - X.x - Z.z) * 2.0;
-    q = vec4f((Y.x + X.y) / s, 0.25 * s, (Z.y + Y.z) / s, (Z.x - X.z) / s);
-  } else {
-    let s = sqrt(1.0 + Z.z - X.x - Y.y) * 2.0;
-    q = vec4f((Z.x + X.z) / s, (Z.y + Y.z) / s, 0.25 * s, (X.y - Y.x) / s);
-  }
-  return normalize(q);
-}
 fn fade(p: vec3f) -> f32 {
   let d = length(p - F.focus);
   let dc = length(p - F.camPos);
-  return (1.0 - smoothstep(0.7 * F.radius, F.radius, d)) * smoothstep(F.clear * 0.6, F.clear, dc);
+  return (1.0 - smoothstep(0.7 * F.latticeR, F.latticeR, d)) * smoothstep(F.clear * 0.6, F.clear, dc);
 }
 
 @compute @workgroup_size(64) fn lattice(@builtin(global_invocation_id) g: vec3u) {
@@ -243,7 +237,7 @@ fn fade(p: vec3f) -> f32 {
         var inst: Inst;
         inst.pos = p; inst.scale = w; inst.rot = basis(rad, T); inst.mtype = T_TUBULIN;
         inst.tint = u32(j) * 13u + k; inst.id = 0x80000000u | ((u32(j) * 13u + k) & 0xffffu);
-        emit(inst);
+        emit(inst, false);
       }
     }
   } else if (s.kind == 1u) {
@@ -260,42 +254,39 @@ fn fade(p: vec3f) -> f32 {
       var inst: Inst;
       inst.pos = p; inst.scale = w; inst.rot = basis(rad, T); inst.mtype = T_ACTIN;
       inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
-      emit(inst);
+      emit(inst, false);
     }
   } else if (s.kind == 3u) {
-    // chromatin: a nucleosome every 11 nm in a zig-zag round the fibre, linker DNA between them
+    // chromatin: a nucleosome every 11 nm in a zig-zag round the fibre (world.wgsl nucleosome) — the molecule while
+    // it's big on screen, filament.wgsl's lumps after — and linker DNA between them
     let j0 = i32(ceil(s.s0 / 11.0));
     let j1 = i32(floor((s.s0 + s.len) / 11.0 - 1e-4));
     for (var j = j0; j <= j1; j++) {
-      let z = f32(j) * 11.0;
-      let hj = hash3i(vec3i(j, i32(s.fil), 7));
-      let th = f32(j) * 3.5 + hj.x * 0.6;
-      let rad = R0 * cos(th) + R1 * sin(th);
-      let c = s.a + ax * ((z - s.s0) / s.len) + rad * 8.5;
-      let w = fade(c) * F.latticeOn;
+      let nu = nucleosome(s, j);
+      let c = nu.c;
+      let rad = nu.rad;
       if (isCut(c)) { continue; }
-      // (the core faded out — far from the focus, very close in — its linker may still be near it)
-      if (w > 0.01) {
+      let dc = length(c - F.camPos);
+      let w = smoothstep(F.clear * 0.6, F.clear, dc) * chromReach(c);
+      if (nucMolecule(dc) && w > 0.01) {
         var inst: Inst;
-        inst.pos = c; inst.scale = w;
-        inst.rot = qmul(basis(rad, T), qaxis(vec3f(1.0, 0.0, 0.0), hj.y * 1.2 - 0.6));
+        inst.pos = c; inst.scale = w; inst.rot = nucRot(nu);
         inst.mtype = T_NUCLEOSOME; inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
-        emit(inst);
+        emit(inst, false);
       }
       // the linker to the next nucleosome: base pairs every 0.34 nm, 36° apart, leaving the cores (5.5 nm round each)
-      let thn = f32(j + 1) * 3.5 + hash3i(vec3i(j + 1, i32(s.fil), 7)).x * 0.6;
-      let cn = c + T * 11.0 + (R0 * cos(thn) + R1 * sin(thn) - rad) * 8.5;
-      let lk = cn - c;
+      // (as molecules only close in: further off filament.wgsl draws the rod they'd make)
+      let lk = nu.next - c;
       let L = length(lk);
       let dir = lk / L;
       let ref0 = normalize(cross(dir, vec3f(0.17, 0.31, 1.0)));
-      // (only near the focus: further off, a linker's base pairs are a dust of dots; very close in, the few round it)
-      let nbp = select(0, i32(L / 0.34), length(c - F.focus) < max(F.radius * 0.45, 30.0));
+      let nbp = select(0, i32(L / 0.34), bpMolecule(dc - L));
       for (var b = 0; b < nbp; b++) {
         let along = f32(b) * 0.34;
         if (along < 5.0 || along > L - 5.0) { continue; }
         let pb = c + dir * along;
-        let wb = fade(pb) * F.latticeOn;
+        if (!bpMolecule(length(pb - F.camPos))) { continue; }
+        let wb = smoothstep(F.clear * 0.6, F.clear, length(pb - F.camPos)) * chromReach(pb);
         if (wb <= 0.01) { continue; }
         var bp: Inst;
         let tw = f32(b) * 0.62832 + f32(j) * 1.7;
@@ -303,7 +294,7 @@ fn fade(p: vec3f) -> f32 {
         bp.mtype = T_DNABP;
         bp.tint = pcg3(vec3u(u32(b), u32(j), s.fil)).x;
         bp.id = 0x80000000u | (u32(j) & 0xffffu);
-        emit(bp);
+        emit(bp, false);
       }
     }
   }
@@ -314,5 +305,5 @@ fn fade(p: vec3f) -> f32 {
   if (g.x >= F.actorCount) { return; }
   let a = actorIn[g.x];
   if (isCut(a.pos)) { return; }
-  emit(a);
+  emit(a, false);
 }

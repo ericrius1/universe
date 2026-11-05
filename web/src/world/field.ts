@@ -22,6 +22,11 @@ const MAX_ACTORS = 4096;
 /** the finest chunk (nm): with K molecules each, as dense as a real cytoplasm (~3 per 1000 nm³) */
 const C0 = 19;
 const GRID = 1500;
+/** chromatin's nucleosomes outlast the rest of the lattice (molecules while they're big on screen: world.wgsl
+ *  nucleosome), till the view is this wide (nm) */
+const CHROMATIN_MAX = 12000;
+/** the furthest round the focus the other filaments are decorated with their molecules (nm) */
+const LATTICE_MAX = 2000;
 
 export class Field {
   readonly F: UniformBuffer<any>;
@@ -29,12 +34,26 @@ export class Field {
   actorCount = 0;
   private segList: StorageBuffer;
   private actorBuf: StorageBuffer;
+  private counts: StorageBuffer;
   private segCount = 0;
   private total = 0;
   private grid = new Map<string, number[]>();
   private segIds: Uint32Array;
+  /** every chromatin segment: always the start of the list (world.wgsl nucMolecule picks the nucleosomes to make), the
+   *  lattice's other segments near the focus after them */
+  private chromatin: Uint32Array;
+  private kinds: Uint32Array;
   /** molecules per chunk: the density/cost dial */
   perChunk: number;
+  /** the least radius (nm) it's made out to round the focus, whatever the zoom: a film's (src/loop.ts) — close in, the
+   *  crowd is there already, in the haze, rather than made as the zoom comes out to it */
+  minRadius = 0;
+  /** a film's (src/loop.ts): how many levels later the finer crowd thins out (molecules go when smaller on screen, at the
+   *  cost of more of them), the most chunks a side a level is made over, and molecules kept from the lens by their own
+   *  size rather than a share of the view (emit) */
+  lag = 0;
+  chunksMax = 20;
+  nearByRadius = false;
   maxInst: number;
   /** stats for the HUD */
   instances = 0;
@@ -46,10 +65,13 @@ export class Field {
     this.F = k.uniforms(fieldShader.structs.Field, 'field');
     const insts = k.storage({ label: 'mol.insts', size: this.maxInst * 48 });
     const lists = k.storage({ label: 'mol.lists', size: NLISTS * CAP * 4 });
-    const counts = k.storage({ label: 'mol.counts', size: (NLISTS + 1) * 4 });
+    const counts = (this.counts = k.storage({ label: 'mol.counts', size: (NLISTS + 1) * 4 }));
     const args = k.storage({ label: 'mol.args', size: NLISTS * 16, usage: ['storage', 'indirect', 'copy-dst', 'copy-src'] });
-    this.segList = k.storage({ label: 'mol.segList', size: 8192 * 4 });
-    this.segIds = new Uint32Array(8192);
+    const kinds = (this.kinds = new Uint32Array(fil.data.buffer, fil.data.byteOffset, fil.data.length));
+    this.chromatin = Uint32Array.from({ length: fil.count }, (_, s) => s).filter((s) => kinds[s * 12 + 8] === FilKind.Chromatin);
+    this.segList = k.storage({ label: 'mol.segList', size: fil.count * 4 });
+    this.segList.write(this.chromatin);
+    this.segIds = new Uint32Array(fil.count - this.chromatin.length);
     this.actors = new StructArray(molShader.structs.Inst, MAX_ACTORS);
     this.actorBuf = k.storage({ label: 'mol.actors', size: MAX_ACTORS * 48 });
     const segs = k.storage({ label: 'mol.segs', data: fil.data, stride: 48 });
@@ -99,11 +121,20 @@ export class Field {
     return { comps: this.kit.storage({ label: 'mol.comps', data: new Uint8Array(comps) }), meta: this.kit.storage({ label: 'mol.compMeta', data: meta }) };
   }
 
+  /** what the last frame made, read back (a check, not for every frame): instances in all, and the fullest
+   *  (type, level) list — one past CAP drops the rest */
+  async stats() {
+    const c = new Uint32Array(await this.counts.read());
+    let fullest = 0, over = 0, which = 0;
+    for (let i = 0; i < NLISTS; i++) { if (c[i] > fullest) { fullest = c[i]; which = i; } if (c[i] > CAP) over++; }
+    return { insts: c[NLISTS], maxInst: this.maxInst, fullest, of: `${MOLS[Math.floor(which / 3)]} lod${which % 3}`, cap: CAP, over, segs: this.segCount };
+  }
+
   /** set up this frame's generation round the focus at the camera's scale (absolute positions: the chunks are found
    *  by them, the GPU gets them relative to the origin) */
   update(focus: Vec3, eye: Vec3, scale: number, pxAngle: number) {
-    const R = scale * 2.6;
-    const level = Math.max(0, Math.log2((0.65 * scale) / C0));
+    const R = Math.max(scale * 2.6, this.minRadius);
+    const level = Math.max(0, Math.log2((0.65 * scale) / C0) - this.lag);
     const base = Math.floor(level);
     const K = this.perChunk;
     const lv: number[][] = [], lf: number[] = [], starts: number[] = [];
@@ -112,36 +143,41 @@ export class Field {
     const crowdOn = scale < 20000;
     for (let i = 0; i < 4; i++) {
       const L = base + i, cL = C0 * Math.pow(2, L);
-      const n = Math.min(20, Math.floor((2 * R) / cL) + 2);
+      const n = Math.min(this.chunksMax, Math.floor((2 * R) / cL) + 2);
       lv.push([Math.floor((focus[0] - R) / cL), Math.floor((focus[1] - R) / cL), Math.floor((focus[2] - R) / cL), n]);
       lf.push(L);
       starts.push(total);
       if (crowdOn) total += n * n * n * K;
     }
     this.total = total;
-    // filament segments near the focus, when their molecules are big enough to see
+    // filament segments near the focus, when their molecules are big enough to see — after chromatin's, all of them,
+    // while its nucleosomes might be
     const latticeOn = Math.min(1, Math.max(0, (2600 - scale) / 1400));
-    this.segCount = 0;
+    let n = 0;
+    // (out to 2 µm at most: further, a microtubule's tubulin would be bumps on its tube, and too many of them)
+    const RL = Math.min(R, LATTICE_MAX);
     if (latticeOn > 0) {
       const g = GRID, cx = Math.floor(focus[0] / g), cy = Math.floor(focus[1] / g), cz = Math.floor(focus[2] / g);
-      const reach = Math.ceil(R / g) + 1;
+      const reach = Math.ceil(RL / g) + 1;
       const d = this.fil.data;
       outer: for (let x = cx - reach; x <= cx + reach; x++) for (let y = cy - reach; y <= cy + reach; y++) for (let z = cz - reach; z <= cz + reach; z++) {
         const l = this.grid.get(`${x},${y},${z}`);
         if (!l) continue;
         for (const s of l) {
           const o = s * 12;
+          if (this.kinds[o + 8] === FilKind.Chromatin) continue;
           // (the focus's distance to the segment itself, not its middle: a long one passing right by counts)
           const ax = d[o + 4] - d[o], ay = d[o + 5] - d[o + 1], az = d[o + 6] - d[o + 2];
           const px = focus[0] - d[o], py = focus[1] - d[o + 1], pz = focus[2] - d[o + 2];
           const u = Math.max(0, Math.min(1, (px * ax + py * ay + pz * az) / Math.max(1e-9, ax * ax + ay * ay + az * az)));
-          if (Math.hypot(px - ax * u, py - ay * u, pz - az * u) - d[o + 11] > R) continue;
-          this.segIds[this.segCount++] = s;
-          if (this.segCount >= this.segIds.length) break outer;
+          if (Math.hypot(px - ax * u, py - ay * u, pz - az * u) - d[o + 11] > RL) continue;
+          this.segIds[n++] = s;
+          if (n >= this.segIds.length) break outer;
         }
       }
-      if (this.segCount) this.segList.write(this.segIds.subarray(0, this.segCount));
+      if (n) this.segList.write(this.segIds.subarray(0, n), this.chromatin.length * 4);
     }
+    this.segCount = scale < CHROMATIN_MAX ? this.chromatin.length + n : 0;
     if (this.actorCount) this.actorBuf.write(new Uint8Array(this.actors.data, 0, this.actorCount * this.actors.stride));
     const P = this.kit.camera.planes;
     const pl = (i: number) => [P[i * 4], P[i * 4 + 1], P[i * 4 + 2], P[i * 4 + 3]];
@@ -149,7 +185,7 @@ export class Field {
       focus: rel(focus), radius: R, camPos: rel(eye), clear: scale * 0.42, level, c0: C0, perChunk: K, maxInst: this.maxInst,
       lv0: lv[0], lv1: lv[1], lv2: lv[2], lv3: lv[3], lf, starts, total, segCount: this.segCount, actorCount: this.actorCount,
       seed: 7, pxAngle, lod0: 34, lod1: 9, cull: 0.45,
-      p0: pl(0), p1: pl(1), p2: pl(2), p3: pl(3), p4: pl(4), p5: pl(5), latticeOn, wobble: 0.18,
+      p0: pl(0), p1: pl(1), p2: pl(2), p3: pl(3), p4: pl(4), p5: pl(5), latticeOn, wobble: 0.18, latticeR: RL, nearByRadius: this.nearByRadius ? 1 : 0,
     });
   }
 }

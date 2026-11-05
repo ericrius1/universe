@@ -45,7 +45,7 @@ export interface Globals {
   fogColor: Vec3;
   fogDist: number;
   bgColor: Vec3;
-  exposure: number;
+  pad1: number;
   clearRadius: number;
   pxAngle: number;
   cutRadius: number;
@@ -59,8 +59,9 @@ export interface Globals {
   highlight: number;
   dof: number;
   origin: Vec3;
-  pad0: number;
+  hazeBg: number;
   jewel: Vec4;
+  lodReach: Vec4;
 }
 export interface Organelle {
   a: Vec3;
@@ -84,6 +85,23 @@ export interface Place {
   dist: number;
   insideDepth: number;
 }
+export interface Seg {
+  a: Vec3;
+  ra: number;
+  b: Vec3;
+  rb: number;
+  kind: number;
+  fil: number;
+  s0: number;
+  len: number;
+}
+export interface Nuc {
+  c: Vec3;
+  rad: Vec3;
+  next: Vec3;
+  T: Vec3;
+  tilt: number;
+}
 export interface Surf {
   albedo: Vec3;
   sss: Vec3;
@@ -93,5 +111,5 @@ export interface Surf {
   rim: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Surf: Surf }, 'frame' | 'G' | 'organelles' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf }, 'frame' | 'G' | 'organelles' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

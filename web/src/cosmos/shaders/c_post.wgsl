@@ -1,16 +1,17 @@
-// The film above the cell: bloom from a mip chain, and the film (film.wgsl: the exposure, AgX and its look, the grade,
-// the vignette and the grain) to the screen. Its alpha lays the frame over the cell's while the two hand over.
+// The film of the whole dive: bloom from a mip chain, and the film (loom/film: the exposure, AgX and its look, the grade,
+// the vignette and the grain) to the screen — the cosmos's frame, a host's laid into it (the cell's), or both as the two
+// hand over. (Its alpha lays it over a frame already on the screen, for a host that grades its own.)
 #include "weft/frame"
 #include "weft/fullscreen"
 #include "noise.wgsl"
-#include "film.wgsl"
+#include "loom/film"
 
 @group(2) @binding(0) var<uniform> F: FilmU;
 @group(2) @binding(1) var srcTex: texture_2d<f32>;
 @group(2) @binding(2) var bloomTex: texture_2d<f32>;
 // going up, the wider level's weight (the film's bloomWeight); from the scene, x of `first`: the taps' groups averaged
 // weighted by their brightness (1: Jimenez's — an even field kept as it is, Seven Havens'), or the average compressed (0:
-// the cosmos's)
+// the cosmos's); w how much only what's bright is kept, its soft knee from y to z (the cell's)
 struct Lvl { texel: vec2f, mip: f32, weight: f32, first: vec4f }
 @group(2) @binding(3) var<uniform> B: Lvl;
 
@@ -40,6 +41,7 @@ fn karis(c: vec3f) -> f32 { return 1.0 / (1.0 + dot(c, vec3f(0.2126, 0.7152, 0.0
     let w0 = karis(g0) * 0.125; let w1 = karis(g1) * 0.125; let w2 = karis(g2) * 0.125; let w3 = karis(g3) * 0.125; let w4 = karis(g4) * 0.5;
     let even = (g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4) / (w0 + w1 + w2 + w3 + w4);
     o = mix(o / (1.0 + dot(o, vec3f(0.2126, 0.7152, 0.0722)) * 0.25), even, B.first.x);
+    if (B.first.w > 0.0) { o *= mix(1.0, smoothstep(B.first.y, B.first.z, max(o.r, max(o.g, o.b))), B.first.w); }
   }
   return vec4f(o, 1.0);
 }
