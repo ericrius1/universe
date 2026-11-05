@@ -1,8 +1,8 @@
 // The loop (?film=loop): one take that ends where it begins. From close on one bead of the DNA — glass, here, and the
 // keepers' world inside it — out at one steady speed through the strand, the nucleus, the cell, her eye and her, the
 // gardens, the Earth, the Sun, the Milky Way, the web, the edge of the observable universe; past it, slowing, to our
-// universe in a marble over a keeper's palm; along the thread of universes it's strung on to the second keeper, turning
-// its own; then out, gathering speed, from the two of them and out of their world — whose sky turns out to be the
+// universe in a marble over a keeper's palm; on out, slower, as the two of them and the thread of universes between
+// them come into view, slower still a while with them all in it; then gathering speed out of their world — whose sky turns out to be the
 // inside of a marble too, and that marble the bead we began on, in the strand in the nucleus in the cell in her eye. The
 // last frame is the one before the first.
 //
@@ -16,7 +16,7 @@ import { quat, vec3, type Quat, type Vec3 } from 'math';
 import type { App } from './main';
 import { Score, type FilmCue } from './audio/score';
 import { NM } from './cosmos/frames';
-import { JEWEL_GLASS, M_PER_CM, logSOf, WORLD_C, WORLD_R, ORB_R, ORB_B } from './cosmos/levels/beyond';
+import { JEWEL_GLASS, M_PER_CM, logSOf, WORLD_C, WORLD_R, ORB_R } from './cosmos/levels/beyond';
 
 /** the bead made glass: on the strand at the middle of the DNA's place, on its near side as the DNA's place looks at it
  *  (found there: where the view's middle meets the strand, brought out by its radius; nm), and its radius */
@@ -38,13 +38,18 @@ const Z_END = logSOf(S0 / NM_PER_CM);
  *  camera leaves the keepers' sky: inside it the two are one picture, and the cell's own glass takes it out */
 const UP = [-3.9, -3.72];
 const DOWN = [logSOf(WORLD_R * 0.62), logSOf(WORLD_R * 0.97)];
-/** at the keepers (log10 m): slowing from the edge of the universe (A) to the first beat (B: our marble over the palm, a
- *  third of the frame), slow through the beats to C, gathering speed again until E */
-const zA = 26.55, zB = logSOf(ORB_R * 4.5), zC = logSOf(55), zP = logSOf(150), zE = logSOf(WORLD_R * 2.1);
-const V1 = 0.07;
-/** where the beats look (their world, cm): our marble, up the thread of universes to the second keeper's */
-const PATH: Vec3[] = [[0, 0, 0], [-7, 14, -12], [-15, 33, -26], [0, 47, -34], [16, 46, -34], [25, 30, -26], ORB_B as Vec3];
-const beat = (u: number) => zB + (zC - zB) * u;
+/** at the keepers (log10 m): slowing from the edge of the universe (A) to our marble over the palm, a third of the frame
+ *  (B), on out at V_REV as the keepers come into view, easing to V_HOLD as they're all in it (R), held there
+ *  for T_HOLD seconds, then gathering speed (from G) back to K a little before the last frame (Z_END - K_TAIL), so the
+ *  end's zoom runs into the start's at the start's own speed */
+const zA = 26.55, zB = logSOf(ORB_R * 4.5), zR = logSOf(115);
+const V_REV = 0.14, V_HOLD = 0.035, T_HOLD = 6, K_TAIL = 0.1;
+/** (the reveal's speed eased down to the hold's over this much zoom before R) */
+const R_EASE = 0.3;
+const zG = zR + V_HOLD * T_HOLD;
+/** where the view eases off our marble onto the middle of their world (their world's, by the time the cell's jewel
+ *  takes over: DOWN): a drift of its centre as the frame widens round it, never a turn toward anything */
+const LOOK = [logSOf(18), logSOf(140)];
 
 // the cell's views on the way out (zoom, then a place or a point, yaw, pitch); between them eased by the zoom
 interface Way { z: number; at: Vec3 | string; pitch: number }
@@ -59,20 +64,20 @@ const CELL: Way[] = [
   { z: UP[1], at: 'tissue', pitch: -1.05 },
 ];
 // the cosmos's pitch on the way out: its places' (journey.ts), but looking down on the gardens' canyon as it climbs (not
-// along a horizon of sand), up out of the Milky Way's disc steeply (not through its dust); then the keepers' beats
+// along a horizon of sand), up out of the Milky Way's disc steeply (not through its dust); then barely moving at the keepers
 const PITCH: [number, number][] = [
   [-3.9, -1.05], [-3.62, -1.05], [-2.45, -1.1], [-1.75, -1.1], [-0.75, -1.2], [0.35, -0.95], [2.0, -1.05], [3.5, -1.0], [5.0, -0.85],
   [6.3, -0.5], [7.3, -0.15], [10.0, -0.25], [13.0, -0.35], [17.6, -0.3], [19.6, -0.95], [21.3, -0.75], [24.3, -0.4], [26.6, -0.25],
-  [zB, -0.38], [beat(0.28), -0.3], [beat(0.5), 0.02], [beat(0.72), -0.06], [zC, -0.04], [zP, -0.1], [logSOf(WORLD_R), -0.16], [Z_END, PITCH0],
+  [Z_END, PITCH0],
 ];
 // the yaw: one whole turn over the loop, mostly where there's least to see (the dark from the Earth to the stars turning
-// with the Milky Way's band in it), the Earth seen sunlit, and the keepers each seen from the front: the first over our
-// marble, swung round it, the second over its own
+// with the Milky Way's band in it), the Earth seen sunlit, and the keepers from in front of the first, the way that
+// barely turns from the edge of the universe to the last frame
 const T2 = 2 * Math.PI;
 const YAW: [number, number][] = [
   [Z0, YAW0], [-7.26, 0.5], [-5.06, 0.62], [-4.34, 0.72], [-3.8, 0.85], [-1.75, 0.95], [0.35, 1.0], [3.5, 0.7], [6.0, 0.15], [7.3, 0.0],
   [10.0, 1.6], [13.0, 3.4], [17.6, 4.7], [21.3, 0.9 + T2], [24.3, 0.7 + T2], [26.6, 0.75 + T2],
-  [zB, 0.6 + T2], [beat(0.28), 1.15 + T2], [beat(0.72), -0.55 + T2], [zC, -0.45 + T2], [zP, 0.3 + T2], [Z_END, YAW0 + T2],
+  [Z_END, YAW0 + T2],
 ];
 
 // past the gardens the camera rises along the spot's zenith, looking down on it (tilted a little, as it was looking) until
@@ -97,27 +102,20 @@ function through(ways: [number, number][], z: number) {
   }
   return ways[ways.length - 1][1];
 }
-/** a point along the beats' path (0..1), a Catmull-Rom curve through it */
-function along(u: number): Vec3 {
-  const n = PATH.length - 1, f = Math.min(n - 1e-6, Math.max(0, u) * n), s = Math.floor(f), w = f - s;
-  const p0 = PATH[Math.max(0, s - 1)], p1 = PATH[s], p2 = PATH[s + 1], p3 = PATH[Math.min(n, s + 2)];
-  const c = (i: number) => 0.5 * (2 * p1[i] + (-p0[i] + p2[i]) * w + (2 * p0[i] - 5 * p1[i] + 4 * p2[i] - p3[i]) * w * w + (-p0[i] + 3 * p1[i] - 3 * p2[i] + p3[i]) * w * w * w);
-  return [c(0), c(1), c(2)];
-}
-/** where the cosmos's camera looks among the keepers at a zoom (their world, cm) */
+/** where the cosmos's camera looks among the keepers at a zoom (their world, cm): our marble, drifting to their
+ *  world's middle */
 function lookAt(z: number): Vec3 {
-  if (z <= beat(0.28)) return [0, 0, 0];
-  if (z <= beat(0.72)) return along(smooth((z - beat(0.28)) / (beat(0.72) - beat(0.28))));
-  if (z <= zC) return ORB_B as Vec3;
-  const u = smooth((z - zC) / (zP - zC)), b = ORB_B as Vec3, c = WORLD_C as Vec3;
-  return [b[0] + (c[0] - b[0]) * u, b[1] + (c[1] - b[1]) * u, b[2] + (c[2] - b[2]) * u];
+  const u = smooth((z - LOOK[0]) / (LOOK[1] - LOOK[0])), c = WORLD_C as Vec3;
+  return [c[0] * u, c[1] * u, c[2] * u];
 }
 /** the zoom's speed at a zoom: steady but at the keepers */
 function speed(z: number) {
   if (z < zA) return K;
-  if (z < zB) return K + (V1 - K) * smooth((z - zA) / (zB - zA));
-  if (z < zC) return V1;
-  if (z < zE) return V1 + (K - V1) * smooth((z - zC) / (zE - zC));
+  if (z < zB) return K + (V_REV - K) * smooth((z - zA) / (zB - zA));
+  if (z < zR) return V_REV + (V_HOLD - V_REV) * smooth((z - (zR - R_EASE)) / R_EASE);
+  if (z < zG) return V_HOLD;
+  const zK = Z_END - K_TAIL;
+  if (z < zK) return V_HOLD + (K - V_HOLD) * smooth((z - zG) / (zK - zG));
   return K;
 }
 
@@ -166,8 +164,7 @@ export class Loop {
     const [yaw, pitch] = this.lift(z, through(YAW, z), through(PITCH, z));
     const c = app.controls, cc = app.cosmos.controls, b = app.cosmos.beyond;
     if (b) b.clock = i / FPS;
-    // (where the cosmos's camera looks among the keepers: off our marble, along the thread, onto the second keeper's,
-    // then the middle of their world)
+    // (where the cosmos's camera looks among the keepers: our marble, then the middle of their world)
     const M = M_PER_CM, at = lookAt(z);
     app.cosmos.ladder.beyond = { at: [at[0] * M, at[1] * M, at[2] * M], from: 26.85, to: 26.9 };
     // (the cell's haze by the zoom alone: the nucleus's round the strand, the cytoplasm's, then outside — so the last
