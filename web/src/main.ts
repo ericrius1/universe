@@ -32,7 +32,7 @@ import { Score } from './audio/score';
 import { Film } from './film';
 import { CELL_FILM, mixFilm, type Film as Look } from './cosmos/film';
 import { Journey } from './journey';
-import { Loop, approach } from './loop';
+import { Loop, approach, JEWEL, SEAM, jewelS, jewelZ, seamMix, cellWay } from './loop';
 import { JEWEL_GLASS, WORLD_C, WORLD_R, logSOf, type BeyondView } from './cosmos/levels/beyond';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
@@ -52,7 +52,8 @@ const GARDENS = !params.has('nogardens') && !params.has('dome');
 // (and past the edge of the universe, where the zoom goes on now: the keepers' world, cosmos/levels/beyond.ts; not on a
 // dome, which stops at the edge)
 const BEYOND_PLACE: CosmosPlace = {
-  id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(160), yaw: 0.3, pitch: -0.08, size: '2 m',
+  // (inside their sky, short of where zooming out leaves it for the jewel: src/loop.ts SEAM)
+  id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(140), yaw: 0.3, pitch: -0.08, size: '2 m',
   line: 'Our universe, a marble over someone\'s palm: the keepers, and the universes they keep.',
 };
 const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES)];
@@ -107,12 +108,14 @@ async function boot() {
   console.log(`cell: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
   status('', 1);
 
-  // (the jewel, the loop's bead of glass with the keepers' world in it: src/loop.ts — only for the film, its pipelines not
-  // compiled otherwise)
-  if (cosmos.beyond && params.get('film') === 'loop') r.jewel(cosmos.beyond.out, !mobile);
+  // (the jewel, the loop's bead of glass with the keepers' world in it: src/loop.ts — the loop film's, and the app's own
+  // zoom round the same loop over the gardens; its pipelines not compiled for other films)
+  const SEAMED = GARDENS && !!cosmos.beyond && !params.has('film');
+  if (cosmos.beyond && (params.get('film') === 'loop' || SEAMED)) r.jewel(cosmos.beyond.out, !mobile);
   const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
   // Seven Havens' gardens, where the dive ends: built in the background once the page runs (gardens.ts; ?nogardens
   // the meadow outside Boulder as before, and never on a dome)
+  if (SEAMED) app.seamed();
   if (GARDENS) {
     const gardens = app.gardens = new Gardens(kit, cosmos, BASE);
     setTimeout(() => gardens.start(), params.has('film') ? 0 : 1500);
@@ -226,6 +229,11 @@ export class App {
   mixDriven = false;
   /** one bead made glass, the keepers' world inside it (src/loop.ts): its middle (nm) and radius */
   jewel: { at: Vec3; r: number } | null = null;
+  /** the zoom goes round the loop by hand as the loop film does (seamed()): out of the keepers' world onto the jewel, into
+   *  the jewel out into their world */
+  private seamOn = false;
+  /** zooming straight in from the skin, untouched since: the cell's zoom keeps to the film's way down to the jewel */
+  private diving = false;
   /** a film's: molecules fading shrink whole, not their beads in place (beads.wgsl) */
   shrinkWhole = false;
   /** the cell's film (cosmos/film.ts): its frame is laid into the cosmos's and graded with it, this mixed in by its share */
@@ -306,9 +314,61 @@ export class App {
     this.cosmos.controls.enabled = realm === 'cosmos';
     if (now) this.mix = realm === 'cosmos' ? 1 : 0;
   }
+  /** the zoom round the loop by hand (main boot, over the gardens): the jewel in the strand, the zoom's top past the
+   *  keepers' sky to the loop film's last view, and the cell's way in down to the jewel */
+  seamed() {
+    this.seamOn = true;
+    this.jewel = JEWEL;
+    this.cosmos.controls.max = SEAM.Z_END;
+    this.controls.guide = { arrive: SEAM.S0 * 0.95, at: (s) => this.cellGuide(s) };
+  }
+  /** where zooming in by hand takes the cell's camera: the film's way down while diving, else onto the jewel when it's
+   *  near and ahead (null: the visitor's own zoom, toward what's under the cursor) */
+  private cellGuide(s: number): { pivot: Vec3; yaw: number; pitch: number; exact?: boolean } | null {
+    const c = this.controls, j = JEWEL;
+    if (this.realm !== 'cell' || c.flying || this.tour.active) { this.diving = false; return null; }
+    if (c.turned > 40) this.diving = false;
+    // (diving, it's on the film's way already — it came in at the tissue's own place — so the pivot keeps to it exactly)
+    if (this.diving) return { ...cellWay(this.places as Map<string, { at: Vec3 }>, Math.log10(s * NM)), exact: true };
+    const d = vec3.distance(c.position, j.at);
+    if (d > 4 * s) return null;
+    const ahead = ((j.at[0] - c.position[0]) * c.forward[0] + (j.at[1] - c.position[1]) * c.forward[1] + (j.at[2] - c.position[2]) * c.forward[2]) / Math.max(d, 1e-9);
+    return ahead > 0.94 ? { pivot: j.at, yaw: c.yaw, pitch: c.pitch } : null;
+  }
+  /** the loop's seam by hand (src/loop.ts SEAM): out past the keepers' sky the cell's camera comes onto the jewel as far
+   *  out as the cosmos's is from their world's middle, the two crossing as in the film, and the cell has it once it's
+   *  more than half; in on the jewel past the film's first view the cosmos comes in round it the same way. True while
+   *  it sets the crossing itself */
+  private seam(): boolean {
+    const c = this.controls, cc = this.cosmos.controls, J = JEWEL, D = SEAM.DOWN;
+    const off = vec3.distance(c.pivot, J.at);
+    // (as near as the cosmos takes it from, on the jewel; the keepers' world ready for it before it's needed)
+    c.minScale = off < c.scale * 2 || this.diving ? jewelS(D[0]) : 1.2;
+    if (this.realm === 'cell' && c.scale < 300 && vec3.distance(c.position, J.at) < 60 * c.scale) this.cosmos.beyond?.load();
+    if (this.realm === 'cosmos') {
+      if (cc.flying || cc.logS <= D[0]) return false;
+      const z = cc.logS, m = seamMix(z);
+      c.reach = 1;
+      c.set(J.at, jewelS(z), cc.yaw, cc.pitch);
+      this.mix = m;
+      if (m < 0.5) { this.setRealm('cell'); this.diving = true; c.turned = 0; }
+      return true;
+    }
+    if (off > c.scale * 0.05 || c.flying || c.scale >= SEAM.S0) return false;
+    const z = jewelZ(c.scale);
+    if (z >= D[1]) return false;
+    vec3.copy(c.pivot, J.at);
+    const m = seamMix(z);
+    cc.set(z, c.yaw, c.pitch);
+    this.mix = m;
+    if (m >= 0.5) this.setRealm('cosmos');
+    return true;
+  }
   /** from the skin into the tissue: the cell's camera where the cosmos's was */
   enterCell() {
     if (this.realm === 'cell') return;
+    this.diving = true;
+    this.controls.turned = 0;
     const cc = this.cosmos.controls, t = this.places.get('tissue')!;
     this.setFly(false);
     // (at the cosmos's own distance: the tissue's sheet is where its cornea's was, cell for cell: cosmos/tissue.ts)
@@ -563,9 +623,10 @@ export class App {
     if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
-    // the cross-fade between the cosmos and the cell: each draws while it shows
+    // the cross-fade between the cosmos and the cell: each draws while it shows (at the loop's seam, by the zoom: seam())
     const cc = this.cosmos.controls;
-    if (!this.mixDriven) {
+    const seam = this.seamOn && !this.mixDriven && this.seam();
+    if (!this.mixDriven && !seam) {
       const want = this.realm === 'cosmos' ? 1 : 0;
       this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
       if (Math.abs(want - this.mix) < 0.004) this.mix = want;
@@ -573,7 +634,7 @@ export class App {
     // (while they cross-fade, the one going keeps to the view of the one coming — the tissue's sheet is in both, cell
     // for cell, cosmos/tissue.ts — so the two are one picture all the way through; a film sets both itself)
     const fading = this.mix > 0 && this.mix < 1;
-    if (!this.mixDriven) {
+    if (!this.mixDriven && !seam) {
       this.controls.reach = fading && this.realm === 'cosmos' ? 4 : 1;
       if (fading && this.realm === 'cosmos') this.controls.set(this.places.get('tissue')!.at, Math.min(this.controls.maxScale * 4, cc.S / NM), cc.yaw, cc.pitch);
     }
@@ -589,7 +650,7 @@ export class App {
     // world, much darker than it, a share that comes in later, or its light would show through theirs too soon)
     this.cellShare = this.mix >= 1 ? 0 : early ? (1 - this.mix) ** 3 : 1 - this.mix;
     if (this.mix < 1) { this.r.post.set({ lay: this.cellShare }); this.cellFrame(dt); }
-    if (fading && this.realm === 'cell' && !this.mixDriven) cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
+    if (fading && this.realm === 'cell' && !this.mixDriven && !seam) cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
       // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
       const t0 = performance.now();
@@ -684,7 +745,9 @@ export class App {
     };
     // (chromatin's reach round the focus: everywhere, but round a film's jewel made out from it as the view widens — the
     // strands round the bead the eye has just left not flying past the lens — open by ~15 nm)
-    const chrom = this.jewel ? 2.6 * S * (1 + (S / 4) ** 3) : 1e30;
+    // (by hand, only round the jewel: away from it, a strand anywhere as it always is)
+    const away = this.seamOn && this.jewel ? Math.exp(Math.min(60, Math.max(0, vec3.distance(c.position, this.jewel.at) / S - 3))) : 1;
+    const chrom = this.jewel ? Math.min(1e30, 2.6 * S * (1 + (S / 4) ** 3) * away) : 1e30;
     this.r.globals.set({ lodReach: [reach(10.74), reach(1.1), chrom, 0] as never });
     this.jewelFrame(dt);
     // the molecular field: the motors walking (games add their own actors first), then generation round the focus

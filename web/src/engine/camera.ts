@@ -76,6 +76,13 @@ export class Controls {
   enabled = true;
   /** films and tours drive the camera themselves */
   driven = false;
+  /** a way in (the app's: the loop film's way down to its jewel): zooming in by hand, the pivot, yaw and pitch turn
+   *  toward `at`'s for the scale, a share of what's left for each step in, all of it by `arrive` (nm) — the zoom about
+   *  that way then, not the point under the cursor (`exact`: the pivot kept to it, as it already is). Holding still,
+   *  turning or zooming out, the view is the visitor's */
+  guide: { at: (scale: number) => { pivot: Vec3; yaw: number; pitch: number; exact?: boolean } | null; arrive: number } | null = null;
+  /** how far (px) the visitor has turned or panned it by hand, for the app to tell a dive from a look round */
+  turned = 0;
   /** first person (setFly) */
   fly = false;
   /** the on-screen stick and buttons while flying (ui/fly.ts): x right, z forward, y up, and past the stick's rim */
@@ -243,6 +250,7 @@ export class Controls {
     if (this.dragMoved < 4 || this.driven) return;
     this.user();
     if (this.pointers.size === 1) {
+      this.turned += Math.abs(dx) + Math.abs(dy);
       if (e.buttons & 2 || e.shiftKey) this.pan(dx, dy);
       else { this.velYaw = -dx * 0.005; this.velPitch = -dy * 0.005; this.orbit(this.velYaw, this.velPitch); }
     } else if (this.pointers.size === 2) {
@@ -414,6 +422,11 @@ export class Controls {
   /** zoom by `amount` (log units, + is out) keeping the point under (x, y) where it is */
   zoomAt(x: number, y: number, amount: number) {
     if (amount > 0 && this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) { this.onAbove(); return; }
+    if (amount < 0 && this.guide?.at(this.scale)) {
+      this.anchored = false;
+      this.zoomTarget = Math.max(Math.log(this.minScale), this.zoomTarget + amount);
+      return;
+    }
     const p = this.pick(x, y);
     this.basis();
     if (p && amount < 0) {
@@ -453,6 +466,8 @@ export class Controls {
     else if (!this.driven) {
       // eased zoom about the anchor: the eye and the pivot both scale toward it
       const cur = Math.log(this.scale);
+      const g = this.guide && this.zoomTarget < cur - 1e-6 ? this.guide.at(this.scale) : null;
+      if (g) this.anchored = false;
       const f = Math.exp((this.zoomTarget - cur) * (1 - Math.exp(-dt * 9)));
       if (Math.abs(f - 1) > 1e-6) {
         if (this.anchored) {
@@ -463,6 +478,16 @@ export class Controls {
           vec3.scaleAndAdd(this.pivot, this.zoomAnchor, _controls_d, f);
           this.scale = vec3.distance(this.pivot, _controls_eye);
         } else this.scale *= f;
+      }
+      if (g && f < 1) {
+        // (a share of what's left to turn for each step in: half a decade's zoom to come round, and all of it by
+        // `arrive`)
+        const step = -Math.log(f), left = Math.min(Math.log(3), Math.max(step, cur - Math.log(this.guide!.arrive)));
+        const k = Math.min(1, step / left);
+        for (let i = 0; i < 3; i++) this.pivot[i] += (g.pivot[i] - this.pivot[i]) * (g.exact ? 1 : k);
+        this.yaw += Math.atan2(Math.sin(g.yaw - this.yaw), Math.cos(g.yaw - this.yaw)) * k;
+        this.pitch += (g.pitch - this.pitch) * k;
+        this.velYaw = this.velPitch = 0;
       }
       // inertia after a drag
       if (!this.pointers.size) {

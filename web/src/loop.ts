@@ -102,6 +102,24 @@ function through(ways: [number, number][], z: number) {
   }
   return ways[ways.length - 1][1];
 }
+/** the cell's way down in the film at a zoom (log10 m): the waypoints' pivot (a place's, or a point) and pitch, eased
+ *  between them by the zoom, and the film's yaw */
+export function cellWay(places: Map<string, { at: Vec3 }>, z: number): { pivot: Vec3; yaw: number; pitch: number } {
+  const P = (w: Way): Vec3 => (typeof w.at === 'string' ? places.get(w.at)!.at : w.at);
+  let k = CELL.length - 2;
+  for (let n = 0; n < CELL.length - 1; n++) if (z <= CELL[n + 1].z) { k = n; break; }
+  const a = CELL[k], b = CELL[k + 1], u = smooth((z - a.z) / (b.z - a.z));
+  const pa = P(a), pb = P(b);
+  return { pivot: [pa[0] + (pb[0] - pa[0]) * u, pa[1] + (pb[1] - pa[1]) * u, pa[2] + (pb[2] - pa[2]) * u], yaw: through(YAW, z), pitch: a.pitch + (b.pitch - a.pitch) * u };
+}
+/** the loop's seam, for the app's own zoom (main.ts) as for the film: past the keepers' sky (from DOWN[0]) the cell's
+ *  camera is on the jewel as far out as the cosmos's is from their world's middle, the two crossing by `seamMix` (the
+ *  cosmos's share) until DOWN[1], and at Z_END that's the film's first view of the jewel, S0 nm out */
+export const SEAM = { DOWN, Z_END, S0 };
+/** the cell's distance from the jewel (nm) at a zoom past their sky, and back */
+export const jewelS = (z: number) => (Math.pow(10, z) / M_PER_CM) * NM_PER_CM;
+export const jewelZ = (s: number) => Math.log10((s / NM_PER_CM) * M_PER_CM);
+export const seamMix = (z: number) => 1 - smooth((z - DOWN[0]) / (DOWN[1] - DOWN[0]));
 /** the way in by hand over the gardens (main.ts: CosmosControls.guide): the film's yaw, from her feet' side (her head
  *  is toward the ground's -x), and steeper than the film's pitch from a couple of metres up through her face and eye,
  *  so the zoom comes down onto them, her face the right way up — never along the flowers over the crown of her head;
@@ -178,16 +196,7 @@ export class Loop {
     const zn = (nm: number) => Math.log10(nm * NM);
     const hz = z < zn(1500) ? 0 : z < zn(9000) ? smooth((z - zn(1500)) / (zn(9000) - zn(1500))) : 1 + smooth((z - zn(14000)) / (zn(30000) - zn(14000)));
     app.hazeMix = z > DOWN[0] ? ['nucleus', 'nucleus', 0] : hz < 1 ? ['nucleus', 'cytosol', hz] : ['cytosol', 'outside', hz - 1];
-    const cellAt = (zz: number) => {
-      // (the waypoints' pivots by the zoom: a place's, or a point)
-      const P = (w: Way): Vec3 => (typeof w.at === 'string' ? app.places.get(w.at)!.at as Vec3 : w.at);
-      let k = CELL.length - 2;
-      for (let n = 0; n < CELL.length - 1; n++) if (zz <= CELL[n + 1].z) { k = n; break; }
-      const a = CELL[k], bb = CELL[k + 1], u = smooth((zz - a.z) / (bb.z - a.z));
-      const pa = P(a), pb = P(bb);
-      const pivot: Vec3 = [pa[0] + (pb[0] - pa[0]) * u, pa[1] + (pb[1] - pa[1]) * u, pa[2] + (pb[2] - pa[2]) * u];
-      return { pivot, pitch: a.pitch + (bb.pitch - a.pitch) * u };
-    };
+    const cellAt = (zz: number) => cellWay(app.places as Map<string, { at: Vec3 }>, zz);
     if (z < UP[1]) {
       // the cell (and the cosmos with it as they cross)
       const v = cellAt(Math.min(z, UP[1]));
