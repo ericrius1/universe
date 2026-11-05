@@ -2,6 +2,8 @@
 // size asked, follows window.__film until it's done (frames and the soundtrack land in ../film/<name> through the dev
 // server), then encodes them with ffmpeg: H.264, the score muxed in.
 //   node tools/film.mjs <name> [width] [height]
+// CLEAN=1: the journey with no captions, title or scale bar (?clean), into ../film/journey-clean. OUT_H=720: encode
+// scaled down to that height (lanczos) rather than at the size rendered.
 import puppeteer from 'puppeteer-core';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
@@ -10,7 +12,8 @@ import { resolve } from 'node:path';
 const [name = 'trailer', w = '1920', h = '1080'] = process.argv.slice(2);
 const width = Number(w), height = Number(h);
 const FFMPEG = process.env.FFMPEG ?? (process.platform === 'win32' ? 'C:/Users/ericr/codeprojects/tools/ffmpeg/bin/ffmpeg.exe' : 'ffmpeg');
-const dir = resolve('..', 'film', name);
+const clean = !!process.env.CLEAN;
+const dir = resolve('..', 'film', clean ? `${name}-clean` : name);
 rmSync(resolve(dir, 'frames'), { recursive: true, force: true });
 rmSync(resolve(dir, 'audio.wav'), { force: true });
 
@@ -23,7 +26,7 @@ await page.setViewport({ width, height, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') console.log(`[error] ${m.text()}`); });
 const t0 = Date.now();
-await page.goto(`http://127.0.0.1:${process.env.PORT ?? 5740}/?film=${name}&notitle`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.goto(`http://127.0.0.1:${process.env.PORT ?? 5740}/?film=${name}&notitle${clean ? '&clean' : ''}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 let last = -1;
 for (;;) {
   await new Promise((r) => setTimeout(r, 3000));
@@ -38,10 +41,14 @@ await browser.disconnect().catch(() => {});
 
 const frames = existsSync(resolve(dir, 'frames')) ? readdirSync(resolve(dir, 'frames')).filter((f) => f.endsWith('.jpg')).length : 0;
 if (!frames) process.exit(1);
-const out = resolve(dir, `universe-${name}.mp4`);
+const outH = Number(process.env.OUT_H || 0);
+const out = resolve(dir, `universe-${name}${clean ? '-clean' : ''}${outH ? `-${outH}p` : ''}.mp4`);
 const args = ['-y', '-framerate', '30', '-i', resolve(dir, 'frames', 'f%05d.jpg')];
 const audio = resolve(dir, 'audio.wav');
 if (existsSync(audio)) args.push('-i', audio, '-c:a', 'aac', '-b:a', '256k', '-shortest');
-args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
+// (scaled down: a shareable file, about 3.5 Mbit/s, so two minutes stay under ~60 MB)
+if (outH) args.push('-vf', `scale=-2:${outH}:flags=lanczos`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-maxrate', '4M', '-bufsize', '8M');
+else args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '17');
+args.push('-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
 execFileSync(FFMPEG, args, { stdio: 'inherit' });
 console.log('wrote', out, `${frames} frames, ${(frames / 30).toFixed(1)} s`);

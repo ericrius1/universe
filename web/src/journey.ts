@@ -63,6 +63,9 @@ export class Journey {
   /** the cosmos's turn about the view (rad): a slow drift all the way */
   private yaw = 0.4;
   private c2d: OffscreenCanvas | null = null;
+  /** ?clean: the frames as rendered, no captions, title or scale bar (into ../film/journey-clean) */
+  private clean = new URLSearchParams(location.search).has('clean');
+  private get name() { return this.clean ? 'journey-clean' : 'journey'; }
 
   constructor(private app: App, private capture: Capture) {
     let t = 0;
@@ -117,6 +120,7 @@ export class Journey {
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     const g = cv.getContext('2d')!;
     g.putImageData(img, 0, 0);
+    if (this.clean) return cv;
     const t = this.frameNo / this.fps, s = SHOTS[this.shot], u = H / 1080;
     const t0 = this.starts[this.shot] + (s.kind === 'in' ? s.fly * 0.6 : 0.2);
     const t1 = this.starts[this.shot] + (s.kind === 'in' ? s.fly + s.hold : s.dur);
@@ -183,7 +187,7 @@ export class Journey {
 
   /** render the whole film: the ground fetched first, then the frames to the dev server, then the soundtrack */
   async run() {
-    const post = (path: string, body: Blob | string, q = '') => fetch(`/__film${path}?name=journey${q}`, { method: 'POST', body });
+    const post = (path: string, body: Blob | string, q = '') => fetch(`/__film${path}?name=${this.name}${q}`, { method: 'POST', body });
     await document.fonts.load(`300 40px Fraunces`).catch(() => {});
     await document.fonts.load(`600 20px "JetBrains Mono"`).catch(() => {});
     // (the first frame asks for the ground round the spot: wait till it's in)
@@ -202,7 +206,7 @@ export class Journey {
     }
     const wav = await Score.renderFilm(this.total / this.fps, this.cues());
     await post('/audio', wav);
-    await post('/meta', JSON.stringify({ name: 'journey', fps: this.fps, frames: this.total, shots: SHOTS.length }));
+    await post('/meta', JSON.stringify({ name: this.name, fps: this.fps, frames: this.total, shots: SHOTS.length }));
     w.__film = { frame: this.total, total: this.total, shot: this.shot, done: true };
   }
 }

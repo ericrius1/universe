@@ -16,6 +16,21 @@
   "card": "https://footage.ericrius1.workers.dev/universe/2905565697259e77/as-above-so-below-card.jpg"
  },
  {
+  "id": "the-journey",
+  "title": "The journey",
+  "sub": "From Lyra lying in the flowers beside the temple in Seven Havens' gardens out past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down into her eye, through its iris and the cornea's living cells into one of them, to the DNA wound on its nucleosomes, and out again: thirty-five powers of ten in one take.",
+  "date": "2026-11-04",
+  "created": "2026-11-04T14:52-08:00",
+  "seconds": 119,
+  "width": 1280,
+  "height": 720,
+  "mb": 62.6,
+  "video": "https://footage.ericrius1.workers.dev/universe/635ef1834983ea4a/universe-journey-clean-720p.mp4",
+  "small": null,
+  "poster": "https://footage.ericrius1.workers.dev/universe/9e8cc07b93e49289/the-journey-clean-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/universe/8a0dc7002a8d1229/the-journey-clean-card.jpg"
+ },
+ {
   "id": "trailer",
   "title": "Trailer",
   "sub": "Universe in twenty-five seconds, cut from the journey: up from the flowers beside Seven Havens' temple, past the Earth and the Milky Way into the cosmic web, then back down into Lyra's eye, through her iris, to the DNA in one of her cells.",
@@ -29,20 +44,5 @@
   "small": "https://footage.ericrius1.workers.dev/universe/3e5afb01e877ef23/universe-trailer-2026-11-03-720p.mp4",
   "poster": "https://footage.ericrius1.workers.dev/universe/2ae15682806db694/trailer-poster.jpg",
   "card": "https://footage.ericrius1.workers.dev/universe/938e56a4998ed0e3/trailer-card.jpg"
- },
- {
-  "id": "the-journey",
-  "title": "The journey",
-  "sub": "From Lyra lying in the flowers beside the temple in Seven Havens' gardens out past the Earth, the Sun and the Milky Way to the edge of the observable universe, all the way back down into her eye, through its iris and the cornea's living cells into one of them, to the DNA wound on its nucleosomes, and out again: thirty-five powers of ten in one take.",
-  "date": "2026-11-03",
-  "created": "2026-11-03T23:27-08:00",
-  "seconds": 119,
-  "width": 1920,
-  "height": 1080,
-  "mb": 193.3,
-  "video": "https://footage.ericrius1.workers.dev/universe/89002c7a086b3eff/universe-journey-1080p.mp4",
-  "small": "https://footage.ericrius1.workers.dev/universe/99b96d4a173ead08/universe-journey-720p.mp4",
-  "poster": "https://footage.ericrius1.workers.dev/universe/9b39fa88596829b9/the-journey-poster.jpg",
-  "card": "https://footage.ericrius1.workers.dev/universe/f35226e9bc45f49e/the-journey-card.jpg"
  }
 ]
