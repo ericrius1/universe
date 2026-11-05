@@ -31,6 +31,8 @@ import './play/index';
 import { Score } from './audio/score';
 import { Film } from './film';
 import { Journey } from './journey';
+import { Loop } from './loop';
+import { JEWEL_GLASS, WORLD_C, WORLD_R, logSOf, type BeyondView } from './cosmos/levels/beyond';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
@@ -46,7 +48,13 @@ const BASE = import.meta.env.BASE_URL;
 const NO_ORIGIN = params.has('noorigin');
 // the dive ends in Seven Havens' gardens (gardens.ts), or under ?nogardens (and on a dome) in Boulder's meadow as before
 const GARDENS = !params.has('nogardens') && !params.has('dome');
-const COSMOS_PLACES = GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES;
+// (and past the edge of the universe, where the zoom goes on now: the keepers' world, cosmos/levels/beyond.ts; not on a
+// dome, which stops at the edge)
+const BEYOND_PLACE: CosmosPlace = {
+  id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(160), yaw: 0.3, pitch: -0.08, size: '2 m',
+  line: 'Our universe, a marble over someone\'s palm: the keepers, and the universes they keep.',
+};
+const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES)];
 if (GARDENS) for (const s of TOUR) {
   if (s.place === 'u:boulder') s.caption = HAVENS_CAPTIONS.tourSpot;
   else if (s.place === 'u:person' && s.caption.startsWith('<small>')) s.caption = HAVENS_CAPTIONS.tourPerson;
@@ -88,6 +96,8 @@ async function boot() {
   // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
   const cosmos = new Cosmos(kit, {
     time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1,
+    // (past the edge of the universe, the keepers' world: not on a dome; a phone's lighter and at a little less resolution)
+    beyond: dome ? undefined : { assets: new URL('data/beyond/', document.baseURI).href, hi: !mobile && !params.has('lo'), scale: mobile ? 0.75 : 1 },
     ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}`, meadow: false } : {}),
   });
   status('compiling shaders…', 0.7);
@@ -96,6 +106,9 @@ async function boot() {
   console.log(`cell: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
   status('', 1);
 
+  // (the jewel, the loop's bead of glass with the keepers' world in it: src/loop.ts — only for the film, its pipelines not
+  // compiled otherwise)
+  if (cosmos.beyond && params.get('film') === 'loop') r.jewel(cosmos.beyond.out, !mobile);
   const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
   // Seven Havens' gardens, where the dive ends: built in the background once the page runs (gardens.ts; ?nogardens
   // the meadow outside Boulder as before, and never on a dome)
@@ -134,13 +147,15 @@ async function boot() {
     controls.driven = true;
     // (the journey flies both cameras, the cosmos's and the cell's: it goes first, before either)
     const name = params.get('film') || 'trailer';
-    const film = name === 'journey' ? new Journey(app, capture) : new Film(app, capture, name);
-    if (film instanceof Journey) app.journey = (dt) => film.direct(dt);
+    const film = name === 'journey' ? new Journey(app, capture) : name === 'loop' ? new Loop(app, capture) : new Film(app, capture, name);
+    if (film instanceof Journey || film instanceof Loop) app.journey = (dt) => film.direct(dt);
     else app.director = (dt) => film.direct(dt);
+    (window as unknown as Record<string, unknown>).__filmObj = film;
     $('loading').classList.add('gone');
     // (a film that begins in the gardens waits for them)
     if (app.gardens) await new Promise<void>((r) => { const t = setInterval(() => { if (app.gardens!.ready) { clearInterval(t); r(); } }, 100); });
-    void film.run();
+    // (?test: stepped by hand, a frame at a time, for a look at a moment: __filmObj.seek)
+    if (!params.has('test')) void film.run();
   }
   $('loading').classList.add('gone');
   // the tools' hooks (tools/shoot.mjs, tools/film.mjs)
@@ -205,8 +220,13 @@ export class App {
 
   /** which camera has the controls: the world above the cell, or the cell's */
   realm: 'cosmos' | 'cell' = 'cosmos';
-  /** how much of the frame is the cosmos's (eased toward 1 above the cell, 0 in it) */
-  private mix = 1;
+  /** how much of the frame is the cosmos's (eased toward 1 above the cell, 0 in it; a film's own: mixDriven) */
+  mix = 1;
+  mixDriven = false;
+  /** one bead made glass, the keepers' world inside it (src/loop.ts): its middle (nm) and radius */
+  jewel: { at: Vec3; r: number } | null = null;
+  /** a film's own haze, from one compartment's toward another's (the same at the same zoom, unlike the eased one) */
+  hazeMix: [string, string, number] | null = null;
 
   constructor(readonly kit: Kit, readonly r: Renderer, readonly world: World, readonly controls: Controls, readonly field: Field,
     readonly walkers: Walkers, readonly fil: FilamentSet, readonly mols: Molecules, readonly cosmos: Cosmos) {
@@ -222,7 +242,7 @@ export class App {
     else {
       this.setRealm('cosmos', true);
       const s = params.get('s');
-      cosmos.controls.set(s ? Number(s) : cosmos.controls.max - 0.15);
+      cosmos.controls.set(s ? Number(s) : cosmos.controls.start);
     }
     if (params.has('nocut')) this.cutTarget = this.cut = 0;
 
@@ -519,27 +539,42 @@ export class App {
   }
 
   frame(dt: number) {
+    // (the keepers' world drawn from the cosmos's own camera unless the jewel asks otherwise this frame: jewelFrame)
+    if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
     // the cross-fade between the cosmos and the cell: each draws while it shows
-    const want = this.realm === 'cosmos' ? 1 : 0;
-    this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
-    if (Math.abs(want - this.mix) < 0.004) this.mix = want;
+    const cc = this.cosmos.controls;
+    if (!this.mixDriven) {
+      const want = this.realm === 'cosmos' ? 1 : 0;
+      this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
+      if (Math.abs(want - this.mix) < 0.004) this.mix = want;
+    }
     // (while they cross-fade, the one going keeps to the view of the one coming — the tissue's sheet is in both, cell
-    // for cell, cosmos/tissue.ts — so the two are one picture all the way through)
-    const cc = this.cosmos.controls, fading = this.mix > 0 && this.mix < 1;
-    this.controls.reach = fading && this.realm === 'cosmos' ? 4 : 1;
-    if (fading && this.realm === 'cosmos') this.controls.set(this.places.get('tissue')!.at, Math.min(this.controls.maxScale * 4, cc.S / NM), cc.yaw, cc.pitch);
+    // for cell, cosmos/tissue.ts — so the two are one picture all the way through; a film sets both itself)
+    const fading = this.mix > 0 && this.mix < 1;
+    if (!this.mixDriven) {
+      this.controls.reach = fading && this.realm === 'cosmos' ? 4 : 1;
+      if (fading && this.realm === 'cosmos') this.controls.set(this.places.get('tissue')!.at, Math.min(this.controls.maxScale * 4, cc.S / NM), cc.yaw, cc.pitch);
+    }
+    // (the jewel crossing with the cosmos: the cosmos's scene and the keepers' world drawn first, the cell then reads
+    // them, the cosmos laid over after)
+    const early = fading && !!this.jewel && !!this.cosmos.beyond && cc.logS > 26;
+    if (early) {
+      this.cosmos.update(dt, this.mix);
+      this.gardens?.update(dt);
+      this.kit.run(this.cosmos.r.offscreen());
+    }
     if (this.mix < 1) this.cellFrame(dt);
-    if (fading && this.realm === 'cell') cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
+    if (fading && this.realm === 'cell' && !this.mixDriven) cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
       // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
       const t0 = performance.now();
-      this.cosmos.update(dt, this.mix);
+      if (!early) this.cosmos.update(dt, this.mix);
       const t1 = performance.now();
-      this.gardens?.update(dt);
+      if (!early) this.gardens?.update(dt);
       const t2 = performance.now();
-      this.cosmos.r.frame();
+      if (early) this.kit.run(this.cosmos.r.finish()); else this.cosmos.r.frame();
       this.gardens?.after();
       // (the frame's CPU time, its parts: the report's, ui/report.ts)
       this.cpu.cosmos = t1 - t0; this.cpu.gardens = t2 - t1; this.cpu.run = performance.now() - t2;
@@ -580,7 +615,11 @@ export class App {
     this.compartmentName = here.name === 'neighbor' ? 'cytosol' : here.name;
     const want = HAZE[this.compartmentName] ?? HAZE.cytosol;
     const k = 1 - Math.exp(-dt * 2.5);
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) this.haze[i][j] += (want[i][j] - this.haze[i][j]) * k;
+    const hm = this.hazeMix;
+    if (hm) {
+      const a = HAZE[hm[0]], b = HAZE[hm[1]];
+      for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) this.haze[i][j] = a[i][j] + (b[i][j] - a[i][j]) * hm[2];
+    } else for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) this.haze[i][j] += (want[i][j] - this.haze[i][j]) * k;
 
     // a key light from over the viewer's left shoulder
     const f = c.forward, rt = c.right, up = c.up;
@@ -603,6 +642,8 @@ export class App {
       organelleCount: this.world.organelles.length, hover: this.hover, selected: this.selected, highlight: 1,
       quality: 1, flags: 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin,
     });
+    this.r.globals.set({ jewel: this.jewel ? [...rel(this.jewel.at), this.jewel.r] as never : [0, 0, 0, 0] });
+    this.jewelFrame(dt);
     // the molecular field: the motors walking (games add their own actors first), then generation round the focus
     if (!this.game) this.field.actorCount = 0;
     this.walkers.update(this.bioTime, c.pivot, S);
@@ -623,6 +664,30 @@ export class App {
     if (this.at && !c.flying && !this.near(this.at)) this.at = null;
     this.intro.update(dt, c.flying, !!this.at);
     this.hud.setHere(this.at?.id ?? null);
+  }
+
+  /** the jewel this frame (src/loop.ts): the keepers' world drawn from where this camera is, as it would be in their
+   *  world (the jewel's glass their sky's radius times JEWEL_GLASS), for the jewel's pass to see through */
+  private jewelFrame(dt: number) {
+    const r = this.r, b = this.cosmos.beyond, j = this.jewel, J = r.jewelU;
+    r.first = () => [];
+    const c = this.controls, kit = this.kit;
+    // (not while it'd be under a pixel)
+    const dist = j ? Math.hypot(c.position[0] - j.at[0], c.position[1] - j.at[1], c.position[2] - j.at[2]) : 0;
+    const px = j ? j.r / Math.max(dist, 1e-6) / ((2 * Math.tan(kit.camera.fovY / 2)) / kit.size.render[1]) : 0;
+    r.jewelOn = !!(j && b && b.ready && J) && px > 0.5;
+    if (!r.jewelOn || !j || !b || !J) return;
+    J.set({ center: rel(j.at), radius: j.r, inner: [1.8, 1.45, 0.74, 0], tint: [0.7, 0.75, 0.92, 1], flags: [1, 0, 0, 0] });
+    // (crossing with the cosmos, its own camera — the same view — draws their world: App.frame)
+    if (this.mix > 0) { b.view = null; return; }
+    const k = j.r / JEWEL_GLASS / WORLD_R;
+    const eye: Vec3 = [WORLD_C[0] + (c.position[0] - j.at[0]) / k, WORLD_C[1] + (c.position[1] - j.at[1]) / k, WORLD_C[2] + (c.position[2] - j.at[2]) / k];
+    const fov = kit.camera.fovY, [W, H] = kit.size.render, th = Math.tan(fov / 2);
+    const view: BeyondView = { eye, fwd: [...c.forward] as Vec3, right: [...c.right] as Vec3, up: [...c.up] as Vec3, tanHalf: th, aspect: W / Math.max(1, H), pxAngle: (2 * th) / H };
+    b.view = view;
+    b.universe = false;
+    b.update(this.cosmos.controls.logS, dt);
+    r.first = () => (b.on ? this.cosmos.r.after : []);
   }
 
   /** read depth and id under the cursor (a frame or two late) */

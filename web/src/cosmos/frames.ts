@@ -132,6 +132,9 @@ export class Ladder {
 
   /** the Earth's radius at the spot (km): the air's sea-level sphere and the spot's ground above it */
   readonly earthR: number;
+  /** past the edge of the observable universe, where the view goes as the zoom comes out (metres, the top frame's
+   *  axes) and over what zoom (log10 m) it gets there: the middle of the keepers' world (levels/beyond.ts) */
+  beyond: { at: Vec3; from: number; to: number } | null = null;
 
   constructor(ms = Date.now(), readonly place: Place = BOULDER) {
     this.earthR = 6360 + place.km;
@@ -188,6 +191,12 @@ export class Ladder {
       // (the body sits at the frame's origin)
       vec3.transformQuat(_v, f.target, f.q);
       vec3.scaleAndAdd(out, out, _v, -k * f.unit);
+    }
+    const b = this.beyond;
+    if (b) {
+      const k = ease(b.from, b.to);
+      // (off the galaxy's middle — the origin, up here — onto theirs)
+      if (k > 0) vec3.scaleAndAdd(out, out, b.at, k);
     }
     return out;
   }

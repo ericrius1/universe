@@ -51,7 +51,7 @@ try {
     };
     const out = [];
     const cc = app.cosmos.controls;
-    const SPOTS = [[26.95, 0.4, -0.25, 'universe'], [24.3, 0.4, -0.4, 'web'], [21.35, 0.4, -0.75, 'milkyway'], [17.7, 0.4, -0.3, 'neighbours'],
+    const SPOTS = [[28.3, 0.3, -0.08, 'keepers'], [27.8, 0.3, -0.25, 'their hand'], [27.3, 0.4, -0.3, 'our marble'], [26.95, 0.4, -0.25, 'universe'], [24.3, 0.4, -0.4, 'web'], [21.35, 0.4, -0.75, 'milkyway'], [17.7, 0.4, -0.3, 'neighbours'],
       [13, 0.4, -0.62, 'solar'], [7.35, 0.4, -0.15, 'earth'], [5.3, 0.4, -0.4, 'earth-low'], [3.5, 0.4, -0.42, 'boulder'], [1.6, 0.4, -0.7, 'meadow'],
       [0.35, 0.4, -0.95, 'person'], [-1.75, 0.4, -1.1, 'eye'], [-2.8, 0.4, -1.1, 'iris'], [-3.6, 0.4, -1.1, 'skin cells']];
     for (const [l, yaw, pitch, name] of SPOTS) {

@@ -91,6 +91,8 @@ fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
   out.info4 = vec4u(inst.mtype, T.flags, inst.id, info);
   out.pos = frame.viewProj * vec4f(p, 1.0);
   if (dist <= r * 1.05) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+  // (none where the jewel is: it's the bead there, src/loop.ts)
+  if (G.jewel.w > 0.0 && length(c - G.jewel.xyz) < G.jewel.w + r * 0.6) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   return out;
 }
 

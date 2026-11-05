@@ -52,10 +52,14 @@ export class CosmosRenderer {
   film: Film;
   /** its alpha: 1, or less over the cell's frame while the two hand over (index.ts) */
   alpha = 1;
+  /** a level's own grade over whatever film is in force (levels/beyond.ts: the keepers' world, graded for itself) */
+  grade: ((f: Film) => Film) | null = null;
   private encode: boolean;
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
   readonly before: RunEntry[] = [];
+  /** its own work after the scene, into its HDR, before a host's (levels/beyond.ts: the keepers' world laid in) */
+  readonly after: RunEntry[] = [];
   /** a host's own work this frame: before all of it, and after the scene, into its HDR before the bloom (Universe's:
    *  Seven Havens' gardens drawn, then laid into the frame) */
   first: () => RunEntry[] = () => [];
@@ -187,11 +191,19 @@ export class CosmosRenderer {
 
   /** this frame's GPU work, for a host that runs it with its own */
   run(): RunEntry[] {
-    // (the film's settings as they stand now: a host's mixed in after the views were worked out; its bloom's too)
-    this.P.set(filmFields(this.film, this.alpha, this.encode, !!this.dome));
-    this.sizeBloom();
-    return [...this.first(), ...this.before, ...(this.covered ? [] : [this.scene]), ...this.afterScene(), ...this.items];
+    this.prep();
+    return [...this.first(), ...this.before, ...(this.covered ? [] : [this.scene]), ...this.after, ...this.afterScene(), ...this.items];
   }
+  /** (the film's settings as they stand now: a host's mixed in after the views were worked out; its bloom's too) */
+  private prep() {
+    this.P.set(filmFields(this.grade ? this.grade(this.film) : this.film, this.alpha, this.encode, !!this.dome));
+    this.sizeBloom();
+  }
+
+  /** the frame in two halves, for a host that reads the HDR in between (Universe's jewel: the keepers' world, drawn
+   *  here, read by the cell before this is laid over it): the scene and its own work after it, then the rest */
+  offscreen(): RunEntry[] { return [...this.before, this.scene, ...this.after]; }
+  finish(): RunEntry[] { this.prep(); return [...this.afterScene(), ...this.items]; }
 
   frame() { this.kit.run(this.run()); }
 }

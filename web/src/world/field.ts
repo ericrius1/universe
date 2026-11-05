@@ -131,8 +131,11 @@ export class Field {
         if (!l) continue;
         for (const s of l) {
           const o = s * 12;
-          const mx = (d[o] + d[o + 4]) / 2 - focus[0], my = (d[o + 1] + d[o + 5]) / 2 - focus[1], mz = (d[o + 2] + d[o + 6]) / 2 - focus[2];
-          if (Math.hypot(mx, my, mz) - d[o + 11] > R) continue;
+          // (the focus's distance to the segment itself, not its middle: a long one passing right by counts)
+          const ax = d[o + 4] - d[o], ay = d[o + 5] - d[o + 1], az = d[o + 6] - d[o + 2];
+          const px = focus[0] - d[o], py = focus[1] - d[o + 1], pz = focus[2] - d[o + 2];
+          const u = Math.max(0, Math.min(1, (px * ax + py * ay + pz * az) / Math.max(1e-9, ax * ax + ay * ay + az * az)));
+          if (Math.hypot(px - ax * u, py - ay * u, pz - az * u) - d[o + 11] > R) continue;
           this.segIds[this.segCount++] = s;
           if (this.segCount >= this.segIds.length) break outer;
         }

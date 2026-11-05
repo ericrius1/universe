@@ -5,6 +5,8 @@
 import type { Kit, RunEntry, Texture, UniformBuffer, RenderPass, StorageBuffer } from '@ericrius1/weft';
 import worldShader from '../../shaders/world.wgsl';
 import post from '../../shaders/post.wgsl';
+import jewelShader from '../../shaders/jewel.wgsl';
+import jewelLay from '../../shaders/jewel_lay.wgsl';
 import type { Globals } from '../../shaders/world.wgsl';
 
 export const BLOOM_MIPS = 6;
@@ -28,6 +30,11 @@ export class Renderer {
   readonly dofOut: Texture;
   /** compute work that must run before the scene (molecule generation, culling) */
   readonly before: RunEntry[] = [];
+  /** another's work to run first this frame (the keepers' world, for the jewel to read) */
+  first: () => RunEntry[] = () => [];
+  /** the jewel (src/loop.ts): its uniform, once it's made (jewel()) */
+  jewelU: UniformBuffer<any> | null = null;
+  jewelOn = false;
   private items: RunEntry[];
   private levels: UniformBuffer<any>[] = [];
 
@@ -96,6 +103,22 @@ export class Renderer {
     fin.fullscreen(post, { label: 'final', fragment: 'fs_final', bind: { P, srcTex: this.lit, bloomTex: this.bloom.mip(0), dofTex: this.dofOut, depthTex: this.depth } });
 
     this.items = [this.scene, this.glass, aoPass, comp, dofDown, dof, ...bloomItems, fin];
+    this.afterComp = 4;
+  }
+  private afterComp: number;
+
+  /** one bead made glass, the world in `inside` seen through it (drawn from this camera): drawn over the cell's light
+   *  after its composite, its depth with it, before the focus and the bloom */
+  jewel(inside: Texture, hi: boolean) {
+    const k = this.kit;
+    const J = this.jewelU = k.uniforms(jewelShader.structs.Jewel, 'jewel');
+    const tex = k.texture({ label: 'jewel', format: 'rgba16float', size: 'render' });
+    const on = () => this.jewelOn;
+    const p = k.pass({ label: 'jewel', color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled: on });
+    p.fullscreen(jewelShader, { label: 'jewel', fragment: 'fs', constants: { HI: hi ? 1 : 0 }, bind: { J, litTex: this.lit, depthTex: this.depth, worldTex: inside } as never });
+    const lay = k.pass({ label: 'jewel.lay', color: [{ target: this.lit, clear: false }], depth: { target: this.depth, clear: false }, enabled: on });
+    lay.fullscreen(jewelLay, { label: 'jewel.lay', fragment: 'fs', blend: 'premultiplied', depthWrite: true, depthCompare: 'always', bind: { J, jewelTex: tex } as never });
+    this.items.splice(this.afterComp, 0, p, lay);
   }
 
   /** the bloom passes' texel sizes follow the render size */
@@ -114,6 +137,6 @@ export class Renderer {
 
   frame() {
     this.sizeLevels();
-    this.kit.run([...this.before, ...this.items]);
+    this.kit.run([...this.first(), ...this.before, ...this.items]);
   }
 }

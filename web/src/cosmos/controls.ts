@@ -14,7 +14,10 @@ export class CosmosControls {
   yaw = 0.4;
   pitch = -0.55;
   readonly min = -3.8;
-  readonly max = 27.15;
+  /** the top of the zoom: the edge of the observable universe, or past it to the keepers' world (levels/beyond.ts) */
+  max = 27.15;
+  /** where a visit starts: the edge of the observable universe (the place's own view of it) */
+  readonly start = 26.95;
   enabled = true;
   driven = false;
   /** how far down the zoom goes for now (null: all the way): a host's world below still loading (Universe's gardens),

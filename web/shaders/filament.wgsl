@@ -53,6 +53,9 @@ fn quad(vi: u32, s: Seg, thin: bool) -> VOut {
   out.across = corner.y;
   out.pos = frame.viewProj * vec4f(p, 1.0);
   if (isCut(mid)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+  // (none right in front of the lens: the clear round the camera, as the molecules have — a tube flying through it
+  // otherwise fills the frame for a frame)
+  if (distEye < G.clearRadius * 0.5 && length(s.b - s.a) < G.clearRadius) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   return out;
 }
 @vertex fn vs_tube(@builtin(vertex_index) vi: u32) -> VOut { return quad(vi, segAt(vi / 6u), false); }
@@ -98,7 +101,7 @@ fn look(kind: u32) -> Look {
   let rd = normalize(in.world - ro);
   let r = segRadius(s);
   let t = capsule(ro, rd, s.a, s.b, r);
-  if (t <= 0.0) { discard; }
+  if (t <= 0.0 || t < G.clearRadius) { discard; }
   let p = ro + rd * t;
   if (isCut(p)) { discard; }
   let ba = s.b - s.a;

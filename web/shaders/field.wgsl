@@ -273,12 +273,15 @@ fn fade(p: vec3f) -> f32 {
       let rad = R0 * cos(th) + R1 * sin(th);
       let c = s.a + ax * ((z - s.s0) / s.len) + rad * 8.5;
       let w = fade(c) * F.latticeOn;
-      if (w <= 0.01 || isCut(c)) { continue; }
-      var inst: Inst;
-      inst.pos = c; inst.scale = w;
-      inst.rot = qmul(basis(rad, T), qaxis(vec3f(1.0, 0.0, 0.0), hj.y * 1.2 - 0.6));
-      inst.mtype = T_NUCLEOSOME; inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
-      emit(inst);
+      if (isCut(c)) { continue; }
+      // (the core faded out — far from the focus, very close in — its linker may still be near it)
+      if (w > 0.01) {
+        var inst: Inst;
+        inst.pos = c; inst.scale = w;
+        inst.rot = qmul(basis(rad, T), qaxis(vec3f(1.0, 0.0, 0.0), hj.y * 1.2 - 0.6));
+        inst.mtype = T_NUCLEOSOME; inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
+        emit(inst);
+      }
       // the linker to the next nucleosome: base pairs every 0.34 nm, 36° apart, leaving the cores (5.5 nm round each)
       let thn = f32(j + 1) * 3.5 + hash3i(vec3i(j + 1, i32(s.fil), 7)).x * 0.6;
       let cn = c + T * 11.0 + (R0 * cos(thn) + R1 * sin(thn) - rad) * 8.5;
@@ -286,8 +289,8 @@ fn fade(p: vec3f) -> f32 {
       let L = length(lk);
       let dir = lk / L;
       let ref0 = normalize(cross(dir, vec3f(0.17, 0.31, 1.0)));
-      // (only near the focus: further off, a linker's base pairs are a dust of dots)
-      let nbp = select(0, i32(L / 0.34), length(c - F.focus) < F.radius * 0.45);
+      // (only near the focus: further off, a linker's base pairs are a dust of dots; very close in, the few round it)
+      let nbp = select(0, i32(L / 0.34), length(c - F.focus) < max(F.radius * 0.45, 30.0));
       for (var b = 0; b < nbp; b++) {
         let along = f32(b) * 0.34;
         if (along < 5.0 || along > L - 5.0) { continue; }

@@ -116,7 +116,12 @@ export class Web {
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.004, 0.02), 1], b: [EDGE, 0, 0, 0] });
     // (the web's brighter seen whole, where the voids between near filaments take up more of the view)
     // (and gone by the time the whole of it is seen, from outside the microwave background's shell: too fine to march)
-    const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0))) * (1 - Math.max(0, Math.min(1, (l - 26.3) / 0.5)));
-    this.vol.L.set({ b: [EDGE, 0, 0, 0], c: [gain, Smpc > 6000 ? 28 : 36, 0, 0] });
+    // (and faint, not gone, seen whole from outside; past the edge, where it's what our marble holds (levels/beyond.ts),
+    // bright again)
+    const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0))) * (1 - 0.35 * Math.max(0, Math.min(1, (l - 26.3) / 0.5)))
+      * (1 + 1.4 * Math.max(0, Math.min(1, (l - 26.9) / 0.4)));
+    // (the microwave background's shell fainter there too, a skin round the web rather than a mottled ball)
+    const cmb = 1 - 0.7 * Math.max(0, Math.min(1, (l - 26.9) / 0.4));
+    this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, Smpc > 6000 ? 28 : 36, 0, 0] });
   }
 }

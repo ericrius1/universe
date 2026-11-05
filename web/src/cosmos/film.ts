@@ -36,6 +36,16 @@ export const COSMOS_FILM: Film = {
   grade: 0, split: 0, rich: 0, golden: 0, dusk: 0, noon: 0, night: 0, cover: 0,
 };
 
+/** the keepers' world past the edge of the universe (levels/beyond.ts): AgX's own curve, not the cosmos's lifted one
+ *  (its frames are dark round sparse lights; theirs are lit), a little punch, the glow and halation of a lens round its
+ *  marbles and threads, film's grain */
+export const BEYOND_FILM: Film = {
+  ...COSMOS_FILM,
+  exposure: 1.15, bloomShare: 0.04, bloomAdd: 0.03, glow: 0.22, glowFrom: 0.9, halation: 0.12,
+  punch: 0.35, saturation: 1.05, saturationAfter: 1.06, contrast: 1.1, toe: 1, power: 1,
+  vignette: 0.55, vignetteQ: 0.15, dither: 0.6, grain: 0.022, grainMids: 0.6,
+};
+
 /** a's settings toward b's by t (0..1) */
 export function mixFilm(a: Film, b: Film, t: number): Film {
   const o = { ...a };

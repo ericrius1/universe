@@ -1,6 +1,7 @@
 // The edge of the observable universe: the cosmic microwave background, the light of the last-scattering surface
 // 14 billion parsecs away, as a thin glowing shell with its anisotropies (a warm and cool mottle of a few sizes),
-// seen from outside it as a sphere at the top of the zoom and as a faint wall from within. L.b.x: its radius (Mpc).
+// seen from outside it as a sphere at the top of the zoom and as a faint wall from within. L.b.x: its radius (Mpc), y how
+// bright (fainter past the edge, levels/web.ts).
 #include "cosmos.wgsl"
 #include "weft/fullscreen"
 
@@ -33,13 +34,14 @@ fn cmb(n: vec3f) -> f32 {
       let n = normalize(ro + rd * t);
       let v = cmb(n);
       let col = mix(cool, warm, ss(-0.3, 0.3, v)) * (0.35 + 1.3 * abs(v));
-      c += col * side * select(0.4, 0.6, k == 0);
+      // (the near side fading in as it falls behind the camera that's just left the shell: no flash as it crosses)
+      c += col * side * select(0.4, 0.6 * ss(0.0, R * 0.08, t), k == 0);
     }
   }
   c += mix(cool, warm, 0.45) * halo * 2.0;
   // from far outside it, a little brighter; as the view comes inside, it fades to a faint wall
   let fade = ss(R * 0.02, R * 0.6, L.scale);
-  return vec4f(c * 0.016 * fade * L.weight, 0.0);
+  return vec4f(c * 0.016 * fade * L.weight * L.b.y, 0.0);
 }
 
 // The web seen whole: filaments of galaxies where the walls between the cells of a cellular noise at two sizes (130

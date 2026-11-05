@@ -15,6 +15,7 @@ struct Globals {
   hover: u32, selected: u32, quality: u32, flags: u32,
   timeScale: f32, shellSolid: f32, highlight: f32, dof: f32,    // shellSolid: membranes opaque (1) or glass (0)
   origin: vec3f, pad0: f32,         // the floating origin (nm): every position the GPU computes with is relative to it
+  jewel: vec4f,                     // the jewel (src/loop.ts): its middle (relative) and radius; no bead inside it
 }
 @group(0) @binding(1) var<uniform> G: Globals;
 

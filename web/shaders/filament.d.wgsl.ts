@@ -60,6 +60,7 @@ export interface Globals {
   dof: number;
   origin: Vec3;
   pad0: number;
+  jewel: Vec4;
 }
 export interface Organelle {
   a: Vec3;
