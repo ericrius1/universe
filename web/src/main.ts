@@ -39,6 +39,8 @@ import { Cosmos, moment } from './cosmos';
 import { NM } from './cosmos/frames';
 import { COSMOS_PLACES as BOULDER_PLACES, cosmosPlaces, type CosmosPlace } from './cosmos/places';
 import { SIZE } from './ui/intro';
+import { Governor } from './ui/governor';
+import { lightGpu } from './ui/gpu';
 
 const asPlace = (p: CosmosPlace): Place => ({ id: p.id, name: p.name, scale: 0, at: [0, 0, 0], yaw: p.yaw, pitch: p.pitch, line: p.line, art: '' });
 
@@ -70,6 +72,10 @@ async function boot() {
   status('waking the GPU…', 0.05);
   // (?phone: a phone's settings anywhere)
   const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900) || params.has('phone');
+  // (a computer whose GPU is light — ui/gpu.ts: a base M1 or M2, as in a MacBook Air; graphics on the processor — has
+  // the phone's volumes and the keepers' world as a phone draws them, on the computer's interface; the governor finds
+  // the rest from how it runs)
+  const light = !mobile && !params.has('film') && lightGpu();
   trackGpuMemory();
   const kit = await createKit(canvas, { maxPixelRatio: mobile ? 2 : 1.5, renderScale: mobile ? 0.7 : 1 });
   const quality = Number(params.get('q') ?? (mobile ? 0.5 : 1));
@@ -97,9 +103,9 @@ async function boot() {
   const time = params.has('now') ? Date.now() : moment(Number(params.get('utc') ?? 17.5));
   // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
   const cosmos = new Cosmos(kit, {
-    time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile ? 0.5 : 1,
+    time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile || light ? 0.5 : 1,
     // (past the edge of the universe, the keepers' world: not on a dome; a phone's lighter and at a little less resolution)
-    beyond: dome ? undefined : { assets: new URL('data/beyond/', document.baseURI).href, hi: !mobile && !params.has('lo'), scale: mobile ? 0.75 : 1 },
+    beyond: dome ? undefined : { assets: new URL('data/beyond/', document.baseURI).href, hi: !mobile && !light && !params.has('lo'), scale: mobile || light ? 0.75 : 1 },
     ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}`, meadow: false } : {}),
   });
   status('compiling shaders…', 0.7);
@@ -128,6 +134,23 @@ async function boot() {
     if (kit.profiler.available && !params.has('pace')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
     else pace = new FramePace({ min: mobile ? 0.4 : 0.5, max: mobile ? 0.8 : 1 });
   }
+  // (and where even the least resolution can't hold 30 frames a second, the governor makes it lighter a step at a time,
+  // each given back with room to spare, where it settles kept for the next visit: ui/governor.ts; a light GPU starts a
+  // step in)
+  const res = () => kit.autoRes ?? pace;
+  const ratio = mobile ? 2 : 1.5, least = mobile ? 0.4 : 0.5;
+  const governor = res() ? new Governor({
+    name: 'universe',
+    start: light ? 1 : 0,
+    steps: [
+      { name: 'fewer pixels', set: (on) => { kit.maxPixelRatio = on ? ratio - 0.25 : ratio; } },
+      { name: 'fewer pixels still', set: (on) => { kit.maxPixelRatio = on ? Math.max(1, ratio - 0.5) : ratio - 0.25; } },
+      { name: 'a lower least resolution', set: (on) => { const r = res(); if (r) r.min = on ? 0.33 : least; } },
+    ],
+    atFloor: () => kit.renderScale <= (res()?.min ?? 0) + 0.011,
+    atCeiling: () => kit.renderScale >= (res()?.max ?? 1) - 0.011,
+    onStep: (n, s, taken) => console.info(`governor: ${taken ? '' : 'back: '}${s.name} (step ${n})`),
+  }) : null;
   // (the frame rate and the GPU's numbers with the interface, as on the site's other worlds; not in a film)
   const fps = { fps: 0, ms: 0 };
   const stats = new StatsBox({
@@ -141,6 +164,7 @@ async function boot() {
   if (params.has('report') || params.has('auto') || tunnel) startReport(kit, app, params.has('auto') || tunnel);
   kit.loop(({ dt }) => {
     pace?.update(kit); app.frame(dt);
+    governor?.frame(kit);
     stats.update(performance.now());
     fpsT += dt; fpsN++;
     if (fpsT > 0.5) { fps.fps = fpsN / fpsT; fps.ms = (fpsT / fpsN) * 1000; fpsT = 0; fpsN = 0; }

@@ -6,10 +6,12 @@
 // shafts, the contour smudge or motion blur, its shadows smaller and fewer, the buildings' textures at 512 px and the
 // flora's levels nearer, at 30 fps and a lower resolution held to its frame budget (util/autores.ts); and no backdrop
 // blur on the interface (WebKit blurs what's under every blurred element each frame: 13 ms of boulder's 55 ms frame on
-// the 16e). A desktop GPU draws all of it. ?profile=iphone16|m1pro16|m5air|rtx5090 picks one (phone and desktop too:
-// the iPhone's and the M5's); ?msaa=0|4 the scene's samples.
+// the 16e). A desktop GPU draws all of it, a base M1's (m1air) the phone's economies without MSAA.
+// ?profile=iphone16|m1air|m1pro16|m5air|rtx5090 picks one (phone and desktop too: the iPhone's and the M5's); ?msaa=0|4
+// the scene's samples. Where even that can't hold 30 frames a second, the governor (util/governor.ts, main.ts) finds
+// the rest from how the device runs.
 
-export type ProfileName = 'iphone16' | 'm1pro16' | 'm5air' | 'rtx5090';
+export type ProfileName = 'iphone16' | 'm1air' | 'm1pro16' | 'm5air' | 'rtx5090';
 
 export interface Profile {
   label: string;
@@ -66,6 +68,17 @@ export const PROFILES: Record<ProfileName, Profile> = {
     sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 2048, archTexPx: 512, gpuCull: false,
     floraReach: 0.5, floraShadows: 1,
     maxPixelRatio: 2, startScale: 0.7, minScale: 0.45, budget: 24, frameCap: 30,
+  },
+  // (a base M1 or M2, as in a MacBook Air: boulder's m1air. Half an M1 Pro's GPU, a tile GPU as a phone's is, and no
+  // fan: the phone's economies on the post chain and the shadows, no MSAA (the final pass's edge blend instead), a
+  // little less resolution, and 30 frames a second held rather than 60 missed)
+  m1air: {
+    label: 'M1 Air · 8 GB', phone: false, msaa: 1,
+    shadowPx: 1024, terrainShadowPx: 512, cascades: 3, staggerFarCascades: true, terrainEvery: 12, cloudEvery: 3,
+    bloomLevels: 4, smudge: false, ao: false, rays: false, motionBlur: false,
+    sceneDepthFormat: 'rgba16float', temporalUpscale: false, maxImage: 4096, archTexPx: 1024, gpuCull: true,
+    floraReach: 0.6, floraShadows: 1,
+    maxPixelRatio: 1.25, startScale: 0.75, minScale: 0.5, budget: 28, frameCap: 30,
   },
   m1pro16: {
     label: 'M1 Pro · 16 GB', phone: false, msaa: 4,
@@ -128,8 +141,21 @@ export function detectProfile(): { name: ProfileName; renderer: string; reason: 
   if (looksLikePhone()) return { name: 'iphone16', renderer: '', reason: 'mobile browser and compact coarse-pointer screen' };
   const renderer = rendererName();
   if (/RTX\s*(?:5090|4090|5080|4080)\b/i.test(renderer)) return { name: 'rtx5090', renderer, reason: 'a high-end NVIDIA card' };
-  if (/Apple M[2-9]\b/i.test(renderer)) return { name: 'm5air', renderer, reason: 'Apple M2 or later' };
-  if (/Apple/i.test(renderer) || /Macintosh|Mac OS X/i.test(ua)) return { name: 'm1pro16', renderer, reason: 'Apple, M1 or the chip unnamed' };
+  // (the base chips, M1 and M2: a MacBook Air's, a 13" MacBook Pro's, a Mac mini's; their Pro, Max and Ultra have two
+  // to eight times the GPU)
+  if (/Apple M[12](?!\s*(?:Pro|Max|Ultra))\b/i.test(renderer)) return { name: 'm1air', renderer, reason: 'a base Apple M1 or M2' };
+  if (/Apple M1\b/i.test(renderer)) return { name: 'm1pro16', renderer, reason: 'Apple M1 Pro, Max or Ultra' };
+  if (/Apple M[2-9]\b/i.test(renderer)) return { name: 'm5air', renderer, reason: 'Apple M2 Pro or later' };
+  // (a computer's graphics on the processor, an Intel Mac's or a laptop's: an M1's at best)
+  if (/Intel(?!.*\bArc\b)|Radeon(?:\(TM\))? Graphics|Vega \d+ Graphics/i.test(renderer)) return { name: 'm1air', renderer, reason: 'integrated graphics' };
+  if (/Apple/i.test(renderer) || /Macintosh|Mac OS X/i.test(ua)) {
+    // (Safari names no chip: a 13.3" 2560x1600 screen, at any of its scalings, is an M1 Air's or a 13" MacBook Pro's
+    // with an M1 or M2, or an Intel one's before them)
+    if (typeof screen !== 'undefined' && devicePixelRatio >= 2 && screen.width <= 1680 && Math.abs(screen.width / screen.height - 1.6) < 0.01) {
+      return { name: 'm1air', renderer, reason: 'the chip unnamed, on a 13.3-inch MacBook screen' };
+    }
+    return { name: 'm1pro16', renderer, reason: 'Apple, the chip unnamed' };
+  }
   const nav = typeof navigator === 'undefined' ? null : (navigator as Navigator & { deviceMemory?: number });
   const memory = nav?.deviceMemory ?? 0, cores = nav?.hardwareConcurrency ?? 0;
   if ((memory && memory <= 8) || (cores && cores <= 8)) return { name: 'm1pro16', renderer, reason: 'little browser memory or few cores' };
