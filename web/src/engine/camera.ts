@@ -83,6 +83,18 @@ export class Controls {
   guide: { at: (scale: number) => { pivot: Vec3; yaw: number; pitch: number; exact?: boolean } | null; arrive: number } | null = null;
   /** how far (px) the visitor has turned or panned it by hand, for the app to tell a dive from a look round */
   turned = 0;
+  /** the pivot kept where the app has it (Universe: on the jewel, or diving down to it): a press doesn't move it onto
+   *  what's under the pointer, nor a pinch's drift pan it */
+  keepPivot = false;
+  /** a touch's lone finger: its movement not yet counted as turning, whether a second finger has joined it (a pinch:
+   *  then none of it counts), and the press it'd orbit about once it's clearly a drag */
+  private loose = 0;
+  private pinched = false;
+  private pressAt: [number, number] | null = null;
+  /** when the visitor last asked to zoom in (ms) */
+  private inAt = -1e9;
+  /** asking to zoom in: still easing in, or asked a moment ago (at the least scale, where the zoom stops) */
+  get zoomingIn() { return this.zoomTarget < Math.log(this.scale) - 1e-4 || performance.now() - this.inAt < 300; }
   /** first person (setFly) */
   fly = false;
   /** the on-screen stick and buttons while flying (ui/fly.ts): x right, z forward, y up, and past the stick's rim */
@@ -217,13 +229,23 @@ export class Controls {
     }
     this.mouse = [e.clientX, e.clientY];
     if (this.pointers.size === 1) {
-      // orbit what's under the pointer: move the pivot there, keeping the eye where it is
-      const p = this.pick(e.clientX, e.clientY);
-      if (p && !this.driven) this.repivot(p.world);
+      this.loose = 0;
+      this.pinched = false;
+      // orbit what's under the pointer: move the pivot there, keeping the eye where it is (a touch once it's clearly a
+      // drag: a pinch's first finger lands alone, and the view swung onto it each time)
+      if (e.pointerType === 'touch') this.pressAt = [e.clientX, e.clientY];
+      else this.orbitPress(e.clientX, e.clientY);
     } else if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       this.pinch0 = Math.hypot(a.x - b.x, a.y - b.y);
+      this.pinched = true;
+      this.loose = 0;
+      this.pressAt = null;
     }
+  }
+  private orbitPress(x: number, y: number) {
+    const p = this.pick(x, y);
+    if (p && !this.driven && !this.keepPivot) this.repivot(p.world);
   }
   /** move the pivot to a world point without moving the eye */
   repivot(p: Vec3) {
@@ -250,7 +272,12 @@ export class Controls {
     if (this.dragMoved < 4 || this.driven) return;
     this.user();
     if (this.pointers.size === 1) {
-      this.turned += Math.abs(dx) + Math.abs(dy);
+      if (this.pressAt) { this.orbitPress(...this.pressAt); this.pressAt = null; }
+      // (a touch's lone finger counts as turning once it's clearly a drag, and never in a pinch: the first finger's drift
+      // before the second lands, the last's as it lifts — enough of it, pinch after pinch, ended the dive)
+      const moved = Math.abs(dx) + Math.abs(dy);
+      if (e.pointerType !== 'touch') this.turned += moved;
+      else if (!this.pinched && (this.loose += moved) > 24) { this.turned += this.loose; this.loose = 0; }
       if (e.buttons & 2 || e.shiftKey) this.pan(dx, dy);
       else { this.velYaw = -dx * 0.005; this.velPitch = -dy * 0.005; this.orbit(this.velYaw, this.velPitch); }
     } else if (this.pointers.size === 2) {
@@ -260,12 +287,13 @@ export class Controls {
       this.mouse = [cx, cy];
       if (this.pinch0 > 0 && d > 0) this.zoomAt(cx, cy, Math.log(this.pinch0 / d));
       this.pinch0 = d;
-      this.pan(dx / 2, dy / 2);
+      if (!this.keepPivot) this.pan(dx / 2, dy / 2);
     }
   }
   private release(e: PointerEvent) {
     const had = this.pointers.has(e.pointerId);
     this.pointers.delete(e.pointerId);
+    if (!this.pointers.size) { this.loose = 0; this.pinched = false; this.pressAt = null; }
     if (!had || this.dragMoved > 6 || !this.enabled) return;
     // (flying, a click or a tap is on what's under the crosshair)
     const now = performance.now(), x = this.fly ? this.mouse[0] : e.clientX, y = this.fly ? this.mouse[1] : e.clientY;
@@ -421,6 +449,7 @@ export class Controls {
 
   /** zoom by `amount` (log units, + is out) keeping the point under (x, y) where it is */
   zoomAt(x: number, y: number, amount: number) {
+    if (amount < 0) this.inAt = performance.now();
     if (amount > 0 && this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) { this.onAbove(); return; }
     if (amount < 0 && this.guide?.at(this.scale)) {
       this.anchored = false;

@@ -200,6 +200,8 @@ export class Beyond {
       w.onmessage = (e: MessageEvent<Shapes>) => { w.terminate(); take(e.data); };
       w.onerror = () => { w.terminate(); take(keeperShapes(this.hi)); };
       w.postMessage(this.hi);
+      // (and if it hasn't answered in a while, made here: the jewel isn't drawn without them)
+      setTimeout(() => { if (!this.ready) { w.terminate(); take(keeperShapes(this.hi)); } }, 10000);
     } catch { setTimeout(() => take(keeperShapes(this.hi)), 30); }
   }
 

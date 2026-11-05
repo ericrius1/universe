@@ -365,9 +365,19 @@ export class App {
    *  out as the cosmos's is from their world's middle, the two crossing as in the film, and the cell has it once it's
    *  more than half; in on the jewel past the film's first view the cosmos comes in round it the same way. True while
    *  it sets the crossing itself */
-  private seam(): boolean {
+  private seam(dt: number): boolean {
     const c = this.controls, cc = this.cosmos.controls, J = JEWEL, D = SEAM.DOWN;
-    const off = vec3.distance(c.pivot, J.at);
+    let off = vec3.distance(c.pivot, J.at);
+    // (diving down to the jewel, or on it, the pivot is the dive's: a touch doesn't move it onto what's under the finger,
+    // nor a pinch's drift pan it)
+    c.keepPivot = this.realm === 'cell' && (this.diving || (off < c.scale * 2 && c.scale < SEAM.S0 * 4));
+    // (on the jewel and zooming in, the view comes onto its middle as it goes: a pinch left it a hair to one side, and the
+    // zoom went on into the glass and stopped there, never crossing)
+    if (this.realm === 'cell' && off < c.scale * 2 && c.zoomingIn && !c.flying) {
+      const k = 1 - Math.exp(-dt * 8);
+      for (let i = 0; i < 3; i++) c.pivot[i] += (J.at[i] - c.pivot[i]) * k;
+      off = vec3.distance(c.pivot, J.at);
+    }
     // (as near as the cosmos takes it from, on the jewel; the keepers' world ready for it before it's needed)
     c.minScale = off < c.scale * 2 || this.diving ? jewelS(D[0]) : 1.2;
     if (this.realm === 'cell' && c.scale < 300 && vec3.distance(c.position, J.at) < 60 * c.scale) this.cosmos.beyond?.load();
@@ -651,7 +661,7 @@ export class App {
     this.tour.update(dt);
     // the cross-fade between the cosmos and the cell: each draws while it shows (at the loop's seam, by the zoom: seam())
     const cc = this.cosmos.controls;
-    const seam = this.seamOn && !this.mixDriven && this.seam();
+    const seam = this.seamOn && !this.mixDriven && this.seam(dt);
     if (!this.mixDriven && !seam) {
       const want = this.realm === 'cosmos' ? 1 : 0;
       this.mix += (want - this.mix) * (1 - Math.exp(-dt * 5));
