@@ -28,12 +28,15 @@ html, body { margin: 0; height: 100%; background: #05060a; color: var(--ink); fo
 
 /* ---------------------------------------------------------------- HUD */
 .brand { position: fixed; top: 18px; left: 22px; pointer-events: none;
-  display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; column-gap: 12px; }
-/* ericlevin.dev's mark (home.ts), the way back to the portfolio: before the name and the breadcrumb, like a logo */
+  display: grid; grid-template-columns: auto auto 1fr; justify-content: start; align-items: center; column-gap: 12px; }
+/* ericlevin.dev's mark (home.ts), the way back to the portfolio: before the name and the breadcrumb, like a logo; and
+   after the name, the X (Twitter) and the email in their pill */
 .brand .home-link { grid-column: 1; grid-row: 1 / 3; width: 36px; min-width: 0; height: 36px; pointer-events: auto;
   --home-ink: var(--ink); --home-bg: var(--glass); --home-edge: var(--line); }
+.brand .home-contact { grid-column: 3; grid-row: 1; justify-self: start; height: 30px; pointer-events: auto;
+  --home-ink: var(--ink); --home-bg: var(--glass); --home-edge: var(--line); }
 .brand-name { grid-column: 2; grid-row: 1; }
-.crumbs { grid-column: 2; grid-row: 2; }
+.crumbs { grid-column: 2 / 4; grid-row: 2; }
 .brand-name { font-family: var(--serif); font-weight: 300; font-size: 30px; line-height: 1; letter-spacing: 0.01em;
   background: linear-gradient(120deg, #ffd9c2, #ffa47e 45%, #b3a6ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .crumbs { margin-top: 6px; font-size: 12.5px; color: var(--dim); letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; max-width: 60vw; }
