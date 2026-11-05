@@ -5,8 +5,9 @@
 // above, Seven Havens' below, mixed as the gardens come in). She lies in a bed of pink flowers beside the temple, drawn
 // into the canyon's own scene (figure.ts world: lit by its sun, in its shadow maps); the flowers part round her and sway
 // in the canyon's wind. Once her eye fills the frame the canyon isn't drawn: she's drawn alone (figure.ts facePass), on
-// down to the cornea's cells. It's fetched and built in the background once the page runs (its code a chunk of its own,
-// its builders in workers, its pipelines compiled); until it's in the dive waits a little above it (controls.floor).
+// down to the cornea's cells. It's fetched and built in the background from the moment the page opens (prepareGardens:
+// its code a chunk of its own, its builders in workers while the cell loads; then its GPU side and its pipelines once
+// the cell's in); until it's in, the dive slows into a floor a little above it and waits there (controls.floor).
 //
 // The camera is the cosmos's: the ground level's view (metres, x east, y up, z south — the canyon's axes too), moved
 // to where she lies in the canyon; the canyon's clock is the cosmos's moment at the canyon's site. While the gardens
@@ -21,13 +22,37 @@ import { POSE_R } from './cosmos/figure/pose';
 import type { Place } from './cosmos/frames';
 import type { SpotWords } from './cosmos/places';
 
-/** one compile at a time (weft's SerialCompiler), each timed: the slowest named in the log (a phone's report reads it) */
+/** the pipelines compiled `lanes` at a time, each timed: the slowest named in the log (a phone's report reads it). One
+ *  lane is weft's SerialCompiler, one a frame: WebKit (Safari, and every browser on an iPhone) compiles them one by one
+ *  and its GPU process answers nothing else meanwhile. Chrome compiles them on a pool of threads, so a few at once there:
+ *  one at a time and a frame apart, a first visit's (nothing cached) took five seconds on a Mac */
 class TimedCompiler extends SerialCompiler {
   readonly times: [string, number][] = [];
-  compile(rec: Parameters<SerialCompiler['compile']>[0], start: () => Promise<unknown>) {
-    return super.compile(rec, () => { const t = performance.now(); return start().finally(() => this.times.push([rec.label, performance.now() - t])); });
+  private busy = 0;
+  private waiting: (() => void)[] = [];
+  constructor(kit: Kit, private lanes: number) { super(kit); }
+  compile(rec: Parameters<SerialCompiler['compile']>[0], start: () => Promise<unknown>): Promise<unknown> {
+    const timed = () => { const t = performance.now(); return start().finally(() => this.times.push([rec.label, performance.now() - t])); };
+    if (this.lanes <= 1) return super.compile(rec, timed);
+    return new Promise((res) => {
+      const go = () => { this.busy++; res(timed().finally(() => { this.busy--; this.waiting.shift()?.(); })); };
+      if (this.busy < this.lanes) go(); else this.waiting.push(go);
+    });
   }
   slowest(n: number) { return [...this.times].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, ms]) => `${k} ${Math.round(ms)}`).join(', '); }
+}
+const WEBKIT = /iPhone|iPad/.test(navigator.userAgent) || (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg\//.test(navigator.userAgent));
+
+/** Seven Havens' code, its builders started: asked for as the page opens (main.ts, before the cell's own boot), so its
+ *  chunk comes in and its workers build the city and the Haven, their floors under the land and the flora in their beds
+ *  while the cell loads; the Haven made later (Gardens.start) takes what they've done */
+let havens: Promise<typeof import('@havens/embed')> | null = null;
+export function prepareGardens(assets: string) {
+  return (havens ??= import('@havens/embed').then((m) => {
+    m.setAssetRoot(`${assets}havens`);
+    m.prepare();
+    return m;
+  }));
 }
 
 /** where on Earth: Seven Havens' own site (its world/env.ts SITE, the Sonoran desert's red rock east of Phoenix), its
@@ -63,6 +88,8 @@ export class Gardens {
   haven: Haven | null = null;
   /** built and compiled */
   ready = false;
+  /** and the night sky's files in too (the Milky Way: what a film waits for, never the dive) */
+  loaded = false;
   /** how much shows this frame (0..1) */
   weight = 0;
   private drawing = false;
@@ -89,15 +116,16 @@ export class Gardens {
     void (async () => {
       const t0 = performance.now();
       const kit = this.kit, R = this.cosmos.r, fig = this.cosmos.surface.figure;
-      const { Haven, setAssetRoot } = await import('@havens/embed');
-      // (its pipelines one at a time, a frame apart, while it's built: asked for all at once, a phone's GPU process
-      // compiled them back to back and showed no frame for 10 s; the host's own compiled as before once it's in)
-      const was = kit.compiler, serial = new TimedCompiler(kit);
+      const { Haven } = await prepareGardens(this.assets);
+      // (its pipelines a few at a time while it's built, one a frame apart on WebKit: asked for all at once, a phone's
+      // GPU process compiled them back to back and showed no frame for 10 s; the host's own compiled as before once
+      // it's in)
+      const was = kit.compiler, serial = new TimedCompiler(kit, WEBKIT ? 1 : 3);
       kit.compiler = serial;
       const say = (what: string) => console.log(`gardens: ${what} at ${Math.round(performance.now() - t0)} ms`);
       say('code in');
-      setAssetRoot(`${this.assets}havens`);
       const h = this.haven = new Haven(kit);
+      void h.loaded.then(() => { this.loaded = true; });
       await h.built;
       say('built');
       // (a clearing round her in the bed: no tree or shrub over her, the flowers left)

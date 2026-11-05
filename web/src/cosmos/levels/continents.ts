@@ -4,6 +4,7 @@
 // the mountains and the cities' lights. rasterise() paints them once into an equirectangular map (canvas 2D, then
 // blurred by hand: no ctx.filter, which Safari lacks): r land (soft coasts: the shader warps its 0.5 contour with
 // noise), g how dry (0 lush .. 1 desert), b the cities' light, a the high ground: ice (from 0.6) or mountains (~0.3).
+// mips() makes its mip chain; both run in a worker (continents.worker.ts: an OffscreenCanvas there) or on the page.
 
 type Ring = number[];
 
@@ -366,9 +367,9 @@ export function rasterise(w: number, h: number): Uint8Array {
   const px = (lon: number) => ((lon + 180) / 360) * w, py = (lat: number) => ((90 - lat) / 180) * h;
   // (one canvas per channel: each a grey picture, drawn with its rings at three longitudes so they wrap)
   const layer = (paint: (fill: (r: Ring, v: number, mode?: GlobalCompositeOperation) => void, ctx: CanvasRenderingContext2D) => void) => {
-    const cv = document.createElement('canvas');
+    const cv = typeof document === 'undefined' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
     cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d', { willReadFrequently: true })!;
+    const ctx = cv.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
     const fill = (r: Ring, v: number, mode: GlobalCompositeOperation = 'source-over') => {
@@ -422,6 +423,26 @@ export function rasterise(w: number, h: number): Uint8Array {
   const b = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
   for (let i = 0; i < w * h; i++) {
     out[i * 4] = b(land[i]); out[i * 4 + 1] = b(dry[i]); out[i * 4 + 2] = b(lights[i]); out[i * 4 + 3] = b(ice[i]);
+  }
+  return out;
+}
+
+/** an RGBA map's mip chain (the map first, down to a texel), each a box filter of the one before: columns wrap round the
+ *  globe, rows clamp at the poles */
+export function mips(px: Uint8Array, w: number, h: number): Uint8Array[] {
+  const out = [px];
+  let src = px, sw = w, sh = h;
+  while (sw > 1 || sh > 1) {
+    const dw = Math.max(1, sw >> 1), dh = Math.max(1, sh >> 1), dst = new Uint8Array(dw * dh * 4);
+    for (let y = 0; y < dh; y++) {
+      const r0 = Math.min(2 * y, sh - 1) * sw * 4, r1 = Math.min(2 * y + 1, sh - 1) * sw * 4;
+      for (let x = 0; x < dw; x++) {
+        const c0 = ((2 * x) % sw) * 4, c1 = ((2 * x + 1) % sw) * 4, o = (y * dw + x) * 4;
+        for (let c = 0; c < 4; c++) dst[o + c] = (src[r0 + c0 + c] + src[r0 + c1 + c] + src[r1 + c0 + c] + src[r1 + c1 + c] + 2) >> 2;
+      }
+    }
+    out.push(dst);
+    src = dst; sw = dw; sh = dh;
   }
   return out;
 }

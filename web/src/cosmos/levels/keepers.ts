@@ -126,6 +126,41 @@ export class MeshData {
   get count() { return this.v.length / VFLOATS; }
   vert(p: V3, n: V3, u: number, w: number, tag: number) { this.v.push(p[0], p[1], p[2], n[0], n[1], n[2], u, w, tag); return this.count - 1; }
 }
+/** a mesh's vertices for the GPU: floats, the tags (integers) written as their bits */
+export function packed(m: MeshData): Float32Array {
+  const vb = new Float32Array(m.v), u = new Uint32Array(vb.buffer);
+  for (let i = 8; i < u.length; i += 9) u[i] = m.v[i];
+  return vb;
+}
+
+/** the keepers' still shapes, ready for the GPU: their heads, the robe, the palm, and the second keeper's copies */
+export interface Shapes { vb: Float32Array; ib: Uint32Array }
+export function keeperShapes(hi: boolean): Shapes {
+  const m = new MeshData(), h = hi ? 0.32 : 0.5;
+  nets((x, y, z) => headSd(x, y, z, HEAD_A), [-9, -11, -19], [9, 15, 10], h, tag(0, KIND.head), m);
+  nets(torsoSd, [-21, -100, -19], [21, 26, 13], hi ? 0.55 : 0.8, tag(1, KIND.robe), m);
+  nets(palmSd, [-5, -3, -9], [5.5, 3, 6], hi ? 0.18 : 0.28, tag(2, KIND.palm), m);
+  const nA = m.v.length;
+  nets((x, y, z) => headSd(x, y, z, HEAD_B), [-10, -11, -21], [10, 16, 10], h, tag(4, KIND.head), m);
+  // the second keeper's parts that are the first's shapes: copies with their own part numbers
+  const copy = (from: number, to: number, kind: number) => {
+    const verts = m.v.slice(0, nA);
+    const map = new Map<number, number>();
+    for (let i = 0; i < verts.length / 9; i++) {
+      if ((verts[i * 9 + 8] & 0xffff) !== from) continue;
+      map.set(i, m.count);
+      m.v.push(...verts.slice(i * 9, i * 9 + 8), tag(to, kind));
+    }
+    const idx = m.i.slice();
+    for (let i = 0; i < idx.length; i += 3) {
+      const a = map.get(idx[i]), b = map.get(idx[i + 1]), c = map.get(idx[i + 2]);
+      if (a !== undefined && b !== undefined && c !== undefined) m.i.push(a, b, c);
+    }
+  };
+  copy(2, 3, KIND.palm); copy(1, 5, KIND.robe); copy(2, 6, KIND.palm); copy(2, 7, KIND.palm);
+  return { vb: packed(m), ib: new Uint32Array(m.i) };
+}
+
 /** what a vertex is: the shader shades by it */
 export const KIND = { skin: 0, head: 1, robe: 2, palm: 3, sleeve: 4, trim: 5, finger: 6 } as const;
 export const DYNAMIC = 0xffff;

@@ -1,5 +1,5 @@
 // The Earth from space (kilometres, its own turning axes): shaders/c_earth.wgsl, Boulder's planet on Boulder's
-// coastline map (continents.ts, painted once when first needed), the real ground round the spot (earthdata.ts) and
+// coastline map (continents.ts, painted in a worker as the cosmos is made), the real ground round the spot (earthdata.ts) and
 // Boulder's air (air.ts). Its centre, the Sun, the Moon and the spot's ground axes are worked out here in doubles,
 // relative to the level's origin.
 import { Ref, type Kit, type Texture, type UniformBuffer } from '@ericrius1/weft';
@@ -7,7 +7,7 @@ import { quat, vec3, type Vec3 } from 'math';
 import earthShader from '../shaders/c_earth.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { moonPos, type Ladder } from '../frames';
-import { rasterise } from './continents';
+import { mips, rasterise } from './continents';
 import type { Air } from './air';
 import type { EarthData } from './earthdata';
 
@@ -30,32 +30,29 @@ export class Earth {
       label: 'earth', fragment: 'fs', blend: 'premultiplied', enabled: () => this.lv.on() && data.ready && this.painted,
       bind: { L: this.lv.L, E: this.E, earthMap: new Ref(() => this.map), regionMap: new Ref(() => data.farC), regionH: new Ref(() => data.farH), ...air.bind(this.lv) } as never,
     });
+    // (Boulder's coastlines painted into the map off the page's thread from now: a few hundred ms of CPU — a phone's
+    // frame frozen for over a second when it was painted as the Earth came in sight)
+    try {
+      const w = new Worker(new URL('./continents.worker.ts', import.meta.url), { type: 'module', name: 'earth.map' });
+      w.onmessage = (e: MessageEvent<Uint8Array[] | null>) => { w.terminate(); if (e.data && !this.painted) this.take(e.data); };
+      w.onerror = () => w.terminate();
+      w.postMessage(MAP);
+    } catch { /* painted when first needed */ }
   }
 
-  /** Boulder's coastlines painted into the map (once: a few hundred ms, so only when the Earth's in sight) */
-  private paint() {
+  /** the map from its mips (the map first) */
+  private take(chain: Uint8Array[]) {
     this.painted = true;
     const [w, h] = MAP;
     const t = this.kit.texture({ label: 'earth.map', format: 'rgba8unorm', size: [w, h], mips: 'full', usage: ['sample', 'copy-dst', 'render'] });
-    const px = rasterise(w, h);
-    // (its mips by box filter on the CPU, as for the pictures)
-    let src = px, sw = w, sh = h;
-    t.write(src, { mip: 0 });
-    for (let k = 1; k < t.mips; k++) {
-      const dw = Math.max(1, sw >> 1), dh = Math.max(1, sh >> 1), dst = new Uint8Array(dw * dh * 4);
-      for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) for (let c = 0; c < 4; c++) {
-        const a = (yy: number, xx: number) => src[((Math.min(yy, sh - 1)) * sw + ((xx + sw) % sw)) * 4 + c];
-        dst[(y * dw + x) * 4 + c] = (a(2 * y, 2 * x) + a(2 * y, 2 * x + 1) + a(2 * y + 1, 2 * x) + a(2 * y + 1, 2 * x + 1) + 2) >> 2;
-      }
-      t.write(dst, { mip: k, width: dw, height: dh });
-      src = dst; sw = dw; sh = dh;
-    }
+    for (let k = 0; k < Math.min(t.mips, chain.length); k++) t.write(chain[k], { mip: k, width: Math.max(1, w >> k), height: Math.max(1, h >> k) });
     this.map = t;
   }
 
   update(S: number) {
     const lad = this.ladder, o = this.lv.origin, l = Math.log10(S);
-    if (!this.painted && this.lv.weight > 0) this.paint();
+    // (painted here, now, if the worker couldn't or hasn't yet)
+    if (!this.painted && this.lv.weight > 0) this.take(mips(rasterise(...MAP), ...MAP));
     // the Sun: from the Earth toward the solar system's centre, in the Earth's axes
     lad.dirInto(lad.solar, lad.earth, vec3.negate(this.sun, lad.earth.at), this.sun);
     vec3.normalize(this.sun, this.sun);

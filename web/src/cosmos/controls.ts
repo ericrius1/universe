@@ -7,6 +7,8 @@ import type { Ladder } from './frames';
 
 type Gesture = UIEvent & { scale: number };
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
+/** how far above a floor the way down starts slowing into it (decades) */
+const CUSHION = 1.5;
 
 export class CosmosControls {
   /** log10 of the view distance (m) */
@@ -21,9 +23,11 @@ export class CosmosControls {
   enabled = true;
   driven = false;
   /** how far down the zoom goes for now (null: all the way): a host's world below still loading (Universe's gardens),
-   *  the dive waits above it — a flight there too — and goes on once it's in. Only from above: coming up from the cell
-   *  it's not in the way */
+   *  the dive slows into it over its last decades (CUSHION) and waits there — a flight too — and goes on once it's in.
+   *  Only from above: coming up from the cell it's not in the way */
   floor: number | null = null;
+  /** at the floor, the visitor still asking to go down (s): how long they've been held there */
+  held = 0;
   /** the camera's orientation in the top frame, and its basis there (refreshed by update) */
   readonly q: Quat = quat.create();
   readonly forward: Vec3 = [0, 0, -1];
@@ -149,17 +153,27 @@ export class CosmosControls {
     this.pitch = clamp(this.pitch + dpitch, -1.55, 1.55);
   }
 
+  /** how much of a step from `l` toward `to` is taken: 1, but on the way past a floor, over its cushion, slowing to
+   *  nothing at it */
+  private give(l: number, to: number) {
+    if (this.floor === null || l < this.floor || to >= this.floor) return 1;
+    const x = Math.min(1, (l - this.floor) / CUSHION);
+    return x * x * (3 - 2 * x);
+  }
+
   update(dt: number) {
     const was = this.logS;
+    // (on the way past a floor, the zoom slows into it: a glide, not a wall)
     if (this.flight) {
       const f = this.flight;
-      const u = Math.min(1, (f.t + dt) / f.dur);
+      const fdt = dt * Math.max(0.02, this.give(was, f.l1));
+      const u = Math.min(1, (f.t + fdt) / f.dur);
       // ease in and out, the zoom's speed even in decades
       const s = u * u * u * (u * (u * 6 - 15) + 10);
       const l = f.l0 + (f.l1 - f.l0) * s;
       // (held at the floor: the flight waits there)
       if (!(this.floor !== null && was >= this.floor && l < this.floor && l < was)) {
-        f.t += dt;
+        f.t += fdt;
         this.logS = l;
         this.yaw = f.y0 + (f.y1 - f.y0) * s;
         this.pitch = f.p0 + (f.p1 - f.p0) * s;
@@ -167,7 +181,10 @@ export class CosmosControls {
         if (u >= 1) { this.flight = null; f.done?.(); }
       }
     } else if (!this.driven) {
-      this.logS += (this.zoomTarget - this.logS) * (1 - Math.exp(-dt * 7));
+      // (and what's asked for past it waits a little below it: once it's gone, the zoom goes on that far, not with a lurch
+      // all the way to wherever the wheel got to meanwhile)
+      if (this.floor !== null && was >= this.floor) this.zoomTarget = Math.max(this.zoomTarget, this.floor - 0.6);
+      this.logS += (this.zoomTarget - this.logS) * (1 - Math.exp(-dt * 7)) * this.give(was, this.zoomTarget);
       const g = this.guide;
       if (g && this.logS < was && was > g.band[0] && this.logS < g.band[1]) {
         const [y, p] = g.at(this.logS);
@@ -187,6 +204,9 @@ export class CosmosControls {
     // (keeping to the cell's camera it goes on in past `min`, as the cell does)
     this.logS = clamp(this.logS, this.following ? this.min - 1 : this.min, this.max);
     if (this.floor !== null && was >= this.floor) this.logS = Math.max(this.logS, this.floor);
+    // (held: within a hair of the floor, asked to go further)
+    const asking = this.flight ? this.flight.l1 < this.logS : this.zoomTarget < this.logS - 0.01;
+    this.held = this.floor !== null && this.logS - this.floor < 0.15 && asking ? this.held + dt : 0;
     this.following = false;
     this.basis();
   }

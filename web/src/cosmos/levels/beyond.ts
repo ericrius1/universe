@@ -20,7 +20,7 @@ import type { CosmosRenderer, Level } from '../renderer';
 import { MPC, type Ladder } from '../frames';
 import { BEYOND_FILM, mixFilm } from '../film';
 import {
-  Choreography, MeshData, VBYTES, KIND, ORB_R, ORB_B, ORB_B_R, WORLD_C, WORLD_R, HEAD_A, HEAD_B, nets, headSd, torsoSd, palmSd,
+  Choreography, MeshData, VBYTES, KIND, ORB_R, ORB_B, ORB_B_R, WORLD_C, WORLD_R, packed, keeperShapes, type Shapes,
   poseA, poseB, limbs, tips, tag, tube, HAND, add, sub, mul, madd, norm, cross, dot, len, lerp, turn, type V3, type KeeperPose, type Frame3,
 } from './keepers';
 
@@ -55,13 +55,6 @@ export interface BeyondOptions {
   hi: boolean;
   /** its targets' resolution, a fraction of the frame's */
   scale: number;
-}
-
-/** a mesh's vertices for the GPU: floats, the tags (integers) written as their bits */
-function packed(m: MeshData): Float32Array {
-  const vb = new Float32Array(m.v), u = new Uint32Array(vb.buffer);
-  for (let i = 8; i < u.length; i += 9) u[i] = m.v[i];
-  return vb;
 }
 
 async function image(kit: Kit, url: string, label: string, mips: number): Promise<Texture> {
@@ -191,43 +184,23 @@ export class Beyond {
     for (const [name, file, mips] of files) {
       void image(this.kit, this.url(file), `beyond.${name}`, mips).then((t) => { this.tex[name] = t; }, (e) => console.warn(`beyond: ${file}`, e));
     }
-    // (the shapes a part at a time, each in a task of its own, so the page goes on drawing between them: a phone would
-    // otherwise stall a second or two)
+    // (the shapes made in a worker, so the page goes on drawing: on the page, even a part a task, a phone's frames stalled
+    // for half a second at a time as the zoom set out; made here if no worker will)
     const t0 = performance.now();
-    const m = new MeshData();
-    const hi = this.hi, h = hi ? 0.32 : 0.5;
-    let nA = 0;
-    // the second keeper's parts that are the first's shapes: copies with their own part numbers
-    const copy = (from: number, to: number, kind: number) => {
-      const verts = m.v.slice(0, nA);
-      const map = new Map<number, number>();
-      for (let i = 0; i < verts.length / 9; i++) {
-        if ((verts[i * 9 + 8] & 0xffff) !== from) continue;
-        map.set(i, m.count);
-        m.v.push(...verts.slice(i * 9, i * 9 + 8), tag(to, kind));
-      }
-      const idx = m.i.slice();
-      for (let i = 0; i < idx.length; i += 3) {
-        const a = map.get(idx[i]), b = map.get(idx[i + 1]), c = map.get(idx[i + 2]);
-        if (a !== undefined && b !== undefined && c !== undefined) m.i.push(a, b, c);
-      }
+    const take = (s: Shapes) => {
+      if (this.ready) return;
+      this.svb = this.kit.storage({ label: 'beyond.svb', data: s.vb, usage: ['vertex', 'copy-dst'] });
+      this.sib = this.kit.storage({ label: 'beyond.sib', data: s.ib, usage: ['index', 'copy-dst'] });
+      this.sn = s.ib.length;
+      this.ready = true;
+      console.log(`beyond: keepers made (${s.vb.length / 9} vertices, ${s.ib.length / 3} triangles) by ${Math.round(performance.now() - t0)} ms`);
     };
-    const steps: (() => void)[] = [
-      () => nets((x, y, z) => headSd(x, y, z, HEAD_A), [-9, -11, -19], [9, 15, 10], h, tag(0, KIND.head), m),
-      () => nets(torsoSd, [-21, -100, -19], [21, 26, 13], hi ? 0.55 : 0.8, tag(1, KIND.robe), m),
-      () => { nets(palmSd, [-5, -3, -9], [5.5, 3, 6], hi ? 0.18 : 0.28, tag(2, KIND.palm), m); nA = m.v.length; },
-      () => nets((x, y, z) => headSd(x, y, z, HEAD_B), [-10, -11, -21], [10, 16, 10], h, tag(4, KIND.head), m),
-      () => { copy(2, 3, KIND.palm); copy(1, 5, KIND.robe); copy(2, 6, KIND.palm); copy(2, 7, KIND.palm); },
-      () => {
-        this.svb = this.kit.storage({ label: 'beyond.svb', data: packed(m), usage: ['vertex', 'copy-dst'] });
-        this.sib = this.kit.storage({ label: 'beyond.sib', data: new Uint32Array(m.i), usage: ['index', 'copy-dst'] });
-        this.sn = m.i.length;
-        this.ready = true;
-        console.log(`beyond: keepers made (${m.count} vertices, ${m.i.length / 3} triangles) by ${Math.round(performance.now() - t0)} ms`);
-      },
-    ];
-    const next = () => { const f = steps.shift(); if (f) { f(); setTimeout(next, 16); } };
-    setTimeout(next, 30);
+    try {
+      const w = new Worker(new URL('./keepers.worker.ts', import.meta.url), { type: 'module', name: 'keepers' });
+      w.onmessage = (e: MessageEvent<Shapes>) => { w.terminate(); take(e.data); };
+      w.onerror = () => { w.terminate(); take(keeperShapes(this.hi)); };
+      w.postMessage(this.hi);
+    } catch { setTimeout(() => take(keeperShapes(this.hi)), 30); }
   }
 
   /** the cosmos's own camera's view of their world this frame (cm) */

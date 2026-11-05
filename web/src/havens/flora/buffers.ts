@@ -28,15 +28,19 @@ export interface FloraBuffers {
   triangles: number;
 }
 
-export function floraBuffers(grown: GrownSpecies[], plants: FloraInstance[]): FloraBuffers {
+/** `meshes` false: the species' meshes left out (verts and indices empty), for a share of the planting another's
+ *  meshes go with (mergeFlora) */
+export function floraBuffers(grown: GrownSpecies[], plants: FloraInstance[], withMeshes = true): FloraBuffers {
   const meshes = grown.flatMap((g) => g.variants.flatMap((v) => v));
   const vcount = meshes.reduce((s, m) => s + m.vertices, 0), icount = meshes.reduce((s, m) => s + m.indices.length, 0);
-  const verts = new Uint32Array(vcount * 8), indices = new Uint32Array(icount);
+  const verts = new Uint32Array(withMeshes ? vcount * 8 : 0), indices = new Uint32Array(withMeshes ? icount : 0);
   const ranges: { first: number; count: number; base: number }[] = [];
   let vo = 0, io = 0;
   for (const m of meshes) {
-    verts.set(m.data, vo * 8);
-    indices.set(m.indices, io);
+    if (withMeshes) {
+      verts.set(m.data, vo * 8);
+      indices.set(m.indices, io);
+    }
     ranges.push({ first: io, count: m.indices.length, base: vo });
     vo += m.vertices; io += m.indices.length;
   }
@@ -68,5 +72,31 @@ export function floraBuffers(grown: GrownSpecies[], plants: FloraInstance[]): Fl
   return {
     verts, indices, species, instances: plants.length ? packInstances(plants) : new ArrayBuffer(INSTANCE_BYTES), args, room: Math.max(1, room),
     buckets, live, casting, vertices: vcount, triangles: icount / 3,
+  };
+}
+
+/** shares of one planting (floraBuffers of each share's beds, the first with the meshes; `counts`: each share's
+ *  plants) as one: the same buckets, their instances one after another, each bucket's room the sum of theirs */
+export function mergeFlora(parts: FloraBuffers[], counts: number[]): FloraBuffers {
+  const first = parts[0], n = first.buckets;
+  if (parts.length === 1) return first;
+  const per = new Uint32Array(n);
+  parts.forEach((p, i) => {
+    // (its rooms one after another: each the next's start less its own, the last the share's whole room)
+    const end = counts[i] ? p.room : 0;
+    for (let k = 0; k < n; k++) per[k] += (k + 1 < n ? p.args[(k + 1) * 5 + 4] : end) - p.args[k * 5 + 4];
+  });
+  const args = first.args.slice();
+  let room = 0;
+  for (let k = 0; k < n; k++) { args[k * 5 + 4] = room; room += per[k]; }
+  const total = counts.reduce((a, b) => a + b, 0);
+  const instances = new Uint8Array(Math.max(1, total) * INSTANCE_BYTES);
+  let at = 0;
+  parts.forEach((p, i) => { instances.set(new Uint8Array(p.instances, 0, counts[i] * INSTANCE_BYTES), at); at += counts[i] * INSTANCE_BYTES; });
+  // (a bucket's live, or casting, wherever any share had it so)
+  const union = (lists: number[][]) => [...new Set(lists.flat())].sort((a, b) => a - b);
+  return {
+    ...first, instances: instances.buffer, args, room: Math.max(1, room),
+    live: union(parts.map((p) => p.live)), casting: union(parts.map((p) => p.casting)),
   };
 }

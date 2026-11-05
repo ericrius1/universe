@@ -17,7 +17,7 @@ import type { HeightLevel } from './terrain';
 
 export type BuildJob = { job: 'city' | 'haven'; regions?: number }
   | { job: 'carve'; levels: HeightLevel[]; box: [number, number, number, number]; part?: number; of?: number }
-  | { job: 'flora'; beds: GardenBed[] };
+  | { job: 'flora'; beds: GardenBed[]; meshes?: boolean };
 
 /** one level's texels in the box: the first column and row, the width and height, the Haven's floor at each (NaN where
  *  it leaves the ground alone). A share of it (`of` workers side by side, this one `part`): only its rows, part, part +
@@ -42,7 +42,7 @@ self.onmessage = (e: MessageEvent<BuildJob>) => {
     // carved ground elsewhere in the Haven, the canyon floor in the city)
     const ground = (x: number, z: number) => terraceFloor(x, z) ?? havenGround(x, z) ?? FLOOR_Y;
     const plants = scatterBeds(j.beds, { heights: meshHeights(grown), ground });
-    const flora = floraBuffers(grown, plants);
+    const flora = floraBuffers(grown, plants, j.meshes ?? true);
     const moved = [flora.verts.buffer, flora.indices.buffer, flora.species.buffer, flora.instances, flora.args.buffer] as ArrayBuffer[];
     self.postMessage({ flora, count: plants.length, ms: performance.now() - t0 } satisfies BuildDone, { transfer: moved });
     return;

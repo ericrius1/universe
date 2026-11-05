@@ -27,7 +27,7 @@ export interface HeightSource {
 /** a level's heights on the CPU, as the GPU's sampler reads them: 16 bits a texel between the level's lowest and highest
  *  ground (a few millimetres a step) */
 export class HeightGrid {
-  readonly q: Uint16Array;
+  q: Uint16Array;
   readonly texel: number;
   /** its lowest and highest ground (m) */
   min = 0;
@@ -68,11 +68,25 @@ export class HeightGrid {
   /** texel k to a height inside the level's range (widen it first: range) */
   put(k: number, h: number) { this.q[k] = Math.round((h - this.min) / this.step); }
   /** the range widened to hold lo..hi, every texel kept at its height */
-  range(lo: number, hi: number) {
+  range(lo: number, hi: number) { for (const _ of this.widen(lo, hi)); }
+  /** the same, a few milliseconds at a time (heights read meanwhile are the old range's) */
+  async rangeSliced(lo: number, hi: number, budget = 6) {
+    let t = performance.now();
+    for (const _ of this.widen(lo, hi)) if (performance.now() - t > budget) { await new Promise((r) => setTimeout(r)); t = performance.now(); }
+  }
+  /** every texel's height in the widened range, a run of them a step, into a new array taken once they're all in (as
+   *  each was: its height as a float, quantized again) */
+  private *widen(lo: number, hi: number) {
     if (lo >= this.min && hi <= this.max) return;
-    const was = Float32Array.from(this.q, (v) => this.min + v * this.step);
-    this.keep(Math.min(lo, this.min), Math.max(hi, this.max));
-    for (let k = 0; k < was.length; k++) this.put(k, was[k]);
+    const was = this.q, min0 = this.min, step0 = this.step;
+    const min = Math.min(lo, this.min), step = Math.max(Math.max(hi, this.max) - min, 1e-3) / 65535;
+    const q = new Uint16Array(was.length);
+    for (let k0 = 0; k0 < q.length; k0 += 1 << 16) {
+      for (let k = k0, k1 = Math.min(q.length, k0 + (1 << 16)); k < k1; k++) q[k] = Math.round((Math.fround(min0 + was[k] * step0) - min) / step);
+      yield;
+    }
+    this.q = q;
+    this.keep(min, Math.max(hi, this.max));
   }
   private keep(lo: number, hi: number) {
     this.min = lo;
@@ -180,6 +194,33 @@ export class Terrain {
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) L.put(r * n + c, out[(r - r0) * w + (c - c0)]);
       this.heightTex.write(out, { layer: i, origin: [c0, r0], width: w, height: h });
     });
+    this.changed();
+  }
+
+  /** edit, a few milliseconds at a time (the page's frames between: a host's world goes on while it's carved) */
+  async editSliced(box: [number, number, number, number], f: (x: number, z: number, h: number, level: number) => number, budget = 6) {
+    let t = performance.now();
+    for (let i = 0; i < this.levels.length; i++) {
+      const L = this.levels[i], n = L.px;
+      const col = (x: number) => (x - L.cx + L.half) / L.texel - 0.5, row = (z: number) => (z - L.cz + L.half) / L.texel - 0.5;
+      const c0 = Math.max(0, Math.floor(col(box[0]))), c1 = Math.min(n - 1, Math.ceil(col(box[2])));
+      const r0 = Math.max(0, Math.floor(row(box[1]))), r1 = Math.min(n - 1, Math.ceil(row(box[3])));
+      if (c1 < c0 || r1 < r0) continue;
+      const w = c1 - c0 + 1, h = r1 - r0 + 1, out = new Float32Array(w * h);
+      let lo = Infinity, hi = -Infinity;
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const v = f(L.cx + (c + 0.5) * L.texel - L.half, L.cz + (r + 0.5) * L.texel - L.half, L.at(r * n + c), i);
+          out[(r - r0) * w + (c - c0)] = v;
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
+        if (performance.now() - t > budget) { await new Promise((res) => setTimeout(res)); t = performance.now(); }
+      }
+      await L.rangeSliced(lo, hi, budget);
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) L.put(r * n + c, out[(r - r0) * w + (c - c0)]);
+      this.heightTex.write(out, { layer: i, origin: [c0, r0], width: w, height: h });
+    }
     this.changed();
   }
 

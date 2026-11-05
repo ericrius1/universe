@@ -78,7 +78,8 @@ export class Env {
   /** this frame's sky (the sun, the moon, the key light, how dark it is) */
   state = skyState(this.time, SITE);
   private milky: Ref<ReturnType<typeof solidTexture>>;
-  private starsLoad: Promise<StarField>;
+  /** the stars' catalogue (or the made-up field), drawn once it's in */
+  readonly starsLoad: Promise<StarField>;
   /** the night sky's files are in (the Milky Way, the stars' catalogue), or given up on */
   readonly loaded: Promise<void>;
   /** what the first view doesn't need fetched from now on (the Milky Way): call once the world's made */

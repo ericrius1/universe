@@ -24,7 +24,7 @@ import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
 import { StatsBox, trackGpuMemory } from '@ericrius1/loom/ui/stats';
 import { startReport } from './ui/report';
-import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS } from './gardens';
+import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS, prepareGardens } from './gardens';
 import { TOUR } from './ui/tour';
 import { GAMES, type Game, type GameCtx } from './play/game';
 import './play/index';
@@ -69,6 +69,9 @@ const frame = () => new Promise((res) => requestAnimationFrame(res));
 
 async function boot() {
   const canvas = $('c') as HTMLCanvasElement;
+  // (Seven Havens' gardens, where the dive ends: their code fetched and their builders at work from now, while the cell
+  // loads — gardens.ts)
+  if (GARDENS) void prepareGardens(BASE);
   status('waking the GPU…', 0.05);
   // (?phone: a phone's settings anywhere)
   const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900) || params.has('phone');
@@ -119,13 +122,10 @@ async function boot() {
   const SEAMED = GARDENS && !!cosmos.beyond && !params.has('film');
   if (cosmos.beyond && (params.get('film') === 'loop' || SEAMED)) r.jewel(cosmos.beyond.out, !mobile);
   const app = new App(kit, r, world, controls, field, walkers, filaments.set, mols, cosmos);
-  // Seven Havens' gardens, where the dive ends: built in the background once the page runs (gardens.ts; ?nogardens
+  // Seven Havens' gardens, where the dive ends: the rest of them made as soon as the cell's in (gardens.ts; ?nogardens
   // the meadow outside Boulder as before, and never on a dome)
   if (SEAMED) app.seamed();
-  if (GARDENS) {
-    const gardens = app.gardens = new Gardens(kit, cosmos, BASE);
-    setTimeout(() => gardens.start(), params.has('film') ? 0 : 1500);
-  }
+  if (GARDENS) (app.gardens = new Gardens(kit, cosmos, BASE)).start();
   const capture = new Capture(kit);
   // hold the frame rate on smaller GPUs by trading resolution: by the GPU's timestamps where it has them, by the
   // frames' intervals where it hasn't (a phone's Safari; ?pace for the latter anywhere)
@@ -180,8 +180,8 @@ async function boot() {
     else app.director = (dt) => film.direct(dt);
     (window as unknown as Record<string, unknown>).__filmObj = film;
     $('loading').classList.add('gone');
-    // (a film that begins in the gardens waits for them)
-    if (app.gardens) await new Promise<void>((r) => { const t = setInterval(() => { if (app.gardens!.ready) { clearInterval(t); r(); } }, 100); });
+    // (a film waits for the gardens, the night sky's files and all)
+    if (app.gardens) await new Promise<void>((r) => { const t = setInterval(() => { if (app.gardens!.ready && app.gardens!.loaded) { clearInterval(t); r(); } }, 100); });
     // (?test: stepped by hand, a frame at a time, for a look at a moment: __filmObj.seek)
     if (!params.has('test')) void film.run();
   }
@@ -216,6 +216,8 @@ export class App {
   /** the last frame's CPU time (ms) above the cell: the cosmos's views, the gardens' update, the GPU work recorded */
   readonly cpu = { cosmos: 0, gardens: 0, run: 0 };
   cut = 0;
+  /** the visitor's been told the gardens are still loading (cosmosHud) */
+  private waitSaid = false;
   cutTarget = 1;
   fluo = 0;
   fluoTarget = 0;
@@ -705,6 +707,9 @@ export class App {
     if (this.cosmosAt && !cc.flying && Math.abs(cc.logS - this.cosmosAt.logS) > 0.8) this.cosmosAt = null;
     this.hud.setHere(this.cosmosAt?.id ?? null);
     this.intro.update(dt, cc.flying, !!this.cosmosAt);
+    // (held over the gardens while they're still coming in: said so after a moment, and gone once they're in)
+    if (cc.held > 0.6 && !this.waitSaid) { this.waitSaid = true; this.hud.toast('Seven Havens is still loading in, hang on a sec…', 60000); }
+    else if (this.waitSaid && !cc.held) { this.waitSaid = false; this.hud.hideToast(); }
   }
 
   private cellFrame(dt: number) {
