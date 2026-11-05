@@ -31,6 +31,11 @@ export class CosmosControls {
   readonly up: Vec3 = [0, 1, 0];
   /** the visitor zoomed in past `min` (the cell takes over) */
   onBelow: (() => void) | null = null;
+  /** a way in (Universe's: down onto her face from her feet' side): over `band` (log10 m), zooming in by hand turns the
+   *  view toward `at`'s yaw and pitch for the zoom, by as much of what's left to turn as of the zoom left to `arrive`,
+   *  so it's there by then however it set out, and keeps to it below. Zooming out or holding still, the view is the
+   *  visitor's */
+  guide: { band: [number, number]; arrive: number; at: (logS: number) => [number, number] } | null = null;
   /** keeping to another camera this frame (follow) */
   private following = false;
   onUser: (() => void) | null = null;
@@ -163,6 +168,14 @@ export class CosmosControls {
       }
     } else if (!this.driven) {
       this.logS += (this.zoomTarget - this.logS) * (1 - Math.exp(-dt * 7));
+      const g = this.guide;
+      if (g && this.logS < was && was > g.band[0] && this.logS < g.band[1]) {
+        const [y, p] = g.at(this.logS);
+        const k = was <= g.arrive ? 1 : Math.min(1, (was - this.logS) / Math.max(1e-3, was - g.arrive));
+        this.yaw += Math.atan2(Math.sin(y - this.yaw), Math.cos(y - this.yaw)) * k;
+        this.pitch += (p - this.pitch) * k;
+        this.velYaw = this.velPitch = 0;
+      }
       if (!this.pointers.size) {
         const damp = Math.exp(-dt * 5);
         this.velYaw *= damp; this.velPitch *= damp;

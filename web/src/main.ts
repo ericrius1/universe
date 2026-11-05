@@ -32,7 +32,7 @@ import { Score } from './audio/score';
 import { Film } from './film';
 import { CELL_FILM, mixFilm, type Film as Look } from './cosmos/film';
 import { Journey } from './journey';
-import { Loop } from './loop';
+import { Loop, approach } from './loop';
 import { JEWEL_GLASS, WORLD_C, WORLD_R, logSOf, type BeyondView } from './cosmos/levels/beyond';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import { Cosmos, moment } from './cosmos';
@@ -334,6 +334,9 @@ export class App {
     const c = this.controls, hud = this.hud;
     c.onAbove = () => this.leaveCell();
     this.cosmos.controls.onBelow = () => this.enterCell();
+    // (zooming in by hand over the gardens, the view comes round to the film's way down onto her: from her feet' side,
+    // her face the right way up, never over the crown of her head)
+    if (GARDENS) this.cosmos.controls.guide = { band: [this.cosmos.controls.min, 2.6], arrive: 0.3, at: approach };
     c.pick = (x, y) => {
       const p = this.lastPick;
       if (!p || Math.hypot(p.x - x, p.y - y) > 30) return null;

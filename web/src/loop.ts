@@ -102,6 +102,12 @@ function through(ways: [number, number][], z: number) {
   }
   return ways[ways.length - 1][1];
 }
+/** the way in by hand over the gardens (main.ts: CosmosControls.guide): the film's yaw, from her feet' side (her head
+ *  is toward the ground's -x), and steeper than the film's pitch from a couple of metres up through her face and eye,
+ *  so the zoom comes down onto them, her face the right way up — never along the flowers over the crown of her head;
+ *  back to the film's pitch in her skin, where the cell takes the camera */
+const HAND_PITCH: [number, number][] = [[-3.8, -1.05], [-2.6, -1.25], [0.3, -1.25], [1.6, -1.1], [2.6, -1.05]];
+export const approach = (logS: number): [number, number] => [through(YAW, logS), through(HAND_PITCH, logS)];
 /** where the cosmos's camera looks among the keepers at a zoom (their world, cm): our marble, drifting to their
  *  world's middle */
 function lookAt(z: number): Vec3 {
