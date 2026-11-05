@@ -392,8 +392,9 @@ export function poseB(t: number, C: Choreography): KeeperPose {
     // (fingers reaching forward past it and round, not up: a cradle, not a cage)
     return frameOf(add(o, mul(axis, -1.5)), norm(add(add(mul(chest.z, 0.85), mul(side, -s * 0.3)), mul(axis, 0.25))), mul(side, -s), s > 0 ? 1 : -1);
   };
-  // (the chest's right is toward its +x: the right hand on the +side)
-  const sgn = dot(side, chest.x) > 0 ? 1 : -1;
+  // (the chest's right is toward its +x: the right hand on the +side — told by the side before its turn, which stays well
+  // off square to the chest, so the hands never swap places as the turn takes the side through it)
+  const sgn = dot(sideBase, chest.x) > 0 ? 1 : -1;
   const palmR = palm(sgn), palmL = palm(-sgn);
   const curl = (ph: number) => [0, 1, 2, 3].map((f) => [0, 1, 2].map((j) => 0.08 + j * 0.05 + 0.08 * C.w(t, 4.6, ph + f * 0.8)));
   const shR = local(chest, [12.5 * bd[0], 7.5 * bd[1], -1]), shL = local(chest, [-12.5 * bd[0], 7.5 * bd[1], -1]);
