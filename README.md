@@ -77,8 +77,12 @@ lockfile it moves). To work on the kit alongside the app, clone it beside this r
 ```bash
 cd web && npx vite build --outDir ../scratch/filmbuild && npx vite preview --outDir ../scratch/filmbuild --port 5741
 PORT=5741 node tools/film.mjs trailer 1920 1080   # film/trailer/cell-trailer.mp4 (frames + the score, rendered offline)
-bash web/tools/deploy.sh ../PortfolioII           # built for /cell/ into the homepage's public/cell/
 ```
+
+Push to main and it's live: the Vercel project `universe` is linked to this repo with its root at `web/`, and builds
+every push to main for production as web/vercel.json says (weft at its tip, the typecheck, the build under
+/universe/); any other branch gets a preview. ericlevin.dev rewrites /universe/* to it (PortfolioII's vercel.json).
+Every project on ericlevin.dev deploys the same way.
 
 URL: `?place=<tissue|cell|nucleus|pore|dna|mito|atp|er|golgi|mt|membrane>` · `?nocut` · `?q=0.5` (lighter) ·
 `?debug` (weft's overlay: passes, GPU timings, textures).
