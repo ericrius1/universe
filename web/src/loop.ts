@@ -12,7 +12,7 @@
 // but for where it looks among the keepers), the realms crossfading where they hand over. Rendered as the journey is
 // (journey.ts: frames stepped by hand, posted to the dev server, the score rendered offline along the same cues).
 import type { Capture } from '@ericrius1/weft';
-import type { Vec3 } from 'math';
+import { quat, vec3, type Quat, type Vec3 } from 'math';
 import type { App } from './main';
 import { Score, type FilmCue } from './audio/score';
 import { NM } from './cosmos/frames';
@@ -74,6 +74,18 @@ const YAW: [number, number][] = [
   [10.0, 1.6], [13.0, 3.4], [17.6, 4.7], [21.3, 0.9 + T2], [24.3, 0.7 + T2], [26.6, 0.75 + T2],
   [zB, 0.6 + T2], [beat(0.28), 1.15 + T2], [beat(0.72), -0.55 + T2], [zC, -0.45 + T2], [zP, 0.3 + T2], [Z_END, YAW0 + T2],
 ];
+
+// past the gardens the camera rises along the spot's zenith, looking down on it (tilted a little, as it was looking) until
+// the Earth is small: the view then eases off the spot onto the Earth's middle (ladder.earthPivot) along the line it looks
+// down, so the Earth falls away steadily, where the ladder's own ease (6.1 to 7.1, the Earth filling the frame) stalls
+// the zoom and swings the view south over it; only once the Earth is a speck does it turn on to the yaw and pitch above
+const LIFT = [3.5, 5.0, 8.4, 9.6], LIFT_YAW = 0.7, LIFT_PITCH = -1.25, EARTH_PIVOT: [number, number] = [7.7, 8.7];
+const _q = quat.create(), _qi = quat.create(), _a: Vec3 = [0, 0, 0], _b: Vec3 = [0, 0, 0];
+/** a view direction (yaw, pitch about a reference orientation) in the top frame */
+function dir(yaw: number, pitch: number, ref: Quat, out: Vec3) {
+  vec3.set(out, -Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  return vec3.transformQuat(out, out, ref);
+}
 
 const smooth = (u: number) => { const x = Math.min(1, Math.max(0, u)); return x * x * x * (x * (x * 6 - 15) + 10); };
 /** a value through (z, v) waypoints at z, eased between each pair */
@@ -143,6 +155,7 @@ export class Loop {
     app.hazeBg = [150, 2500];
     // (the zoom past the keepers' sky: out to where the jewel hands back)
     app.cosmos.controls.max = Z_END + 0.2;
+    app.cosmos.ladder.earthPivot = EARTH_PIVOT;
     // the keepers' every motion a whole number of turns in the loop
     if (app.cosmos.beyond) app.cosmos.beyond.C.cycle = this.total / FPS;
   }
@@ -150,7 +163,7 @@ export class Loop {
   /** this frame's cameras and realm (the app calls it first, before either camera updates) */
   direct(_dt: number) {
     const app = this.app, i = Math.min(this.frameNo, this.total - 1), z = this.Z[i];
-    const yaw = through(YAW, z), pitch = through(PITCH, z);
+    const [yaw, pitch] = this.lift(z, through(YAW, z), through(PITCH, z));
     const c = app.controls, cc = app.cosmos.controls, b = app.cosmos.beyond;
     if (b) b.clock = i / FPS;
     // (where the cosmos's camera looks among the keepers: off our marble, along the thread, onto the second keeper's,
@@ -201,6 +214,23 @@ export class Loop {
       app.bioTime = -(this.total - i) / FPS * 1e-4;
     }
     if (i === 0) app.bioTime = 0;
+  }
+
+  /** the yaw and pitch at a zoom, risen over the spot past the gardens (LIFT) */
+  private lift(z: number, yaw: number, pitch: number): [number, number] {
+    const w = smooth((z - LIFT[0]) / (LIFT[1] - LIFT[0])) * (1 - smooth((z - LIFT[2]) / (LIFT[3] - LIFT[2])));
+    if (w <= 0) return [yaw, pitch];
+    const L = this.app.cosmos.ladder, ref = L.reference(z, _q);
+    // (the two directions in the top frame, the way between them turned through at an even rate)
+    const a = dir(yaw, pitch, ref, _a), b = dir(LIFT_YAW, LIFT_PITCH, L.ground.q, _b);
+    const th = Math.acos(Math.min(1, Math.max(-1, vec3.dot(a, b))));
+    if (th > 1e-5) {
+      const s = Math.sin(th), ka = Math.sin((1 - w) * th) / s, kb = Math.sin(w * th) / s;
+      vec3.set(a, a[0] * ka + b[0] * kb, a[1] * ka + b[1] * kb, a[2] * ka + b[2] * kb);
+    }
+    // (back into the zoom's reference orientation)
+    const d = vec3.transformQuat(a, a, quat.invert(_qi, ref));
+    return [Math.atan2(-d[0], -d[2]), Math.asin(Math.min(1, Math.max(-1, d[1])))];
   }
 
   /** the score's cues along the way: the scale (nm, the cell's widest above it) and where it is */

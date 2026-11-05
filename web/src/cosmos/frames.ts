@@ -132,6 +132,9 @@ export class Ladder {
 
   /** the Earth's radius at the spot (km): the air's sea-level sphere and the spot's ground above it */
   readonly earthR: number;
+  /** over what zoom (log10 m) the view eases off the spot onto the Earth's middle (a film moves it out, where the
+   *  Earth's small) */
+  earthPivot: [number, number] = [6.1, 7.1];
   /** past the edge of the observable universe, where the view goes as the zoom comes out (metres, the top frame's
    *  axes) and over what zoom (log10 m) it gets there: the middle of the keepers' world (levels/beyond.ts) */
   beyond: { at: Vec3; from: number; to: number } | null = null;
@@ -186,7 +189,7 @@ export class Ladder {
   pivotOffset(logS: number, out: Vec3): Vec3 {
     vec3.set(out, 0, 0, 0);
     const ease = (a: number, b: number) => { const t = Math.max(0, Math.min(1, (logS - a) / (b - a))); return t * t * (3 - 2 * t); };
-    for (const [f, k] of [[this.galaxy, ease(19.4, 21.0)], [this.solar, ease(10.9, 12.3)], [this.earth, ease(6.1, 7.1)]] as [Frame, number][]) {
+    for (const [f, k] of [[this.galaxy, ease(19.4, 21.0)], [this.solar, ease(10.9, 12.3)], [this.earth, ease(this.earthPivot[0], this.earthPivot[1])]] as [Frame, number][]) {
       if (k <= 0) continue;
       // (the body sits at the frame's origin)
       vec3.transformQuat(_v, f.target, f.q);
