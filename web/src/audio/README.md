@@ -1,7 +1,10 @@
 # audio
 
 `score.ts`: the cell's generative score, pure Web Audio, no samples. One engine drives the live score and the film's
-offline soundtrack (seeded, so a film renders identically every time).
+offline soundtrack (seeded, so a film renders identically every time). Given a `Song` (`new Score({ url, seconds })`),
+the live score plays that instead, looped without a seam (Universe: the loop film's "As Above, So Below",
+public/data/score/as-above-so-below.m4a, from tools/loop-score.py's score-suno.wav, AAC 160k), with only a game's
+one-shots over it.
 
 ## Wiring (main.ts)
 
@@ -9,10 +12,10 @@ offline soundtrack (seeded, so a film renders identically every time).
 import { Score } from './audio/score';
 
 const score = new Score();
-// browsers start audio only from a gesture
-const wake = () => score.start();
-addEventListener('pointerdown', wake, { once: true });
-addEventListener('keydown', wake, { once: true });
+// browsers start audio only from a gesture (an iPhone only from a touch's end, not its start), and stop it when the
+// page is left: wake on every gesture until it's heard
+const wake = () => { if (!score.running && !score.muted) score.start(); };
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
 
 // every frame (App.frame): camera distance to its focus in nm, and the compartment the eye is in
 score.update(dt, controls.scale, compartmentName);   // 'outside' | 'cytosol' | 'nucleus' | 'mito' | 'er' | 'golgi'

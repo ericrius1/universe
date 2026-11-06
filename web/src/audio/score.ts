@@ -481,6 +481,14 @@ class Engine {
 
 export interface FilmCue { t: number; scale: number; compartment: string; event?: string }
 
+/** a song played in place of the generated score (Universe: the loop film's, "As Above, So Below"): its file, and how
+ *  long it runs before it comes round (s), the loop without a seam */
+export interface Song { url: string; seconds: number }
+/** with a song, only the one-shots that answer the visitor (a game's) — the bells and chimes are the generated score's,
+ *  in its own key */
+const WITH_SONG = new Set(['good', 'bad', 'win', 'pop', 'step']);
+const SONG_LEVEL = 0.8;
+
 export class Score {
   private ctx: AudioContext | null = null;
   private engine: Engine | null = null;
@@ -488,9 +496,23 @@ export class Score {
   private scale = 46000;
   private compartment = 'outside';
   private _muted = false;
+  private songBytes: Promise<ArrayBuffer> | null = null;
+  private songGain: GainNode | null = null;
+  /** a silent media element playing (where there's no audio session to ask: an iPhone's older Safari) */
+  private media: HTMLAudioElement | null = null;
 
-  /** call from a user gesture: makes (or wakes) the audio context and starts the score */
+  constructor(private song?: Song) {
+    // (its file fetched now, at low priority, decoded once there's a context)
+    if (song) this.songBytes = fetch(song.url, { priority: 'low' } as RequestInit).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${song.url}: ${r.status}`))));
+  }
+
+  /** call from a user gesture (a pointer's up, a click, a key: an iPhone doesn't count a touch's start): makes (or wakes)
+   *  the audio context and starts the score */
   start() {
+    // (an iPhone's ringer switch silences the web's audio unless it's asked for as playback, as music is; where there's
+    // no asking, a silent media element playing does the same)
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) { try { nav.audioSession.type = 'playback'; } catch { /* not settable */ } } else if (!this._muted) this.unsilence();
     if (!this.ctx) {
       const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AC) return;
@@ -498,18 +520,59 @@ export class Score {
       this.engine = new Engine(this.ctx, (Date.now() & 0xffff) ^ 0x5eed);
       const g = this.engine.master.gain, top = g.value;
       g.value = 0;
-      this.engine.start(this.ctx.currentTime + 0.05, this.scale, this.compartment);
       g.setTargetAtTime(this._muted ? 0 : top, this.ctx.currentTime + 0.05, 1.2);
       this.top = top;
+      if (this.song) void this.playSong().catch((e) => console.warn('score: no song', e));
+      else this.engine.start(this.ctx.currentTime + 0.05, this.scale, this.compartment);
     }
-    if (this.ctx.state === 'suspended' && !this._muted) void this.ctx.resume();
+    if (this.ctx.state !== 'running' && !this._muted) void this.ctx.resume();
   }
   private top = 0.55;
+
+  /** the song from its start, round and round: the decoder's padding before it (an AAC's priming) found and left out,
+   *  so the loop is the song exactly, its end running on into its start as the film's does */
+  private async playSong() {
+    const ctx = this.ctx!, song = this.song!;
+    const buf = await ctx.decodeAudioData(await this.songBytes!);
+    const a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+    let i = 0;
+    while (i < a.length && Math.abs(a[i]) < 1e-3 && Math.abs(b[i]) < 1e-3) i++;
+    const g = this.songGain = ctx.createGain();
+    g.gain.value = 0;
+    g.connect(ctx.destination);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.loopStart = i / buf.sampleRate;
+    src.loopEnd = Math.min(buf.duration, src.loopStart + song.seconds);
+    src.connect(g);
+    const t = ctx.currentTime + 0.05;
+    src.start(t, src.loopStart);
+    g.gain.setTargetAtTime(this._muted ? 0 : SONG_LEVEL, t, 0.8);
+  }
+
+  /** a silent sound playing on a loop in a media element: it plays through an iPhone's ringer switch, and the page's
+   *  audio with it (started from a gesture) */
+  private unsilence() {
+    if (!this.media) {
+      const sr = 8000, n = sr / 4, v = new DataView(new ArrayBuffer(44 + n * 2));
+      const str = (o: number, t: string) => { for (let k = 0; k < t.length; k++) v.setUint8(o + k, t.charCodeAt(k)); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+      v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+      this.media = new Audio(URL.createObjectURL(new Blob([v.buffer], { type: 'audio/wav' })));
+      this.media.loop = true;
+      this.media.setAttribute('playsinline', '');
+    }
+    if (this.media.paused) void this.media.play().catch(() => {});
+  }
 
   get muted() { return this._muted; }
   /** where a one-off sound plays (the master: the volume holds); none before the score starts, nor muted */
   get out(): AudioNode | null { return this._muted ? null : this.engine?.master ?? null; }
   get started() { return !!this.ctx; }
+  /** heard now: started, its context running (not waiting on a gesture, nor muted) */
+  get running() { return this.ctx?.state === 'running' && !this._muted; }
 
   setMuted(m: boolean) {
     this._muted = m;
@@ -517,7 +580,8 @@ export class Score {
     const t = this.ctx.currentTime;
     this.engine.master.gain.cancelScheduledValues(t);
     this.engine.master.gain.setTargetAtTime(m ? 0 : this.top, t, m ? 0.08 : 0.6);
-    if (m) setTimeout(() => { if (this._muted) void this.ctx?.suspend(); }, 400);
+    if (this.songGain) { this.songGain.gain.cancelScheduledValues(t); this.songGain.gain.setTargetAtTime(m ? 0 : SONG_LEVEL, t, m ? 0.08 : 0.6); }
+    if (m) { setTimeout(() => { if (this._muted) { void this.ctx?.suspend(); this.media?.pause(); } }, 400); }
     else void this.ctx.resume();
   }
 
@@ -525,7 +589,7 @@ export class Score {
   update(dt: number, scale: number, compartment: string) {
     this.scale = scale;
     this.compartment = compartment;
-    if (!this.ctx || !this.engine || this._muted || this.ctx.state !== 'running') return;
+    if (!this.ctx || !this.engine || this.song || this._muted || this.ctx.state !== 'running') return;
     this.acc = Math.min(this.acc + dt, 0.25);
     while (this.acc >= CONTROL) {
       this.acc -= CONTROL;
@@ -535,7 +599,7 @@ export class Score {
 
   /** a one-shot: click, hover, fly, arrive, atp, step, good, bad, pop, win, zoomTick */
   event(name: string, strength = 1) {
-    if (!this.ctx || !this.engine || this._muted || this.ctx.state !== 'running') return;
+    if (!this.ctx || !this.engine || this._muted || this.ctx.state !== 'running' || (this.song && !WITH_SONG.has(name))) return;
     this.engine.event(name, strength, this.ctx.currentTime + 0.01);
   }
 

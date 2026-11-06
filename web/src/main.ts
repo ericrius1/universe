@@ -233,7 +233,8 @@ export class App {
   readonly intro: Intro;
   readonly flyUi: FlyUi;
   game: Game | null = null;
-  readonly score = new Score();
+  /** the music: the loop film's song, "As Above, So Below", round and round (audio/score.ts) */
+  readonly score = new Score(params.has('film') ? undefined : { url: `${BASE}data/score/as-above-so-below.m4a`, seconds: 3235 / 30 });
   /** a film's camera, run before the camera updates */
   director: ((dt: number) => void) | null = null;
   /** the journey's camera (both realms'), run before either */
@@ -325,10 +326,14 @@ export class App {
     cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
     this.wire();
     this.hud.setActive('cut', true);
-    // browsers only start audio from a gesture
-    const wake = () => { this.score.start(); this.hud.setActive('sound', !this.score.muted); };
-    addEventListener('pointerdown', wake, { once: true });
-    addEventListener('keydown', wake, { once: true });
+    // browsers only start audio from a gesture — an iPhone not from a touch's start, only its end — and stop it when the
+    // page is left: woken by the next gesture until it's heard
+    const wake = () => {
+      if (this.score.running || this.score.muted) return;
+      this.score.start();
+      this.hud.setActive('sound', !this.score.muted);
+    };
+    for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
     if (params.has('notitle') || params.has('film')) this.hud.setChrome(false);
     else setTimeout(() => { if (!controls.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall from the edge of the universe to a single molecule' : 'Scroll or pinch to dive in — all the way down to the molecules', 6000); }, 2200);
   }
@@ -576,7 +581,12 @@ export class App {
     else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Fluorescence microscope: DAPI, MitoTracker, tubulin, phalloidin' : 'Back to colour'); }
     else if (id === 'help') hud.toggleHelp();
     else if (id === 'play') this.playMenu();
-    else if (id === 'sound') { this.score.start(); this.score.setMuted(!this.score.muted); hud.setActive('sound', !this.score.muted); }
+    else if (id === 'sound') {
+      // (a first tap on it, the music not heard yet, turns it on rather than off)
+      if (this.score.running) this.score.setMuted(true);
+      else { this.score.setMuted(false); this.score.start(); }
+      hud.setActive('sound', !this.score.muted);
+    }
     hud.setActive('cut', this.cutTarget > 0.5);
     hud.setActive('fluo', this.fluoTarget > 0.5);
   }
