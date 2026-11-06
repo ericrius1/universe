@@ -348,14 +348,14 @@ export class App {
     this.cosmos.controls.max = SEAM.Z_END;
     this.controls.guide = { arrive: SEAM.S0 * 0.95, at: (s) => this.cellGuide(s) };
   }
-  /** where zooming in by hand takes the cell's camera: the film's way down while diving, else onto the jewel when it's
-   *  near and ahead (null: the visitor's own zoom, toward what's under the cursor) */
-  private cellGuide(s: number): { pivot: Vec3; yaw: number; pitch: number; exact?: boolean } | null {
+  /** where zooming in by hand takes the cell's camera: the film's way down while diving — and back to it, a moment after
+   *  a look round, however the visitor turned (`settle`: the dive always ends on the jewel) — else onto the jewel when
+   *  it's near and ahead (null: the visitor's own zoom, toward what's under the cursor) */
+  private cellGuide(s: number): { pivot: Vec3; yaw: number; pitch: number; exact?: boolean; settle?: boolean } | null {
     const c = this.controls, j = JEWEL;
-    if (this.realm !== 'cell' || c.flying || this.tour.active) { this.diving = false; return null; }
-    if (c.turned > 40) this.diving = false;
+    if (this.realm !== 'cell' || c.flying || c.fly || this.tour.active) { this.diving = false; return null; }
     // (diving, it's on the film's way already — it came in at the tissue's own place — so the pivot keeps to it exactly)
-    if (this.diving) return { ...cellWay(this.places as Map<string, { at: Vec3 }>, Math.log10(s * NM)), exact: true };
+    if (this.diving) return { ...cellWay(this.places as Map<string, { at: Vec3 }>, Math.log10(s * NM)), exact: true, settle: true };
     const d = vec3.distance(c.position, j.at);
     if (d > 4 * s) return null;
     const ahead = ((j.at[0] - c.position[0]) * c.forward[0] + (j.at[1] - c.position[1]) * c.forward[1] + (j.at[2] - c.position[2]) * c.forward[2]) / Math.max(d, 1e-9);

@@ -26,6 +26,9 @@ interface Flight {
 const RHO = 1.42;
 /** a zoom's anchor no further than this many scales from the eye (zoomAt) */
 const ANCHOR_REACH = 3;
+/** a way the view keeps to (a guide's `settle`: Universe's dive): how far a hand can turn it off that way (rad), the
+ *  turn stiffening as it nears it; how long after the hand's last on it the view starts back (ms), and how fast (1/s) */
+const TETHER = 0.8, SETTLE_AFTER = 450, SETTLE_RATE = 2.2;
 const _controls_d = vec3.create();
 const _controls_m = vec3.create();
 const _controls_eye = vec3.create();
@@ -80,7 +83,7 @@ export class Controls {
    *  toward `at`'s for the scale, a share of what's left for each step in, all of it by `arrive` (nm) — the zoom about
    *  that way then, not the point under the cursor (`exact`: the pivot kept to it, as it already is). Holding still,
    *  turning or zooming out, the view is the visitor's */
-  guide: { at: (scale: number) => { pivot: Vec3; yaw: number; pitch: number; exact?: boolean } | null; arrive: number } | null = null;
+  guide: { at: (scale: number) => { pivot: Vec3; yaw: number; pitch: number; exact?: boolean; settle?: boolean } | null; arrive: number } | null = null;
   /** how far (px) the visitor has turned or panned it by hand, for the app to tell a dive from a look round */
   turned = 0;
   /** the pivot kept where the app has it (Universe: on the jewel, or diving down to it): a press doesn't move it onto
@@ -93,6 +96,10 @@ export class Controls {
   private pressAt: [number, number] | null = null;
   /** when the visitor last asked to zoom in (ms) */
   private inAt = -1e9;
+  /** the way the view settles back onto (the guide's this frame, where it asks: `settle`), and when a hand was last on
+   *  the view (ms) */
+  private home: { pivot: Vec3; yaw: number; pitch: number } | null = null;
+  private handAt = -1e9;
   /** asking to zoom in: still easing in, or asked a moment ago (at the least scale, where the zoom stops) */
   get zoomingIn() { return this.zoomTarget < Math.log(this.scale) - 1e-4 || performance.now() - this.inAt < 300; }
   /** first person (setFly) */
@@ -222,6 +229,7 @@ export class Controls {
     try { this.canvas.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
     this.dragMoved = 0;
+    this.handAt = performance.now();
     if (this.fly) {
       // flying with the mouse, a click on the view takes the lock back if the browser refused it at first
       if (this.wantLock && !this.locked && e.pointerType === 'mouse') this.lock();
@@ -268,6 +276,7 @@ export class Controls {
     if (!prev || !this.enabled) return;
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     prev.x = e.clientX; prev.y = e.clientY;
+    this.handAt = performance.now();
     this.dragMoved += Math.abs(dx) + Math.abs(dy);
     if (this.dragMoved < 4 || this.driven) return;
     this.user();
@@ -293,6 +302,7 @@ export class Controls {
   private release(e: PointerEvent) {
     const had = this.pointers.has(e.pointerId);
     this.pointers.delete(e.pointerId);
+    this.handAt = performance.now();
     if (!this.pointers.size) { this.loose = 0; this.pinched = false; this.pressAt = null; }
     if (!had || this.dragMoved > 6 || !this.enabled) return;
     // (flying, a click or a tap is on what's under the crosshair)
@@ -331,6 +341,13 @@ export class Controls {
     this.zoomAt(e.clientX ?? this.mouse[0], e.clientY ?? this.mouse[1], Math.log(was / e.scale));
   }
   orbit(dyaw: number, dpitch: number) {
+    // (kept to a way: turning off it stiffens, to nothing at TETHER)
+    const h = this.home;
+    if (h) {
+      const oy = Math.atan2(Math.sin(this.yaw - h.yaw), Math.cos(this.yaw - h.yaw)), op = this.pitch - h.pitch;
+      if (oy * dyaw > 0) dyaw *= Math.max(0, 1 - Math.abs(oy) / TETHER);
+      if (op * dpitch > 0) dpitch *= Math.max(0, 1 - Math.abs(op) / TETHER);
+    }
     this.yaw += dyaw;
     this.pitch = Math.max(-1.5, Math.min(1.5, this.pitch + dpitch));
   }
@@ -518,6 +535,16 @@ export class Controls {
         this.pitch += (g.pitch - this.pitch) * k;
         this.velYaw = this.velPitch = 0;
       }
+      // (a way to keep to — the dive's — looked off by hand: a moment after it's let go, the view comes back onto it)
+      const h = this.guide?.at(this.scale);
+      this.home = h?.settle ? h : null;
+      if (this.home && !(g && f < 1 - 1e-4) && !this.pointers.size && performance.now() - this.handAt > SETTLE_AFTER) {
+        const k = 1 - Math.exp(-dt * SETTLE_RATE), w = this.home;
+        for (let i = 0; i < 3; i++) this.pivot[i] += (w.pivot[i] - this.pivot[i]) * k;
+        this.yaw += Math.atan2(Math.sin(w.yaw - this.yaw), Math.cos(w.yaw - this.yaw)) * k;
+        this.pitch += (w.pitch - this.pitch) * k;
+        this.velYaw = this.velPitch = 0;
+      }
       // inertia after a drag
       if (!this.pointers.size) {
         const damp = Math.exp(-dt * 6);
@@ -538,6 +565,7 @@ export class Controls {
   private keyboard(dt: number) {
     const k = this.keys;
     if (!k.size) return;
+    this.handAt = performance.now();
     this.basis();
     const m = vec3.set(_controls_m, 0, 0, 0);
     if (k.has('w')) vec3.add(m, m, this.forward);
