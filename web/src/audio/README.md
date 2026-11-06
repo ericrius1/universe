@@ -1,10 +1,11 @@
 # audio
 
 `score.ts`: the cell's generative score, pure Web Audio, no samples. One engine drives the live score and the film's
-offline soundtrack (seeded, so a film renders identically every time). Given a `Song` (`new Score({ url, seconds })`),
-the live score plays that instead, looped without a seam (Universe: the loop film's "As Above, So Below",
-public/data/score/as-above-so-below.m4a, from tools/loop-score.py's score-suno.wav, AAC 160k), with only a game's
-one-shots over it.
+offline soundtrack (seeded, so a film renders identically every time). Given a `Song` (`new Score({ url })`),
+the live score streams that instead, round and round, with only a game's one-shots over it. Universe's is
+public/data/score/cosmic-drift.m4a: 20 min blended from ten Suno Studio stems (pad, bass, 12-string, drums, lead, two
+takes each, 60 BPM) by music-library/cosmic-drift/tools/blend.py, folded so its end runs into its start, -16 LUFS,
+AAC 112k.
 
 ## Wiring (main.ts)
 

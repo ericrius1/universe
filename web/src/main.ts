@@ -233,8 +233,8 @@ export class App {
   readonly intro: Intro;
   readonly flyUi: FlyUi;
   game: Game | null = null;
-  /** the music: the loop film's song, "As Above, So Below", round and round (audio/score.ts) */
-  readonly score = new Score(params.has('film') ? undefined : { url: `${BASE}data/score/as-above-so-below.m4a`, seconds: 3235 / 30 });
+  /** the music: "Cosmic Drift", 20 min of Suno stems blended, round and round (audio/score.ts) */
+  readonly score = new Score(params.has('film') ? undefined : { url: `${BASE}data/score/cosmic-drift.m4a` });
   /** a film's camera, run before the camera updates */
   director: ((dt: number) => void) | null = null;
   /** the journey's camera (both realms'), run before either */
