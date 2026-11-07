@@ -14,7 +14,7 @@ const SHORT: Record<string, string> = {
 export interface SpotWords { name: string; short: string; line: string; person: string; personShort: string; personLine: string }
 export const BOULDER_WORDS: SpotWords = {
   name: 'Boulder, Colorado', short: 'Boulder', line: 'A meadow on the plains below the Flatirons.',
-  person: 'Lying in the grass', personShort: 'In the grass', personLine: 'Someone on their back in the meadow below the Flatirons, looking up at the sky.',
+  person: 'Lying in the grass', personShort: 'In the grass', personLine: 'Someone in the grass, looking up.',
 };
 
 /** the places, the bottom of the dive called as `w` says */
@@ -24,13 +24,13 @@ export function cosmosPlaces(w: SpotWords): CosmosPlace[] {
 }
 
 export const COSMOS_PLACES: CosmosPlace[] = [
-  place('u:universe', 'The observable universe', 26.95, -0.25, 'Everything whose light has had time to reach us: 93 billion light-years across.', '93 billion ly'),
+  place('u:universe', 'The observable universe', 26.95, -0.25, 'Everything whose light has had time to reach us.', '93 billion ly'),
   place('u:web', 'The cosmic web', 24.3, -0.4, 'Galaxies strung along filaments round empty voids.', '100 million ly'),
-  place('u:milkyway', 'The Milky Way', 21.35, -0.75, 'Our galaxy: a barred spiral of two hundred billion stars.', '100,000 ly'),
-  place('u:neighbourhood', 'The Sun\'s neighbours', 17.7, -0.3, 'The stars within a few hundred light-years, where they really are.', '10 light-years'),
-  place('u:solar', 'The solar system', 13.0, -0.62, 'The Sun, the eight planets where they are today, the belts beyond.', '70 AU'),
-  place('u:earth', 'The Earth', 7.35, -0.15, 'Home: its air, its clouds, the Moon where it is tonight.', '10,000 km'),
+  place('u:milkyway', 'The Milky Way', 21.35, -0.75, 'Two hundred billion stars, one of them ours.', '100,000 ly'),
+  place('u:neighbourhood', 'The Sun\'s neighbours', 17.7, -0.3, 'The nearest stars, where they really are.', '10 light-years'),
+  place('u:solar', 'The solar system', 13.0, -0.62, 'Every planet where it is today.', '70 AU'),
+  place('u:earth', 'The Earth', 7.35, -0.15, 'Home, and the Moon where it is tonight.', '10,000 km'),
   place('u:boulder', 'Boulder, Colorado', 3.5, -0.42, 'A meadow on the plains below the Flatirons.', '3 km'),
-  place('u:person', 'Lying in the grass', 0.35, -0.95, 'Someone on their back in the meadow below the Flatirons, looking up at the sky.', '2 m'),
-  place('u:eye', 'An eye', -1.75, -1.1, 'The iris through the clear cornea, the pupil, the lashes, the sky in the wet surface.', '2 cm'),
+  place('u:person', 'Lying in the grass', 0.35, -0.95, 'Someone in the grass, looking up.', '2 m'),
+  place('u:eye', 'An eye', -1.75, -1.1, 'The sky in its wet surface.', '2 cm'),
 ];

@@ -61,13 +61,13 @@ export function prepareGardens(assets: string) {
 export const HAVENS: Place = { lat: 33.2, lon: -111.6, name: 'Seven Havens', km: 1.132 };
 export const HAVENS_DATA = 'data/earth-havens/';
 export const HAVENS_WORDS: SpotWords = {
-  name: 'Seven Havens', short: 'Seven Havens', line: 'A walled city in a red canyon, and on its promontory a golden temple in terraced gardens.',
-  person: 'Lying in the flowers', personShort: 'In the flowers', personLine: 'Someone on their back in the flower beds beside the temple, looking up at the sky.',
+  name: 'Seven Havens', short: 'Seven Havens', line: 'A walled city in a red canyon, a golden temple above it.',
+  person: 'Lying in the flowers', personShort: 'In the flowers', personLine: 'Someone in the flowers, looking up.',
 };
 /** the tour's and the journey's words there */
 export const HAVENS_CAPTIONS = {
-  tourSpot: '<small>3 km</small>Seven Havens: a walled city in a red sandstone canyon, and above it on its promontory the golden temple in its terraced gardens.',
-  tourPerson: '<small>2 m</small>Someone lying among the flowers beside the temple, looking up at all of it.',
+  tourSpot: '<small>3 km</small>Seven Havens: a walled city in a red canyon, a golden temple above it.',
+  tourPerson: '<small>2 m</small>Someone in the flowers, looking up at all of it.',
   journeySpot: 'Seven Havens · the temple and its gardens',
   journeyLying: 'from someone lying in the flowers, to the edge of everything, and back',
 };

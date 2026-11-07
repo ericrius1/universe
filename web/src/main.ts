@@ -56,7 +56,7 @@ const GARDENS = !params.has('nogardens') && !params.has('dome');
 const BEYOND_PLACE: CosmosPlace = {
   // (inside their sky, short of where zooming out leaves it for the jewel: src/loop.ts SEAM)
   id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(140), yaw: 0.3, pitch: -0.08, size: '2 m',
-  line: 'Our universe, a marble over someone\'s palm: the keepers, and the universes they keep.',
+  line: 'What holds it all.',
 };
 const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES)];
 if (GARDENS) for (const s of TOUR) {
@@ -91,7 +91,7 @@ async function boot() {
   await frame();
   new Organelles(kit, r, world, quality);
   const filaments = new Filaments(kit, r, world);
-  const pdbMsg = 'fetching molecules from the Protein Data Bank…';
+  const pdbMsg = 'gathering molecules…';
   status(pdbMsg, 0.4);
   const mols = await Molecules.load(kit, BASE, (f) => status(pdbMsg, 0.4 + f * 0.25));
   const field = new Field(kit, r, mols, filaments.set, quality);
@@ -111,7 +111,7 @@ async function boot() {
     beyond: dome ? undefined : { assets: new URL('data/beyond/', document.baseURI).href, hi: !mobile && !light && !params.has('lo'), scale: mobile || light ? 0.75 : 1 },
     ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}`, meadow: false } : {}),
   });
-  status('compiling shaders…', 0.7);
+  status('nearly there…', 0.7);
   const t0 = performance.now();
   const ready = await kit.ready();
   console.log(`cell: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
@@ -335,7 +335,7 @@ export class App {
     };
     for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
     if (params.has('notitle') || params.has('film')) this.hud.setChrome(false);
-    else setTimeout(() => { if (!controls.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall from the edge of the universe to a single molecule' : 'Scroll or pinch to dive in — all the way down to the molecules', 6000); }, 2200);
+    else setTimeout(() => { if (!controls.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall' : 'Scroll or pinch to dive in', 6000); }, 2200);
   }
 
   /** hand the camera to the cosmos or the cell (`now`: without the crossfade) */
@@ -578,7 +578,7 @@ export class App {
     if (id === 'tour' || id === 'play' || id === 'help') this.setFly(false);
     if (id === 'tour') { if (this.tour.active) this.tour.stop(); else { hud.showCard(null); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
     else if (id === 'cut') { this.cutTarget = this.cutTarget > 0.5 ? 0 : 1; hud.toast(this.cutTarget ? 'Cutaway: the cell opened' : 'Cutaway closed'); }
-    else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Fluorescence microscope: DAPI, MitoTracker, tubulin, phalloidin' : 'Back to colour'); }
+    else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Under the microscope' : 'Back to colour'); }
     else if (id === 'help') hud.toggleHelp();
     else if (id === 'play') this.playMenu();
     else if (id === 'sound') {
@@ -593,7 +593,7 @@ export class App {
 
   private playMenu() {
     const items = GAMES.map((g) => `<button class="play-item" data-id="${g.id}"><img alt="" src="${BASE}art/${g.art}.webp" onerror="this.style.visibility='hidden'"><span><b>${g.role}</b><em>${g.title}</em><small>${g.blurb}</small></span></button>`).join('');
-    this.hud.showCard({ title: 'Become part of the cell', text: GAMES.length ? 'Pick a role. Each is a real molecular machine doing its real job, a little slowed down.' : 'Coming soon.' }, `<div class="play-list">${items}</div>`);
+    this.hud.showCard({ title: 'Become part of the cell', text: GAMES.length ? 'Pick a role. Each is a real machine, doing its real job.' : 'Coming soon.' }, `<div class="play-list">${items}</div>`);
     for (const b of document.querySelectorAll<HTMLButtonElement>('.play-item')) b.addEventListener('click', () => this.startGame(b.dataset.id!));
   }
 
@@ -728,7 +728,7 @@ export class App {
     this.hud.setHere(this.cosmosAt?.id ?? null);
     this.intro.update(dt, cc.flying, !!this.cosmosAt);
     // (held over the gardens while they're still coming in: said so after a moment, and gone once they're in)
-    if (cc.held > 0.6 && !this.waitSaid) { this.waitSaid = true; this.hud.toast('Seven Havens is still loading in, hang on a sec…', 60000); }
+    if (cc.held > 0.6 && !this.waitSaid) { this.waitSaid = true; this.hud.toast('Seven Havens is still coming in…', 60000); }
     else if (this.waitSaid && !cc.held) { this.waitSaid = false; this.hud.hideToast(); }
   }
 

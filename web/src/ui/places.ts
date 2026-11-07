@@ -121,16 +121,16 @@ export function buildPlaces(w: World): Place[] {
   const P = (id: string, name: string, art: string, line: string, view: View, play?: string): Place => ({ id, name, art, line, ...view, play });
   const down = (v: Vec3, k: number): Vec3 => [v[0], v[1] - k, v[2]];
   return [
-    P('tissue', 'Tissue', 'tissue', 'A sheet of human cells, each about 20 µm across — a fifth of a hair\'s width.', { at: [0, 0, 0], scale: 46000, yaw: WEDGE.yaw, pitch: -0.62 }),
-    P('cell', 'The cell', 'cell', 'Cut open: the nucleus, the ER folded round it, the Golgi, mitochondria, and the cytoskeleton holding it all.', { at: [0, 300, 0], scale: 21000, yaw: WEDGE.yaw, pitch: -0.42 }),
-    P('nucleus', 'Nucleus', 'nucleus', 'Two metres of DNA folded into a ball a few microns across, behind a double membrane.', from(nuc.a as Vec3, down(vec3.negate(vec3.create(), wedge), 0.45), 8800)),
-    P('pore', 'Nuclear pore', 'nucleus', 'Gates in the nuclear envelope, 120 nm across, each built of ~1,000 proteins. Messenger RNA leaves through them.', across(pore.p, pore.n, 360, 0.5)),
-    P('dna', 'DNA', 'dna', 'Chromatin: DNA wound round histone spools — nucleosomes — and the double helix between them.', { at: chromP, scale: 55, yaw: 0.4, pitch: -0.3 }, 'polymerase'),
-    P('mito', 'Mitochondrion', 'mito', 'The power plant: an outer membrane, and an inner one folded into cristae where ATP is made.', from(mito.center as Vec3, down(vec3.normalize(vec3.create(), vec3.negate(vec3.create(), mito.center as Vec3)), 0.4), 2600)),
-    P('atp', 'ATP synthase', 'atp', 'Rotary motors packed along the cristae, spun by protons, each turn making three ATP.', across(cristaP, crista.b as Vec3, 75, 0.75), 'atp'),
-    P('er', 'Rough ER', 'er', 'Sheets studded with ribosomes making proteins straight into the ER.', across(erP, erN, 320, 0.8), 'ribosome'),
-    P('golgi', 'Golgi', 'cell', 'A stack of flattened sacs that finishes proteins and ships them in vesicles.', from(golgi.center as Vec3, down(vec3.negate(vec3.create(), wedge), 0.5), 3600)),
-    P('mt', 'Microtubules', 'kinesin', 'Tracks of tubulin 25 nm wide. Kinesin motors walk them, hauling vesicles toward the cell\'s edge.', { at: mtP, scale: 130, yaw: 1.2, pitch: -0.25 }, 'kinesin'),
-    P('membrane', 'Membrane', 'membrane', 'The cell\'s skin: a lipid bilayer 5 nm thick, with receptors, pumps, channels and a coat of sugars.', across(mem.p, mem.n, 110, 1.05)),
+    P('tissue', 'Tissue', 'tissue', 'Human cells, each a fifth of a hair\'s width.', { at: [0, 0, 0], scale: 46000, yaw: WEDGE.yaw, pitch: -0.62 }),
+    P('cell', 'The cell', 'cell', 'Cut open. You are 37 trillion of these.', { at: [0, 300, 0], scale: 21000, yaw: WEDGE.yaw, pitch: -0.42 }),
+    P('nucleus', 'Nucleus', 'nucleus', 'Two metres of DNA, folded this small.', from(nuc.a as Vec3, down(vec3.negate(vec3.create(), wedge), 0.45), 8800)),
+    P('pore', 'Nuclear pore', 'nucleus', 'Gates out of the nucleus. Messages leave through them.', across(pore.p, pore.n, 360, 0.5)),
+    P('dna', 'DNA', 'dna', 'Wound on spools of protein.', { at: chromP, scale: 55, yaw: 0.4, pitch: -0.3 }, 'polymerase'),
+    P('mito', 'Mitochondrion', 'mito', 'The power plant. Once, a bacterium of its own.', from(mito.center as Vec3, down(vec3.normalize(vec3.create(), vec3.negate(vec3.create(), mito.center as Vec3)), 0.4), 2600)),
+    P('atp', 'ATP synthase', 'atp', 'Motors spun by protons, three ATP a turn.', across(cristaP, crista.b as Vec3, 75, 0.75), 'atp'),
+    P('er', 'Rough ER', 'er', 'Sheets of ribosomes, making proteins.', across(erP, erN, 320, 0.8), 'ribosome'),
+    P('golgi', 'Golgi', 'cell', 'Where proteins are finished and shipped.', from(golgi.center as Vec3, down(vec3.negate(vec3.create(), wedge), 0.5), 3600)),
+    P('mt', 'Microtubules', 'kinesin', 'Highways. Something walks them.', { at: mtP, scale: 130, yaw: 1.2, pitch: -0.25 }, 'kinesin'),
+    P('membrane', 'Membrane', 'membrane', 'The cell\'s skin, two molecules thick.', across(mem.p, mem.n, 110, 1.05)),
   ];
 }
