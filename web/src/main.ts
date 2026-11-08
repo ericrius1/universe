@@ -22,7 +22,8 @@ import { cardFor, type Card } from './ui/info';
 import { Tour } from './ui/tour';
 import { Intro } from './ui/intro';
 import { FlyUi } from './ui/fly';
-import { StatsBox, trackGpuMemory } from '@ericrius1/loom/ui/stats';
+import { trackGpuMemory, gpuMemory } from '@ericrius1/loom/ui/stats';
+import { makeDebug } from './ui/debug';
 import { startReport } from './ui/report';
 import { Gardens, HAVENS, HAVENS_CAPTIONS, HAVENS_DATA, HAVENS_WORDS, prepareGardens } from './gardens';
 import { TOUR } from './ui/tour';
@@ -151,13 +152,13 @@ async function boot() {
     atCeiling: () => kit.renderScale >= (res()?.max ?? 1) - 0.011,
     onStep: (n, s, taken) => console.info(`governor: ${taken ? '' : 'back: '}${s.name} (step ${n})`),
   }) : null;
-  // (the frame rate and the GPU's numbers with the interface, as on the site's other worlds; not in a film)
-  const fps = { fps: 0, ms: 0 };
-  const stats = new StatsBox({
-    get fps() { return fps.fps; }, get ms() { return fps.ms; },
-    gpuMs: () => (kit.profiler.active ? kit.profiler.frameMs : 0), scale: () => kit.renderScale,
-  }, () => !params.has('film') && !document.body.classList.contains('ui-off') && !document.body.classList.contains('nochrome'));
-  let fpsT = 0, fpsN = 0;
+  // debug mode (; or ?debug / ?stats, never in the normal interface: ui/debug.ts, the site's shared copy): frame rate and
+  // time, GPU time and memory, the drawn size
+  const debug = makeDebug({ kit: () => kit, canvas: () => kit.canvas as HTMLCanvasElement, gpuBytes: () => gpuMemory.bytes, corner: 'bottom-left' });
+  debug.rows('universe', () => [
+    ['gpu objects', `${gpuMemory.textures} tex · ${gpuMemory.buffers} buf`],
+    ...[...gpuMemory.by].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => [k, `${(v / 1e6).toFixed(0)} MB`] as [string, string]),
+  ]);
   // (a device's report back to the dev server, and the dive flown by itself: ui/report.ts)
   // (and on a page come through a tunnel to this machine — a phone's: its query lost on the tunnel's warning page)
   const tunnel = /ngrok/.test(location.host);
@@ -165,9 +166,7 @@ async function boot() {
   kit.loop(({ dt }) => {
     pace?.update(kit); app.frame(dt);
     governor?.frame(kit);
-    stats.update(performance.now());
-    fpsT += dt; fpsN++;
-    if (fpsT > 0.5) { fps.fps = fpsN / fpsT; fps.ms = (fpsT / fpsN) * 1000; fpsT = 0; fpsN = 0; }
+    debug.tick();
   });
   if (params.has('film')) {
     // films step their own frames: no live loop, no visitor at the controls
