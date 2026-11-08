@@ -3,7 +3,11 @@
 // Boot: the GPU, the world (layout.ts), its systems (organelles, filaments, molecules, walkers), the camera, the
 // interface; then every frame the globals (scale, cut, haze), the molecular field, the run, and a read of what's under
 // the cursor.
-import { createKit, Capture, AutoResolution, WebGPUUnavailable, type Kit, type RunEntry } from '@ericrius1/weft';
+import { createKit, Capture, AutoResolution, WebGPUUnavailable, Taau as WeftTaau, type Kit, type RunEntry } from '@ericrius1/weft';
+import { Taau as Taau2 } from './engine/taau2';
+// (?taau2: the prototype fix in engine/taau2 — a smooth upsample where the history can't be used)
+const Taau = new URLSearchParams(location.search).has('taau2') ? (Taau2 as unknown as typeof WeftTaau) : WeftTaau;
+type Taau = WeftTaau;
 import { vec3, type Vec3 } from 'math';
 import { buildWorld, sdOrganelle, Kind, WEDGE, type World } from './world/layout';
 import { packOrganelles, Organelles } from './world/organelles';
@@ -127,11 +131,30 @@ async function boot() {
   // the meadow outside Boulder as before, and never on a dome)
   if (SEAMED) app.seamed();
   if (GARDENS) (app.gardens = new Gardens(kit, cosmos, BASE)).start();
+  // (?taau: temporal anti-aliasing with upscaling over the film's HDR, before its bloom — the cell's frames alone are
+  // jittered and reprojected: kit.camera is the cell's; the cosmos's levels march their own rays. ?scale=<x> fixes the
+  // render scale, no AutoResolution)
+  if (params.has('scale')) kit.renderScale = Number(params.get('scale'));
+  if ((params.has('taau') || params.has('taau2')) && !dome && !params.has('film')) {
+    const t = app.taau = new Taau(kit, cosmos.r.hdr, r.depth);
+    if (params.has('taaudebug')) t.params.debug = true;
+    // (the floating origin moves each frame to the focus: last frame's view-projection taken over to this frame's
+    // origin — prevVP · T(origin now − origin then) — or the history would be reprojected by the origin's step)
+    const last: [number, number, number] = [origin[0], origin[1], origin[2]];
+    const shift = kit.action(() => {
+      const dx = origin[0] - last[0], dy = origin[1] - last[1], dz = origin[2] - last[2];
+      last[0] = origin[0]; last[1] = origin[1]; last[2] = origin[2];
+      const P = (t as unknown as { prevVP: Float32Array }).prevVP;
+      if ((!dx && !dy && !dz) || (window as unknown as { __noShift?: boolean }).__noShift) return;
+      for (let r = 0; r < 4; r++) P[12 + r] += P[r] * dx + P[4 + r] * dy + P[8 + r] * dz;
+    }, 'taau.origin');
+    cosmos.r.useTaau(t, [shift]);
+  }
   const capture = new Capture(kit);
   // hold the frame rate on smaller GPUs by trading resolution: by the GPU's timestamps where it has them, by the
   // frames' intervals where it hasn't (a phone's Safari; ?pace for the latter anywhere)
   let pace: FramePace | null = null;
-  if (!params.has('film') && !params.has('noautores')) {
+  if (!params.has('film') && !params.has('noautores') && !params.has('scale')) {
     if (kit.profiler.available && !params.has('pace')) kit.autoRes = new AutoResolution(mobile ? 24 : 13, { min: 0.5, max: mobile ? 0.8 : 1 });
     else pace = new FramePace({ min: mobile ? 0.4 : 0.5, max: mobile ? 0.8 : 1 });
   }
@@ -212,6 +235,8 @@ const CRUMB: Record<string, string> = { nucleus: 'Nucleus', mito: 'Mitochondrion
 export class App {
   /** Seven Havens' gardens at the bottom of the dive (gardens.ts) */
   gardens: Gardens | null = null;
+  /** the temporal upscaler (?taau), or null */
+  taau: Taau | null = null;
   /** the last frame's CPU time (ms) above the cell: the cosmos's views, the gardens' update, the GPU work recorded */
   readonly cpu = { cosmos: 0, gardens: 0, run: 0 };
   cut = 0;
@@ -339,6 +364,7 @@ export class App {
 
   /** hand the camera to the cosmos or the cell (`now`: without the crossfade) */
   setRealm(realm: 'cosmos' | 'cell', now = false) {
+    if (realm !== this.realm) this.taau?.cut();
     this.realm = realm;
     this.controls.enabled = realm === 'cell';
     this.cosmos.controls.enabled = realm === 'cosmos';
@@ -694,6 +720,8 @@ export class App {
     // (the cell's frame, laid into the film below — cosmos/renderer.ts lay — by its share; crossing with the keepers'
     // world, much darker than it, a share that comes in later, or its light would show through theirs too soon)
     this.cellShare = this.mix >= 1 ? 0 : early ? (1 - this.mix) ** 3 : 1 - this.mix;
+    // (the upscaler while the cell's frame is in the picture: the camera it reprojects by is the cell's)
+    if (this.taau) this.taau.params.on = this.mix < 1 && !(window as unknown as { __taauOff?: boolean }).__taauOff;
     if (this.mix < 1) { this.r.post.set({ lay: this.cellShare }); this.cellFrame(dt); }
     if (fading && this.realm === 'cell' && !this.mixDriven && !seam) cc.follow(Math.log10(this.controls.scale * NM), this.controls.yaw, this.controls.pitch);
     if (this.mix > 0) {
