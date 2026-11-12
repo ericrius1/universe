@@ -51,16 +51,18 @@ export class Renderer {
     k.overlay.tweak(this.post, 'post');
 
     this.hdr = k.texture({ label: 'hdr', format: 'rgba16float', size: 'render' });
-    this.nrm = k.texture({ label: 'normals', format: 'rgba16float', size: 'render' });
+    // (view normals, octahedral: world.wgsl octNormal)
+    this.nrm = k.texture({ label: 'normals', format: 'rg16float', size: 'render' });
     this.ids = k.texture({ label: 'ids', format: 'r32uint', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.depth = k.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.ao = k.texture({ label: 'ao', format: 'r16float', size: 'render', scale: 0.5 });
     this.lit = k.texture({ label: 'lit', format: 'rgba16float', size: 'render' });
     // (the glass at half the render's size, against the scene's depth at that size: post.wgsl glassOver lays it back
-    // over the full size by depth)
-    this.accum = k.texture({ label: 'glass.accum', format: 'rgba16float', size: 'render', scale: 0.5 });
-    this.reveal = k.texture({ label: 'glass.reveal', format: 'r16float', size: 'render', scale: 0.5 });
-    this.glassDepth = k.texture({ label: 'glass.depth', format: 'depth32float', size: 'render', scale: 0.5 });
+    // over the full size by depth. A film's, which has time for it, at the full size)
+    const gs = new URLSearchParams(location.search).has('film') ? 1 : 0.5;
+    this.accum = k.texture({ label: 'glass.accum', format: 'rgba16float', size: 'render', scale: gs });
+    this.reveal = k.texture({ label: 'glass.reveal', format: 'r16float', size: 'render', scale: gs });
+    this.glassDepth = gs < 1 ? k.texture({ label: 'glass.depth', format: 'depth32float', size: 'render', scale: gs }) : this.depth;
     // (and what's thin — a filament under a pixel across, a line — at the full size, into targets of its own: the two
     // sum to the one weighted blend, glassOver)
     this.accumThin = k.texture({ label: 'glass.thin.accum', format: 'rgba16float', size: 'render' });
@@ -70,7 +72,7 @@ export class Renderer {
 
     this.scene = k.pass({
       label: 'scene',
-      color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 1, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
+      color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 0, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
       depth: { target: this.depth, clear: 0 },
     });
 
@@ -83,7 +85,7 @@ export class Renderer {
     });
     const P = this.post;
     const glassOn = () => (this.globals.get('shellSolid') as number) < 0.999;
-    const half = k.pass({ label: 'glass.depth', depth: { target: this.glassDepth, clear: 0 }, enabled: glassOn });
+    const half = k.pass({ label: 'glass.depth', depth: { target: this.glassDepth, clear: 0 }, enabled: () => gs < 1 && glassOn() });
     half.fullscreen(post, { label: 'glass.depth', fragment: 'fs_halfdepth', depthWrite: true, depthCompare: 'always', bind: { depthTex: this.depth } });
     this.glass = k.pass({
       label: 'glass',

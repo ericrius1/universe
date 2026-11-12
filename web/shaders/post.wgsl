@@ -42,7 +42,7 @@ fn viewPos(uv: vec2f, d: f32) -> vec3f {
   let d = textureLoad(depthTex, px, 0);
   if (d <= 0.0) { return vec4f(1.0); }
   let p = viewPos(in.uv, d);
-  let n = normalize(textureLoad(nrmTex, px, 0).xyz);
+  let n = unOctNormal(textureLoad(nrmTex, px, 0).xy);
   let rad = -p.z * P.aoRadius;
   // a rotated spiral of samples in the hemisphere round the normal, the rotation from interleaved gradient noise
   let ign = fract(52.9829189 * fract(dot(in.uv * dims, vec2f(0.06711056, 0.00583715))) + f32(frame.frame % 8u) * 0.618);

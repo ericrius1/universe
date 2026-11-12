@@ -2,7 +2,7 @@
 // one grid builder covers blobs (latitude × longitude), capsules (cap, tube, cap) and bent discs (underside, rim, top).
 // Vertices sit exactly on the analytic surface the GPU places molecules on. Normals are the faces' averaged.
 // Vertex (32 bytes): position, normal, organelle index, flags.
-import { type Organelle, Shape, blobRadius, capsuleRadius, discFrame, discRim, v3 } from './layout';
+import { type Organelle, Kind, Shape, WEDGE, blobRadius, capsuleRadius, discFrame, discRim, v3 } from './layout';
 import type { V3 } from './noise';
 
 export const MESH_VERTEX_BYTES = 32;
@@ -12,6 +12,9 @@ export interface MeshSet {
   indices: Uint32Array;
   /** the index range of the shells (membranes drawn twice: outer and inner surface) */
   shellCount: number;
+  /** where the shells the wedge can reach start (those it can't come first), and the same among the rest */
+  shellCut: number;
+  solidCut: number;
   /** per organelle: first index, index count */
   ranges: [number, number][];
 }
@@ -168,20 +171,39 @@ function discGrid(g: Grid, o: Organelle, idx: number, q: number) {
 /** a shell: a membrane drawn as two surfaces (this mesh and, offset inward on the GPU, its twin) */
 export const isShell = (o: Organelle) => o.shape !== Shape.Disc && o.thick > 0;
 
+/** whether the wedge, opened all the way, can reach any of it (it only grows as it opens: organelle.wgsl reachesCut,
+ *  in the bounding sphere's terms); a neighbouring cell never is cut */
+export function cuttable(o: Organelle): boolean {
+  if (o.kind === Kind.Neighbor || o.kind === Kind.NeighborNucleus) return false;
+  const q = v3.sub(o.center, WEDGE.center);
+  if (Math.hypot(q[0], q[1], q[2]) - o.bound > WEDGE.radius) return false;
+  const turn = (a: number) => [Math.sin(WEDGE.yaw + a), 0, Math.cos(WEDGE.yaw + a)];
+  const n1 = turn(WEDGE.half - Math.PI / 2), n2 = turn(Math.PI / 2 - WEDGE.half);
+  return Math.min(q[0] * n1[0] + q[2] * n1[2], q[0] * n2[0] + q[2] * n2[2]) > -o.bound;
+}
+
 export function buildMeshes(orgs: Organelle[], quality = 1): MeshSet {
   const ranges: [number, number][] = orgs.map(() => [0, 0]);
-  // shells first, so their inner surfaces are one contiguous index range
-  const order = orgs.map((o, i) => i).sort((a, b) => Number(isShell(orgs[b])) - Number(isShell(orgs[a])));
-  let shellCount = 0;
+  // shells first, so their inner surfaces are one contiguous index range; in each, those the wedge can't reach first
+  // (their draws need nothing discarded: organelles.ts)
+  const rank = (o: Organelle) => (isShell(o) ? 0 : 2) + (cuttable(o) ? 1 : 0);
+  const order = orgs.map((o, i) => i).sort((a, b) => rank(orgs[a]) - rank(orgs[b]));
+  let shellCount = 0, shellCut = -1, solidCut = -1;
   const build = (g: Grid) => {
+    shellCut = solidCut = -1;
     for (const i of order) {
-      const o = orgs[i], first = g.ni;
+      const o = orgs[i], first = g.ni, k = rank(o);
+      if (k === 1 && shellCut < 0) shellCut = first;
+      if (k >= 2 && shellCut < 0) shellCut = first;
+      if (k === 3 && solidCut < 0) solidCut = first;
       if (o.shape === Shape.Blob) blobGrid(g, o, i, quality);
       else if (o.shape === Shape.Capsule) capsuleGrid(g, o, i, quality);
       else discGrid(g, o, i, quality);
       ranges[i] = [first, g.ni - first];
       if (isShell(o)) shellCount = g.ni;
     }
+    if (shellCut < 0) shellCut = g.ni;
+    if (solidCut < 0) solidCut = g.ni;
   };
   // (counted first, so the arrays are made once at their size: nothing grown as it goes, nothing copied at the end —
   // on a laptop that was a quarter of a gigabyte copied round for a mesh half that size)
@@ -189,5 +211,5 @@ export function buildMeshes(orgs: Organelle[], quality = 1): MeshSet {
   build(n);
   const g = new Grid(n.nv, n.ni);
   build(g);
-  return { vertices: g.v.subarray(0, g.nv * 8), indices: g.i.subarray(0, g.ni), shellCount, ranges };
+  return { vertices: g.v.subarray(0, g.nv * 8), indices: g.i.subarray(0, g.ni), shellCount, shellCut: Math.min(shellCut, shellCount), solidCut, ranges };
 }

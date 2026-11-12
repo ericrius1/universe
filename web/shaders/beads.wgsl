@@ -160,7 +160,7 @@ fn beadHit(in: VOut) -> BeadHit {
   c = mix(c, in.color * 0.15 + glow * 2.0, G.fluo * 0.85);
   var out: GOut;
   out.color = vec4f(c, 1.0);
-  out.nrm = vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0);
+  out.nrm = octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz));
   out.id = 0x80000000u | (in.info4.x << 16u) | (in.info4.z & 0xffffu);
   return out;
 }

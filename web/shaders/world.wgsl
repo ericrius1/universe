@@ -275,4 +275,20 @@ fn wrinkle(p: vec3f, n: vec3f, freq: f32, amp: f32) -> vec3f {
   return normalize(n - (g - n * dot(g, n)) * amp);
 }
 
+// a view-space normal packed into two numbers (octahedral) for the scene's normals target (rg16float: only the
+// occlusion reads it, post.wgsl fs_ao), and back
+fn octNormal(n0: vec3f) -> vec4f {
+  let n = n0 / (abs(n0.x) + abs(n0.y) + abs(n0.z));
+  let s = select(vec2f(-1.0), vec2f(1.0), n.xy >= vec2f(0.0));
+  let e = select((1.0 - abs(n.yx)) * s, n.xy, n.z >= 0.0);
+  return vec4f(e, 0.0, 1.0);
+}
+fn unOctNormal(e: vec2f) -> vec3f {
+  var n = vec3f(e, 1.0 - abs(e.x) - abs(e.y));
+  let t = max(-n.z, 0.0);
+  n.x += select(t, -t, n.x >= 0.0);
+  n.y += select(t, -t, n.y >= 0.0);
+  return normalize(n);
+}
+
 fn srgb(c: vec3f) -> vec3f { return pow(c, vec3f(2.2)); }

@@ -71,7 +71,7 @@ fn reachesCut(o: Organelle) -> bool {
   return out;
 }
 
-fn viewNormal(n: vec3f) -> vec4f { return vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0); }
+fn viewNormal(n: vec3f) -> vec4f { return octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz)); }
 
 // nm per pixel at a world point
 fn footprint(p: vec3f) -> f32 { return length(p - frame.camPos) * G.pxAngle; }
@@ -278,6 +278,8 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
   let h = cutFace(in.world);
   if (!h.ok) { discard; }
   let o = orgAt(in.org);
+  // (outside its bounding sphere it can't be in its material: no need to ask its surface)
+  if (length(h.p - o.center) > o.bound) { discard; }
   let sd = sdOrganelle(o, h.p);
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
   // the cut point must be inside this organelle's material (a shell: within its thickness)

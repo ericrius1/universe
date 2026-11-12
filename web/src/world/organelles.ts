@@ -52,7 +52,7 @@ export class Organelles {
     const verts = kit.storage({ label: 'organelle.v', data: this.mesh.vertices, stride: 32 });
     const indices = kit.storage({ label: 'organelle.i', data: this.mesh.indices, usage: ['index', 'storage', 'copy-dst'] });
     const noiseTex = noiseLattice(kit);
-    const all = this.mesh.indices.length, shells = this.mesh.shellCount;
+    const all = this.mesh.indices.length, shells = this.mesh.shellCount, { shellCut, solidCut } = this.mesh;
     const ib = { buffer: indices, format: 'uint32' as const };
     const s = r.scene;
     const g = r.globals;
@@ -60,18 +60,25 @@ export class Organelles {
     const solidOn = () => (g.get('shellSolid') as number) > 0.001;
     const glassOn = () => (g.get('shellSolid') as number) < 0.999;
     // (each solid draw twice: as it is where the wedge is open or a membrane's dithering in, and without either — so no
-    // fragment of it can be discarded and the GPU hides what's behind it before shading it — the rest of the time)
-    const whole = () => !cutOn() && (g.get('shellSolid') as number) >= 0.999;
+    // fragment of it can be discarded and the GPU hides what's behind it before shading it — the rest of the time; and
+    // what the wedge can't reach — the meshes' first part of each kind, meshes.ts cuttable — never needs it for the cut)
+    const solidAll = () => (g.get('shellSolid') as number) >= 0.999;
+    const whole = () => !cutOn() && solidAll();
     const bind = { verts, noiseTex };
-    const solid = (label: string, vertex: string, fragment: string, count: number, first: number, cull: GPUCullMode, on: () => boolean, plain: () => boolean) => {
+    const solid = (label: string, vertex: string, fragment: string, first: number, end: number, cull: GPUCullMode, on: () => boolean, plain: () => boolean) => {
+      if (end <= first) return;
+      const count = end - first;
       s.draw(organelleShader, { label, vertex, fragment, bind, indices: ib, count, first, cull, constants: { CLIP: 0 }, enabled: () => on() && plain() });
       s.draw(organelleShader, { label: `${label}.clip`, vertex, fragment, bind, indices: ib, count, first, cull, enabled: () => on() && !plain() });
     };
     // cisternae, cristae, nucleoli, droplets: always solid (the shells come first in the index buffer)
-    solid('organelles', 'vs_outer', 'fs_outer', all - shells, shells, 'back', () => true, () => !cutOn());
+    solid('organelles', 'vs_outer', 'fs_outer', shells, solidCut, 'back', () => true, () => true);
+    solid('organelles.cuttable', 'vs_outer', 'fs_outer', solidCut, all, 'back', () => true, () => !cutOn());
     // membranes: solid up close (their inner walls too), glass from afar
-    solid('membranes', 'vs_outer', 'fs_outer', shells, 0, 'back', solidOn, whole);
-    solid('membranes.inner', 'vs_inner', 'fs_inner', shells, 0, 'front', solidOn, whole);
+    solid('membranes', 'vs_outer', 'fs_outer', 0, shellCut, 'back', solidOn, solidAll);
+    solid('membranes.cuttable', 'vs_outer', 'fs_outer', shellCut, shells, 'back', solidOn, whole);
+    solid('membranes.inner', 'vs_inner', 'fs_inner', 0, shellCut, 'front', solidOn, solidAll);
+    solid('membranes.inner.cuttable', 'vs_inner', 'fs_inner', shellCut, shells, 'front', solidOn, whole);
     s.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind, indices: ib, count: all, cull: 'front', enabled: cutOn });
     s.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind, indices: ib, count: shells, cull: 'back', enabled: cutOn });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
