@@ -1,0 +1,134 @@
+{
+ "when": "2026-11-12T21:45:21.161Z",
+ "query": "",
+ "size": "1710x1000@2",
+ "phone": false,
+ "places": {
+  "keepers": {
+   "1": 10.3
+  },
+  "our marble": {
+   "1": 23.1
+  },
+  "universe": {
+   "1": 37
+  },
+  "web, whole": {
+   "1": 99.7
+  },
+  "web": {
+   "1": 70.2
+  },
+  "local group": {
+   "1": 10.9
+  },
+  "milky way": {
+   "1": 16.2
+  },
+  "entering the disc": {
+   "1": 122.4
+  },
+  "neighbours": {
+   "1": 4.8
+  },
+  "past the planets": {
+   "1": 10.7
+  },
+  "solar system": {
+   "1": 10.6
+  },
+  "inner planets": {
+   "1": 10.5
+  },
+  "earth and moon": {
+   "1": 9.9
+  },
+  "earth": {
+   "1": 9.8
+  },
+  "coming down": {
+   "1": 8.5
+  },
+  "gardens, 3 km": {
+   "1": 20
+  },
+  "gardens, 25 m": {
+   "1": 15
+  },
+  "her, 2 m": {
+   "1": 9.4
+  },
+  "her eye": {
+   "1": 12.3
+  },
+  "cornea": {
+   "1": 9.3
+  },
+  "cell:tissue": {
+   "1": 37.6
+  },
+  "cell:cell": {
+   "1": 43.6
+  },
+  "cell:nucleus": {
+   "1": 60.1
+  },
+  "cell:pore": {
+   "1": 75.1
+  },
+  "cell:dna": {
+   "1": 56.3
+  },
+  "cell:mito": {
+   "1": 53.2
+  },
+  "cell:atp": {
+   "1": 86.3
+  },
+  "cell:er": {
+   "1": 68.6
+  },
+  "cell:golgi": {
+   "1": 71.3
+  },
+  "cell:mt": {
+   "1": 54.6
+  },
+  "cell:membrane": {
+   "1": 56
+  }
+ },
+ "parts": {
+  "keepers": {},
+  "our marble": {},
+  "universe": {},
+  "web, whole": {},
+  "web": {},
+  "local group": {},
+  "milky way": {},
+  "entering the disc": {},
+  "neighbours": {},
+  "past the planets": {},
+  "solar system": {},
+  "inner planets": {},
+  "earth and moon": {},
+  "earth": {},
+  "coming down": {},
+  "gardens, 3 km": {},
+  "gardens, 25 m": {},
+  "her, 2 m": {},
+  "her eye": {},
+  "cornea": {},
+  "cell:tissue": {},
+  "cell:cell": {},
+  "cell:nucleus": {},
+  "cell:pore": {},
+  "cell:dna": {},
+  "cell:mito": {},
+  "cell:atp": {},
+  "cell:er": {},
+  "cell:golgi": {},
+  "cell:mt": {},
+  "cell:membrane": {}
+ }
+}
