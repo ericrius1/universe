@@ -1,0 +1,68 @@
+{
+ "files": {
+  "stars6.bin": {
+   "count": 8874,
+   "V": [
+    -1.44,
+    6.5
+   ],
+   "fallbackDistances": 162,
+   "estimatedColours": 4
+  },
+  "stars8.bin": {
+   "count": 32537,
+   "V": [
+    6.51,
+    8.0
+   ],
+   "fallbackDistances": 2213,
+   "estimatedColours": 48
+  }
+ },
+ "record": {
+  "bytes": 24,
+  "littleEndian": true,
+  "fields": [
+   [
+    "x",
+    "f32",
+    "pc"
+   ],
+   [
+    "y",
+    "f32",
+    "pc"
+   ],
+   [
+    "z",
+    "f32",
+    "pc"
+   ],
+   [
+    "V",
+    "f32",
+    "mag"
+   ],
+   [
+    "BV",
+    "f32",
+    "mag"
+   ],
+   [
+    "hip",
+    "u32",
+    "Hipparcos number in the low 24 bits; flags above"
+   ]
+  ],
+  "flags": {
+   "0x80000000": "distance is a lower bound from a poor parallax (capped at 5000 pc)",
+   "0x40000000": "B-V missing in XHIP: estimated from V-I, or 0.65"
+  }
+ },
+ "order": "brightest (smallest V) first",
+ "axes": "equatorial J2000 (ICRS): +x to RA 0h Dec 0, +y to RA 6h Dec 0, +z to the north celestial pole; origin the Sun",
+ "epoch": "positions carried from J1991.25 to J2000 by proper motion",
+ "distance": "XHIP Dist, else 1000/Plx (Plx >= 2 e_Plx), else 1000/max(Plx, 2 e_Plx, 0.2 mas) capped 5000 pc; the 19 stars with no Hipparcos parallax (added from I/239) get the median distance of well-measured stars of their V, flagged",
+ "credit": "XHIP: Anderson & Francis 2012, Astronomy Letters 38, 331 (VizieR V/137D), from the Hipparcos new reduction (van Leeuwen 2007, ESA). VizieR catalogue service, CDS, Strasbourg.",
+ "terms": "VizieR/CDS: free to use with acknowledgement of the catalogue and of CDS"
+}
