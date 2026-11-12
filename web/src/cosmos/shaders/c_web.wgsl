@@ -89,7 +89,7 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
   // (no further than a few view distances: beyond, every ray averages to the same grey)
   let t1 = min(h.y, t0 + 3.0 * L.scale);
   let steps = i32(L.c.y);
-  let jit = ign(in.pos.xy);
+  let jit = marchDither(in.pos.xy);
   var col = vec3f(0.0);
   var tPrev = t0;
   // (a slow drift of the filaments' hue across the sky)
@@ -100,15 +100,18 @@ fn webDensity(p: vec3f, soft: f32) -> vec2f {
     let dt = t - tPrev;
     tPrev = t;
     let p = ro + rd * t;
-    let d = webDensity(p, clamp(dt / 6.0, 1.0, 3.0));
+    let soft = clamp(dt / 6.0, 1.0, 3.0);
+    let d = webDensity(p, soft);
     if (d.x <= 0.0) { continue; }
+    // (a cluster's knot found by one long step stands for the whole of it: held down there, so it doesn't sparkle)
+    let dens = min(d.x, mix(20.0, 2.5, (soft - 1.0) * 0.5));
     // filaments cool blue-violet, clusters hot gold
     let c = mix(fil, vec3f(1.0, 0.62, 0.28) * 1.4, d.y);
     // (what's about the view's distance away counts most: from inside, the walls round you, not all 14 Gpc at once)
     let q = t / (1.3 * L.scale);
     // (and a hollow round the eye: a filament the zoom flies through passes as the galaxies do, not a flood of light
     // across the frame for the few frames it's at the lens)
-    col += c * d.x * dt / (1.0 + q * q * q * q) * ss(0.1 * L.scale, 0.4 * L.scale, t);
+    col += c * dens * dt / (1.0 + q * q * q * q) * ss(0.1 * L.scale, 0.4 * L.scale, t);
   }
   col *= L.c.x / L.scale;
   // (the faint sum of everything far behind kept down, so the voids stay black and the filaments stand out)

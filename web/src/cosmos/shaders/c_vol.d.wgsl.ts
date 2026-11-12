@@ -29,6 +29,10 @@ export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
 }
+export interface Hist {
+  share: number;
+  pad: Vec3;
+}
 
-declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut }, 'frame' | 'volTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Hist: Hist }, 'frame' | 'H' | 'volTex' | 'histTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

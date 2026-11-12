@@ -126,7 +126,7 @@ export class Web {
     const cmb = 1 - 0.7 * Math.max(0, Math.min(1, (l - 26.9) / 0.4));
     // (fewer steps from outside the shell, where the web's a faint skin and every ray crosses the whole of it: its
     // samples scatter across the noise, and each costs a miss)
-    const steps = Smpc > 6000 ? Math.round(28 - 12 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;
+    const steps = Smpc > 6000 ? Math.round(28 - 16 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;
     this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, steps, l > 26.3 ? 1 : 0, 0] });
   }
 }

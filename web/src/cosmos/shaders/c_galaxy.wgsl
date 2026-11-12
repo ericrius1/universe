@@ -3,7 +3,7 @@
 // and dark dust lanes on the arms' inner edges. Marched through its slab; from the Sun's place in it the same march
 // draws the band of the Milky Way across the sky, until the band is the real one: the sky's picture (NASA's Deep Star
 // Maps), with the march's steps falling away as it takes over. L.a: emission gain, dust gain, steps, how far inside the
-// disc; L.d: y the band's gain, z 1 once the picture is in. Its noise is baked (noisetex.wgsl).
+// disc; L.d: y the band's gain, z 1 once the picture is in, w the fraction of the frame's resolution it's drawn at. Its noise is baked (noisetex.wgsl).
 #include "cosmos.wgsl"
 #include "noisetex.wgsl"
 #include "weft/fullscreen"
@@ -87,8 +87,8 @@ fn skyPicture(rd: vec3f) -> vec3f {
   let ra = atan2(e.y, e.x);
   let dec = asin(clamp(e.z, -1.0, 1.0));
   let uv = vec2f(fract(0.5 - ra / (2.0 * PI)), 0.5 - dec / PI);
-  // (its level from a pixel's size on the sky, the march's pixel being two of the frame's: no seam where it wraps)
-  let lod = max(log2(L.pxAngle * 2.0 * 4096.0 / (2.0 * PI)), 0.0);
+  // (its level from a pixel's size on the sky, the march's pixel being 1 / L.d.w of the frame's: no seam where it wraps)
+  let lod = max(log2(L.pxAngle / max(L.d.w, 0.1) * 4096.0 / (2.0 * PI)), 0.0);
   let c = textureSampleLevel(milkyTex, samp_repeat, uv, lod).rgb;
   return c * c * c * SKY_GAIN;
 }
@@ -120,7 +120,7 @@ fn band(rd: vec3f) -> vec3f {
   if (t1 <= t0) { return vec4f(0.0); }
   let steps = i32(L.a.z);
   // (steps cluster near the eye: from inside the disc the nearby kiloparsec matters most)
-  let jit = ign(in.pos.xy);
+  let jit = marchDither(in.pos.xy);
   var T = 1.0;
   var col = vec3f(0.0);
   let span = t1 - t0;

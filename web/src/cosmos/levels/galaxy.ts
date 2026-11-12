@@ -23,10 +23,13 @@ export class Galaxy {
   private readonly kit: Kit;
   /** a light device's (a phone's) picture: half the size, the mip it would sample anyway */
   private readonly small: boolean;
+  /** the fraction of the frame's resolution it marches at (its pixel's size on the sky, for the picture's mip) */
+  private readonly vscale: number;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
     this.kit = kit;
     this.small = R.light;
+    this.vscale = R.volumeScale;
     this.lv = R.level('galaxy', ladder.galaxy, [23.6, 22.6, -99, -100]);
     // (the stars are a second view of the same frame, with their own gains)
     this.stars = R.level('galaxy.stars', ladder.galaxy, [23.0, 22.2, -99, -100]);
@@ -113,8 +116,10 @@ export class Galaxy {
     const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
     if (this.picture === 'none' && this.lv.weight > 0) this.loadPicture();
     // (and the march's steps fall away as it does, so the two are never both paid in full)
-    const steps = Math.max(8, Math.round(56 * (1 - inside)));
-    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, steps, inside], d: [0, 0.045, this.picture === 'in' ? 1 : 0, 0] });
+    const steps = Math.max(8, Math.round(40 * (1 - inside)));
+    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, steps, inside], d: [0, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
+    // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
+    if (this.picture === 'in') this.stars.weight *= 1 - inside;
     this.stars.L.set({ weight: this.stars.weight, a: [0.0005 * Math.max(Sk, 12) ** 2, 0, 0.02, 1] });
   }
 }
