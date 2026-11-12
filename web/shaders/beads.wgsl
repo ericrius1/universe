@@ -18,7 +18,9 @@ struct VOut {
   @location(3) @interpolate(flat) color: vec3f,
   @location(4) @interpolate(flat) info4: vec4u,     // type, flags, instance id, bead info
 }
-struct GOutD { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32, @builtin(frag_depth) depth: f32 }
+struct GOut { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32 }
+// (the depth the scene ended with, the beads' own among it: the lit draw shades only the bead that set it)
+@group(2) @binding(13) var beadDepth: texture_depth_2d;
 
 fn hueShift(c: vec3f, h: f32, l: f32) -> vec3f {
   // a small turn about the grey axis, and a lightness nudge
@@ -98,16 +100,41 @@ fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
   return out;
 }
 
-@fragment fn fs(in: VOut) -> GOutD {
+// where the eye's ray through this fragment meets the bead (t < 0: it misses), and its depth there
+struct BeadHit { t: f32, p: vec3f, rd: vec3f, depth: f32 }
+fn beadHit(in: VOut) -> BeadHit {
+  var o: BeadHit;
   let ro = frame.camPos;
-  let rd = normalize(in.world - ro);
+  o.rd = normalize(in.world - ro);
   let oc = ro - in.center;
-  let b = dot(oc, rd);
+  let b = dot(oc, o.rd);
   let cc = dot(oc, oc) - in.radius * in.radius;
   let h = b * b - cc;
-  if (h < 0.0) { discard; }
-  let t = -b - sqrt(h);
-  let p = ro + rd * t;
+  o.t = select(-1.0, -b - sqrt(max(h, 0.0)), h >= 0.0);
+  o.p = ro + o.rd * o.t;
+  let clip = frame.viewProj * vec4f(o.p, 1.0);
+  o.depth = clip.z / clip.w;
+  return o;
+}
+
+// first, in the scene pass: the depth alone (every bead, cheaply, so the scene's depth is the nearest of everything)
+@fragment fn fs_depth(in: VOut) -> @builtin(frag_depth) f32 {
+  let hit = beadHit(in);
+  if (hit.t < 0.0) { discard; }
+  return hit.depth;
+}
+
+// then lit, in a pass of its own over the scene's depth (renderer.ts beads): the quad lies at the bead's front, so one
+// wholly behind what's there fails the depth test before it's shaded; one that pokes through is shaded only where its
+// own depth is the one there
+@fragment fn fs(in: VOut) -> GOut {
+  let hit = beadHit(in);
+  if (hit.t < 0.0) { discard; }
+  let there = textureLoad(beadDepth, vec2i(in.pos.xy), 0);
+  if (abs(hit.depth - there) > there * 4e-6) { discard; }
+  let rd = hit.rd;
+  let t = hit.t;
+  let p = hit.p;
   var n = normalize(p - in.center);
   let v = -rd;
   let flags = in.info4.y;
@@ -119,7 +146,7 @@ fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
     let fp = t * G.pxAngle;
     let vis = 1.0 - smoothstep(0.12, 0.45, fp);
     if (vis > 0.0) {
-      let cl = cellular(p / 0.72, 0.85);
+      let cl = cellular8(p / 0.72, 0.85);
       let d = p / 0.72 - cl.c;
       let tg = d - n * dot(d, n);
       let bump = 1.0 - smoothstep(0.25, 0.62, length(tg));
@@ -131,11 +158,9 @@ fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
   if ((flags & F_GLOW) != 0u) { glow = in.color * 1.6; }
   var c = bioLight(n, v, s) + glow;
   c = mix(c, in.color * 0.15 + glow * 2.0, G.fluo * 0.85);
-  var out: GOutD;
+  var out: GOut;
   out.color = vec4f(c, 1.0);
   out.nrm = vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0);
   out.id = 0x80000000u | (in.info4.x << 16u) | (in.info4.z & 0xffffu);
-  let clip = frame.viewProj * vec4f(p, 1.0);
-  out.depth = clip.z / clip.w;
   return out;
 }

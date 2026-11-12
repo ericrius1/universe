@@ -11,6 +11,14 @@
 
 struct MeshV { px: f32, py: f32, pz: f32, nx: f32, ny: f32, nz: f32, org: u32, flags: u32 }
 @group(2) @binding(0) var<storage, read> verts: array<MeshV>;
+// the value noise's lattice, baked (src/world/organelles.ts noiseLattice): NOISE_N³ corners, the hash's own values,
+// tiling. A lookup at i + fade(f) has the hardware's trilinear filter do the quintic-faded interpolation vnoise does by
+// hand — one fetch for eight hashes
+@group(2) @binding(1) var noiseTex: texture_3d<f32>;
+const NOISE_N = 64.0;
+// whether a fragment may be cut away (the wedge) or dithered out (between glass and solid): a draw without either is
+// made with this off, so the GPU knows nothing of it is discarded and hides what's behind it before shading it
+override CLIP: bool = true;
 
 struct VOut {
   @builtin(position) pos: vec4f,
@@ -75,6 +83,21 @@ fn bayer(px: vec2f) -> f32 {
   return (m[i.y * 4u + i.x] + 0.5) / 16.0;
 }
 
+// vnoise from the baked lattice (the corners wrap every NOISE_N: a different draw of the same noise), snoise's three
+// octaves of it, and world.wgsl's wrinkle made of those
+fn tvnoise(p: vec3f) -> f32 {
+  let i = floor(p);
+  let w = i - floor(i / NOISE_N) * NOISE_N;
+  return textureSampleLevel(noiseTex, samp_repeat, (w + fade3(p - i) + 0.5) / NOISE_N, 0.0).r;
+}
+fn tsnoise(p: vec3f) -> f32 { return tvnoise(p) * 0.6 + tvnoise(p * 2.11 + 3.1) * 0.3 + tvnoise(p * 4.37 + 7.7) * 0.1; }
+fn twrinkle(p: vec3f, n: vec3f, freq: f32, amp: f32) -> vec3f {
+  let q = p * freq;
+  let h0 = tsnoise(q);
+  let g = vec3f(tsnoise(q + vec3f(0.35, 0.0, 0.0)), tsnoise(q + vec3f(0.0, 0.35, 0.0)), tsnoise(q + vec3f(0.0, 0.0, 0.35))) - h0;
+  return normalize(n - (g / 0.35 - n * dot(g / 0.35, n)) * amp);
+}
+
 // the packed heads of a lipid bilayer's leaflet, resolved when a pixel is under ~half a nanometre: a bump normal and
 // a tint per lipid (phosphatidylcholine, -ethanolamine, -serine, sphingomyelin, cholesterol)
 struct Lipid { n: vec3f, tint: vec3f, ao: f32, vis: f32 }
@@ -83,7 +106,7 @@ fn lipids(p: vec3f, n: vec3f, fp: f32) -> Lipid {
   l.vis = 1.0 - smoothstep(0.12, 0.45, fp);
   if (l.vis <= 0.0) { return l; }
   let s = 0.72;
-  let c = cellular(p / s, 0.7);
+  let c = cellular8(p / s, 0.7);
   let d = (p / s - c.c);
   let t = d - n * dot(d, n);
   // each head a little sphere (radius 0.46 cells): its normal tilts out from its centre; past its rim, the crevice
@@ -114,10 +137,10 @@ fn detail(o: Organelle, p: vec3f, n0: vec3f) -> Detail {
   let facing = abs(dot(n0, normalize(frame.camPos - p)));
   let amp = 0.2 * smoothstep(0.05, 0.4, facing);
   let pa = absP(p);
-  let na = wrinkle(pa + o.seed, n0, fa, amp);
-  let nb = wrinkle(pa + o.seed * 1.7, n0, fa * 2.0, amp);
+  let na = twrinkle(pa + o.seed, n0, fa, amp);
+  let nb = twrinkle(pa + o.seed * 1.7, n0, fa * 2.0, amp);
   d.n = normalize(mix(na, nb, t));
-  let mott = mix(snoise(pa * (fa * 0.35) + o.seed), snoise(pa * (fa * 0.7) + o.seed), t);
+  let mott = mix(tsnoise(pa * (fa * 0.35) + o.seed), tsnoise(pa * (fa * 0.7) + o.seed), t);
   d.tint = vec3f(0.9 + 0.1 * mott);
   let lp = lipids(pa, d.n, fp);
   d.n = mix(d.n, lp.n, lp.vis);
@@ -138,10 +161,12 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 }
 
 @fragment fn fs_outer(in: VOut) -> GOut {
-  if (cutHere(in)) { discard; }
   let o = orgAt(in.org);
-  // membranes are solid only up close (cross-fading by dither with the glass)
-  if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
+  if (CLIP) {
+    if (cutHere(in)) { discard; }
+    // membranes are solid only up close (cross-fading by dither with the glass)
+    if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
+  }
   var out: GOut;
   out.color = vec4f(shade(o, in.world, normalize(in.n), false), 1.0);
   out.nrm = viewNormal(in.n);
@@ -149,8 +174,10 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   return out;
 }
 @fragment fn fs_inner(in: VOut) -> GOut {
-  if (cutHere(in)) { discard; }
-  if (bayer(in.pos.xy) > G.shellSolid) { discard; }
+  if (CLIP) {
+    if (cutHere(in)) { discard; }
+    if (bayer(in.pos.xy) > G.shellSolid) { discard; }
+  }
   let o = orgAt(in.org);
   var out: GOut;
   out.color = vec4f(shade(o, in.world, -normalize(in.n), true), 1.0);

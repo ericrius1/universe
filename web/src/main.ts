@@ -131,24 +131,45 @@ async function boot() {
   // the meadow outside Boulder as before, and never on a dome)
   if (SEAMED) app.seamed();
   if (GARDENS) (app.gardens = new Gardens(kit, cosmos, BASE)).start();
-  // (?taau: temporal anti-aliasing with upscaling over the film's HDR, before its bloom — the cell's frames alone are
-  // jittered and reprojected: kit.camera is the cell's; the cosmos's levels march their own rays. ?scale=<x> fixes the
-  // render scale, no AutoResolution)
-  if (params.has('scale')) kit.renderScale = Number(params.get('scale'));
-  if ((params.has('taau') || params.has('taau2')) && !dome && !params.has('film')) {
-    const t = app.taau = new Taau(kit, cosmos.r.hdr, r.depth);
+  // (the upscaler: weft's temporal anti-aliasing with upscaling over the film's HDR, before its bloom — the cell's frames
+  // alone are jittered and reprojected: kit.camera is the cell's; the cosmos's levels march their own rays. On by default
+  // on a computer, while the cell's in the picture: the cell drawn at CELL_MAX of the canvas's pixels or less — the
+  // dynamic resolution moves it between its least and that, rather than stretching a smaller picture — gathered back up
+  // to the canvas's size over frames, and sharpened in the film's last pass (cosmos/shaders/c_post.wgsl fs_final, so
+  // no pass of its own at the canvas's size). Above the cell the render scale is the cosmos's own, kept for it while
+  // the cell has it. ?notaau the cell stretched as before; ?taau it on a phone too; never a film's or the dome's.
+  // ?scale=<x> fixes the render scale everywhere, no AutoResolution)
+  const fixedScale = params.has('scale');
+  if (fixedScale) kit.renderScale = Number(params.get('scale'));
+  const upscale = !dome && !params.has('film') && !params.has('notaau') && (!mobile || params.has('taau') || params.has('taau2'));
+  if (upscale) {
+    const t = app.taau = new Taau(kit, cosmos.r.hdr, r.depth, { sharpen: false });
     if (params.has('taaudebug')) t.params.debug = true;
-    // (the floating origin moves each frame to the focus: last frame's view-projection taken over to this frame's
-    // origin — prevVP · T(origin now − origin then) — or the history would be reprojected by the origin's step)
+    // (the floating origin moves each frame to the focus: the history is carried over by the origin's step — weft's
+    // Taau.shift; ?taau2's by its last view-projection taken over to this frame's origin, prevVP · T(origin now − then))
     const last: [number, number, number] = [origin[0], origin[1], origin[2]];
     const shift = kit.action(() => {
       const dx = origin[0] - last[0], dy = origin[1] - last[1], dz = origin[2] - last[2];
       last[0] = origin[0]; last[1] = origin[1]; last[2] = origin[2];
-      const P = (t as unknown as { prevVP: Float32Array }).prevVP;
       if ((!dx && !dy && !dz) || (window as unknown as { __noShift?: boolean }).__noShift) return;
+      if (typeof (t as Partial<WeftTaau>).shift === 'function') { t.shift(dx, dy, dz); return; }
+      const P = (t as unknown as { prevVP: Float32Array }).prevVP;
       for (let r = 0; r < 4; r++) P[12 + r] += P[r] * dx + P[4 + r] * dy + P[8 + r] * dz;
     }, 'taau.origin');
-    cosmos.r.useTaau(t, [shift]);
+    // (the render scale under it: in the cell at most CELL_MAX — the dynamic resolution's ceiling there, and what a
+    // fixed scale above that is held to — the cosmos's own given back on leaving; it takes from the next frame)
+    const CELL_MAX = 0.66;
+    let inCell = false, cosmosScale = kit.renderScale, cellScale = CELL_MAX, cosmosMax = 1;
+    const scale = kit.action(() => {
+      const on = t.params.on, res = kit.autoRes ?? pace;
+      if (on !== inCell && !fixedScale) {
+        inCell = on;
+        if (on) { cosmosScale = kit.renderScale; if (res) { cosmosMax = res.max; res.max = CELL_MAX; } kit.renderScale = cellScale; }
+        else { cellScale = kit.renderScale; if (res) res.max = cosmosMax; kit.renderScale = cosmosScale; }
+      }
+      if (on && !fixedScale && kit.renderScale > CELL_MAX) kit.renderScale = CELL_MAX;
+    }, 'taau.scale');
+    cosmos.r.useTaau(t, [shift, scale]);
   }
   const capture = new Capture(kit);
   // hold the frame rate on smaller GPUs by trading resolution: by the GPU's timestamps where it has them, by the
@@ -795,7 +816,9 @@ export class App {
     const rotY = (v: Vec3, a: number): Vec3 => [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)];
     const n1 = rotY(this.wedgeDir, half - Math.PI / 2), n2 = rotY(this.wedgeDir, Math.PI / 2 - half);
     const fov = kit.camera.fovY;
-    const pxAngle = (2 * Math.tan(fov / 2)) / kit.size.render[1];
+    // (a pixel of the picture: the canvas's under the upscaler, which gives back its detail — so what's drawn at what detail
+    // is as it is at full size)
+    const pxAngle = (2 * Math.tan(fov / 2)) / (this.taau?.params.on ? kit.size.canvas[1] : kit.size.render[1]);
     const outside = this.compartmentName === 'outside';
     const fogK = outside ? 6 : 1.4 + 1.6 * Math.min(1, Math.max(0, Math.log10(S / 100) / 2));
     const [g0, g1] = this.shellGlass;
