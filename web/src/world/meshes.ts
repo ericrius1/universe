@@ -22,7 +22,8 @@ class Grid {
   i: Uint32Array;
   nv = 0;
   ni = 0;
-  constructor(verts: number, idx: number) {
+  /** `counting`: only count what lathe would make (buildMeshes sizes its arrays by it) */
+  constructor(verts: number, idx: number, readonly counting = false) {
     this.v = new Float32Array(verts * 8);
     this.u = new Uint32Array(this.v.buffer);
     this.i = new Uint32Array(idx);
@@ -42,6 +43,7 @@ class Grid {
   }
   /** rows × cols positions (cols wrap round), triangulated, with smooth normals */
   lathe(rows: number, cols: number, pos: (i: number, j: number) => V3, org: number, flags = 0) {
+    if (this.counting) { this.nv += rows * cols; this.ni += (rows - 1) * cols * 6; return; }
     this.ensure(rows * cols, (rows - 1) * cols * 6);
     const base = this.nv, v = this.v;
     for (let i = 0; i < rows; i++) {
@@ -60,7 +62,10 @@ class Grid {
       const e1x = v[b * 8] - ax, e1y = v[b * 8 + 1] - ay, e1z = v[b * 8 + 2] - az;
       const e2x = v[c * 8] - ax, e2y = v[c * 8 + 1] - ay, e2z = v[c * 8 + 2] - az;
       const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
-      for (const q of [a, b, c]) { v[q * 8 + 3] += nx; v[q * 8 + 4] += ny; v[q * 8 + 5] += nz; }
+      // (each corner written out: no list of the three made for every triangle, nine million of them on a laptop)
+      v[a * 8 + 3] += nx; v[a * 8 + 4] += ny; v[a * 8 + 5] += nz;
+      v[b * 8 + 3] += nx; v[b * 8 + 4] += ny; v[b * 8 + 5] += nz;
+      v[c * 8 + 3] += nx; v[c * 8 + 4] += ny; v[c * 8 + 5] += nz;
     };
     for (let i = 0; i < rows - 1; i++) {
       for (let j = 0; j < cols; j++) {
@@ -164,18 +169,25 @@ function discGrid(g: Grid, o: Organelle, idx: number, q: number) {
 export const isShell = (o: Organelle) => o.shape !== Shape.Disc && o.thick > 0;
 
 export function buildMeshes(orgs: Organelle[], quality = 1): MeshSet {
-  const g = new Grid(1 << 20, 1 << 22);
   const ranges: [number, number][] = orgs.map(() => [0, 0]);
   // shells first, so their inner surfaces are one contiguous index range
   const order = orgs.map((o, i) => i).sort((a, b) => Number(isShell(orgs[b])) - Number(isShell(orgs[a])));
   let shellCount = 0;
-  for (const i of order) {
-    const o = orgs[i], first = g.ni;
-    if (o.shape === Shape.Blob) blobGrid(g, o, i, quality);
-    else if (o.shape === Shape.Capsule) capsuleGrid(g, o, i, quality);
-    else discGrid(g, o, i, quality);
-    ranges[i] = [first, g.ni - first];
-    if (isShell(o)) shellCount = g.ni;
-  }
-  return { vertices: g.v.slice(0, g.nv * 8), indices: g.i.slice(0, g.ni), shellCount, ranges };
+  const build = (g: Grid) => {
+    for (const i of order) {
+      const o = orgs[i], first = g.ni;
+      if (o.shape === Shape.Blob) blobGrid(g, o, i, quality);
+      else if (o.shape === Shape.Capsule) capsuleGrid(g, o, i, quality);
+      else discGrid(g, o, i, quality);
+      ranges[i] = [first, g.ni - first];
+      if (isShell(o)) shellCount = g.ni;
+    }
+  };
+  // (counted first, so the arrays are made once at their size: nothing grown as it goes, nothing copied at the end —
+  // on a laptop that was a quarter of a gigabyte copied round for a mesh half that size)
+  const n = new Grid(0, 0, true);
+  build(n);
+  const g = new Grid(n.nv, n.ni);
+  build(g);
+  return { vertices: g.v.subarray(0, g.nv * 8), indices: g.i.subarray(0, g.ni), shellCount, ranges };
 }
