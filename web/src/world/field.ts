@@ -90,9 +90,9 @@ export class Field {
     // the nearest, renderer.ts beads)
     const beadBind = { types: mols.typeTable, insts, lists, beads: mols.beads, beadInfo: mols.beadInfo };
     const encode = (pe: GPURenderPassEncoder) => { for (let i = 0; i < NLISTS; i++) pe.drawIndirect(args.gpu, i * 16); };
-    r.scene.draw(beadShader, { label: 'molecules.depth', fragment: 'fs_depth', bind: beadBind, cull: 'none', encode });
+    r.scene.draw(beadShader, { label: 'molecules.depth', vertex: 'vs_depth', fragment: 'fs_depth', bind: beadBind, cull: 'none', encode });
     r.scene.draws.unshift(r.scene.draws.pop()!);
-    r.beads.draw(beadShader, { label: 'molecules', fragment: 'fs', bind: { ...beadBind, beadDepth: r.depth }, cull: 'none', depthWrite: false, encode });
+    r.beads.draw(beadShader, { label: 'molecules', vertex: 'vs', fragment: 'fs', bind: { ...beadBind, beadDepth: r.depth }, cull: 'none', depthWrite: false, encode });
 
     // the filament segments that carry molecules, bucketed for the per-frame search
     const d = fil.data, u = new Uint32Array(d.buffer, d.byteOffset, d.length);

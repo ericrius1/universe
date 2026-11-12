@@ -8,6 +8,8 @@ import type { Renderer } from '../engine/renderer';
 import { type World, Kind } from './layout';
 import { buildMeshes, type MeshSet } from './meshes';
 import { pcg3 } from './noise';
+import { rel } from '../engine/origin';
+import type { Vec3 } from 'math';
 
 /** the value noise's lattice for the organelles' shading (organelle.wgsl tvnoise): N³ corners of noise.wgsl's ncorner,
  *  tiling, as a 3D texture the hardware filters */
@@ -65,11 +67,41 @@ export class Organelles {
     const solidAll = () => (g.get('shellSolid') as number) >= 0.999;
     const whole = () => !cutOn() && solidAll();
     const bind = { verts, noiseTex };
+    // (only the organelles in view: the meshes are millions of triangles, made once at their finest, and a draw of all of
+    // them — five times a frame, inner walls and cut faces too — is much of a close-up's frame however little shows.
+    // Each draw's range of the index buffer is walked organelle by organelle, their bounding spheres against the
+    // camera's frustum (once a frame), and the visible ones drawn, neighbours in the buffer as one call)
+    const O = world.organelles;
+    const spans = this.mesh.ranges.map(([first, count], i) => ({ first, count, o: O[i] })).filter((x) => x.count > 0).sort((a, b) => a.first - b.first);
+    const seen = new Uint8Array(spans.length);
+    let seenFrame = -1;
+    const c: Vec3 = [0, 0, 0];
+    const look = () => {
+      if (seenFrame === kit.frameIndex) return;
+      seenFrame = kit.frameIndex;
+      for (let i = 0; i < spans.length; i++) seen[i] = kit.camera.sees(rel(spans[i].o.center, c), spans[i].o.bound) ? 1 : 0;
+    };
+    const ranged = (lo: number, hi: number) => {
+      const a = spans.findIndex((x) => x.first >= lo), b = spans.findIndex((x) => x.first >= hi);
+      const i0 = a < 0 ? spans.length : a, i1 = b < 0 ? spans.length : b;
+      return (pe: GPURenderPassEncoder) => {
+        look();
+        let start = -1, end = -1;
+        for (let i = i0; i < i1; i++) {
+          if (!seen[i]) continue;
+          const x = spans[i];
+          if (x.first === end) { end += x.count; continue; }
+          if (end > start) pe.drawIndexed(end - start, 1, start, 0, 0);
+          start = x.first; end = x.first + x.count;
+        }
+        if (end > start) pe.drawIndexed(end - start, 1, start, 0, 0);
+      };
+    };
     const solid = (label: string, vertex: string, fragment: string, first: number, end: number, cull: GPUCullMode, on: () => boolean, plain: () => boolean) => {
       if (end <= first) return;
-      const count = end - first;
-      s.draw(organelleShader, { label, vertex, fragment, bind, indices: ib, count, first, cull, constants: { CLIP: 0 }, enabled: () => on() && plain() });
-      s.draw(organelleShader, { label: `${label}.clip`, vertex, fragment, bind, indices: ib, count, first, cull, enabled: () => on() && !plain() });
+      const encode = ranged(first, end);
+      s.draw(organelleShader, { label, vertex, fragment, bind, indices: ib, cull, constants: { CLIP: 0 }, enabled: () => on() && plain(), encode });
+      s.draw(organelleShader, { label: `${label}.clip`, vertex, fragment, bind, indices: ib, cull, enabled: () => on() && !plain(), encode });
     };
     // cisternae, cristae, nucleoli, droplets: always solid (the shells come first in the index buffer)
     solid('organelles', 'vs_outer', 'fs_outer', shells, solidCut, 'back', () => true, () => true);
@@ -79,11 +111,13 @@ export class Organelles {
     solid('membranes.cuttable', 'vs_outer', 'fs_outer', shellCut, shells, 'back', solidOn, whole);
     solid('membranes.inner', 'vs_inner', 'fs_inner', 0, shellCut, 'front', solidOn, solidAll);
     solid('membranes.inner.cuttable', 'vs_inner', 'fs_inner', shellCut, shells, 'front', solidOn, whole);
-    s.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind, indices: ib, count: all, cull: 'front', enabled: cutOn });
-    s.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind, indices: ib, count: shells, cull: 'back', enabled: cutOn });
+    // (the cut faces: only what the wedge can reach)
+    const capShells = ranged(shellCut, shells), capSolids = ranged(solidCut, all);
+    s.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind, indices: ib, cull: 'front', enabled: cutOn, encode: (pe) => { capShells(pe); capSolids(pe); } });
+    s.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind, indices: ib, cull: 'back', enabled: cutOn, encode: capShells });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keep: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
-    r.glass.draw(organelleShader, { label: 'membranes.glass', vertex: 'vs_outer', fragment: 'fs_glass', bind, indices: ib, count: shells, cull: 'none', blend: [add, keep], depthWrite: false, enabled: glassOn });
+    r.glass.draw(organelleShader, { label: 'membranes.glass', vertex: 'vs_outer', fragment: 'fs_glass', bind, indices: ib, cull: 'none', blend: [add, keep], depthWrite: false, enabled: glassOn, encode: ranged(0, shells) });
   }
 }
 
