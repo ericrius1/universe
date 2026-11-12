@@ -51,6 +51,7 @@ export interface Lv {
   c: Vec4;
   d: Vec4;
   view: Vec4;
+  march: Vec4;
 }
 export interface FullscreenOut {
   pos: Vec4;
@@ -61,5 +62,5 @@ export interface Gal {
   dust: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Gal: Gal }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Gal: Gal }, 'frame' | 'L' | 'cellTex' | 'valTex' | 'codeTex' | 'milkyTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -51,11 +51,12 @@ export interface Lv {
   c: Vec4;
   d: Vec4;
   view: Vec4;
+  march: Vec4;
 }
 export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut }, 'frame' | 'L' | 'cellTex' | 'valTex' | 'codeTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

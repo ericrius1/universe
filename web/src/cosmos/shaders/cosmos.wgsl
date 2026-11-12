@@ -13,6 +13,7 @@ struct Lv {
   sunPos: vec3f, pxAngle: f32,    // the Sun relative to the origin; radians per pixel
   a: vec4f, b: vec4f, c: vec4f, d: vec4f,   // the level's own
   view: vec4f,                    // xy 1 / the target's size (px); z 1: a dome's fisheye; w its sweet spot's elevation
+  march: vec4f,                   // x where a march's steps start this frame (renderer.ts marchJitter, 0..1)
 }
 @group(2) @binding(0) var<uniform> L: Lv;
 
@@ -23,6 +24,8 @@ fn ss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0.0, 1.0
 
 // a stable per-pixel dither for marches (interleaved gradient noise)
 fn ign(p: vec2f) -> f32 { return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715)))); }
+// a march's dither: the pixel's, moved on each frame the view holds still (the volume's history averages them)
+fn marchDither(p: vec2f) -> f32 { return fract(ign(p) + L.march.x); }
 
 // a float texture (unfilterable) read bilinearly at a uv (clamped to its edge)
 fn bilinear(t: texture_2d<f32>, uv: vec2f) -> f32 {

@@ -1,10 +1,12 @@
 // The Milky Way (kiloparsecs): its glow and dust as a volume (shaders/c_galaxy.wgsl), and its stars as points drawn from
 // the same disc, arms, bar and bulge, with the globular clusters in the halo. Seen whole it's a barred spiral; from the
-// Sun's place 8.2 kpc out it's the band across the sky behind every level below.
-import type { Kit } from '@ericrius1/weft';
+// Sun's place 8.2 kpc out it's the band across the sky behind every level below: the real one, NASA's Deep Star Maps
+// (data/sky/milkyway.webp), loaded the first time the galaxy shows; the drawn band stands in till it's in.
+import { loadImageTexture, solidTexture, type Kit, type Texture, type Draw } from '@ericrius1/weft';
 import galShader from '../shaders/c_galaxy.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
+import { noiseTex } from '../noisetex';
 import type { Ladder } from '../frames';
 
 const PITCH = 0.22, BAR = 0.44;
@@ -15,14 +17,29 @@ export class Galaxy {
   readonly pts = new PointSet(260000);
   /** the sky's visibility below (a daytime sky hides it): set by the app */
   sky = 1;
+  /** the sky's picture: asked for once the galaxy shows, in once it's loaded */
+  private picture: 'none' | 'asked' | 'in' = 'none';
+  private draw!: Draw;
+  private readonly kit: Kit;
+  /** a light device's (a phone's) picture: half the size, the mip it would sample anyway */
+  private readonly small: boolean;
+  /** the fraction of the frame's resolution it marches at (its pixel's size on the sky, for the picture's mip) */
+  private readonly vscale: number;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
+    this.kit = kit;
+    this.small = R.light;
+    this.vscale = R.volumeScale;
     this.lv = R.level('galaxy', ladder.galaxy, [23.6, 22.6, -99, -100]);
     // (the stars are a second view of the same frame, with their own gains)
     this.stars = R.level('galaxy.stars', ladder.galaxy, [23.0, 22.2, -99, -100]);
     this.populate();
     const on = () => this.lv.on() && this.sky > 0.01;
-    R.volume('galaxy', on, (p) => p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L }, blend: 'premultiplied', enabled: on }));
+    const { cellTex, valTex, codeTex } = noiseTex(kit, R);
+    const milkyTex = solidTexture(kit, [0, 0, 0, 1], 1, 'galaxy.sky.none');
+    R.volume('galaxy', on, (p) => {
+      this.draw = p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L, cellTex, valTex, codeTex, milkyTex }, blend: 'premultiplied', enabled: on }) as unknown as Draw;
+    });
     drawPoints(kit, R, this.stars, this.pts, 'galaxy.stars', () => this.stars.on() && this.sky > 0.01);
   }
 
@@ -81,6 +98,15 @@ export class Galaxy {
     }
   }
 
+  private loadPicture() {
+    this.picture = 'asked';
+    const url = new URL('data/sky/milkyway.webp', document.baseURI).href;
+    loadImageTexture(this.kit, url, { mips: true, label: 'galaxy.sky', max: this.small ? 2048 : undefined }).then((t: Texture) => {
+      this.draw.set('milkyTex', t);
+      this.picture = 'in';
+    }, (e) => console.warn('galaxy: no sky picture', e));
+  }
+
   update(S: number) {
     const Sk = S / this.lv.frame.unit;
     // the volume: steps enough for the disc seen whole, more from within it
@@ -88,7 +114,14 @@ export class Galaxy {
     this.stars.weight *= this.sky;
     // (inside the disc, the sky's band takes over from the march)
     const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
-    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, 56, inside], d: [0, 0.045, 0, 0] });
+    if (this.picture === 'none' && this.lv.weight > 0) this.loadPicture();
+    // (and the march's steps fall away as it does, so the two are never both paid in full)
+    // (fewer from outside it, where it's small on the screen and soft)
+    const out = Math.max(0, Math.min(1, (Math.log10(Sk) - 1.0) / 0.4));
+    const steps = Math.max(8, Math.round((40 - 12 * out) * (1 - inside)));
+    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, steps, inside], d: [0, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
+    // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
+    if (this.picture === 'in') this.stars.weight *= 1 - inside;
     this.stars.L.set({ weight: this.stars.weight, a: [0.0005 * Math.max(Sk, 12) ** 2, 0, 0.02, 1] });
   }
 }

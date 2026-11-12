@@ -51,6 +51,7 @@ export interface Lv {
   c: Vec4;
   d: Vec4;
   view: Vec4;
+  march: Vec4;
 }
 
 declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv }, 'frame' | 'L' | 'outTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;

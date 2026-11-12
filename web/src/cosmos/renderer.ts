@@ -17,6 +17,10 @@ import { BLOOM_LEVELS, COSMOS_FILM, filmFields, type Film } from './film';
 
 const BLOOM_MIPS = BLOOM_LEVELS;
 export const TIME_WRAP = 4096;
+/** the most of the frame's resolution a volume marches at (volume()): they've no hard edge, and their cost is per pixel */
+export const VOLUME_SCALE = 0.5;
+/** the most frames a volume's history averages (renderer.volume()) */
+const HISTORY = 12;
 
 /** a level's weight over the zoom (log10 m): 0 above a, rising to 1 at b, 1 down to c, 0 by d (a > b ≥ c > d) */
 export type Band = [number, number, number, number];
@@ -91,12 +95,16 @@ export class CosmosRenderer {
   /** the dome's sweet spot's elevation (rad), when drawing a dome */
   elevation: number;
 
-  /** the resolution the volumes march at (volume()), a fraction of the frame's */
+  /** the resolution the volumes march at (volume()), a fraction of the frame's: at most VOLUME_SCALE everywhere (their
+   *  grain averaged out as they're laid in), less where the host asks (a phone, a light GPU) */
   readonly volumeScale: number;
+  /** the host asked for less (a phone, a light GPU): what's loaded for the volumes can be smaller too */
+  readonly light: boolean;
 
   constructor(readonly kit: Kit, readonly ladder: Ladder, readonly dome: DomeOptions | null = null, volumeScale = 1) {
     const k = kit;
-    this.volumeScale = dome ? 1 : volumeScale;
+    this.volumeScale = dome ? 1 : Math.min(volumeScale, VOLUME_SCALE);
+    this.light = volumeScale < 1;
     const N = dome?.size ?? 0;
     this.elevation = dome?.elevation ?? (35 * Math.PI) / 180;
     this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: dome ? [N, N] : 'render' });
@@ -154,15 +162,54 @@ export class CosmosRenderer {
 
   /** a march that costs a lot per pixel (a volume, a shell) and has no fine edge to it: drawn into the scene where it
    *  comes, or below full resolution into a target of its own (cleared, before the scene) that's laid into the scene
-   *  there, upsampled. Its draws blend premultiplied, as the scene's do, so the two come to the same */
+   *  there, upsampled. Its draws blend premultiplied, as the scene's do, so the two come to the same. Below full
+   *  resolution it keeps a short history: while the view holds still each frame's march starts at another offset
+   *  (`marchJitter`, L.march.x in its shader) and the frames are averaged, so its grain settles out; the moment the view
+   *  moves the history is let go and the march's dither holds still again (no swimming, no trails) */
   volume(label: string, enabled: () => boolean, draw: (into: RenderPass) => void) {
     if (this.volumeScale >= 1) { draw(this.scene); return; }
     const k = this.kit;
-    const tex = k.texture({ label: `cosmos.${label}`, format: 'rgba16float', size: 'render', scale: this.volumeScale });
+    const sz = { format: 'rgba16float' as const, size: 'render' as const, scale: this.volumeScale };
+    const tex = k.texture({ label: `cosmos.${label}`, ...sz });
+    const hist = [0, 1].map((i) => k.texture({ label: `cosmos.${label}.hist${i}`, ...sz }));
     const p = k.pass({ label: `cosmos.${label}`, color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled });
     draw(p);
-    this.before.push(p);
-    this.scene.fullscreen(volShader, { label: `cosmos.${label}.up`, fragment: 'fs', blend: 'premultiplied', bind: { volTex: tex }, enabled });
+    // (the history: this frame's march into one of two, mixed with the other by this frame's share)
+    const H = k.uniforms(volShader.structs.Hist, `cosmos.${label}.hist`);
+    let cur = 0, wasOn = false;
+    const blends = [0, 1].map((i) => {
+      const bp = k.pass({ label: `cosmos.${label}.hist${i}`, color: [{ target: hist[i], clear: false }], enabled: () => enabled() && cur === i });
+      bp.fullscreen(volShader, { label: `cosmos.${label}.hist${i}`, fragment: 'fs_hist', bind: { H, volTex: tex, histTex: hist[1 - i] } });
+      return bp;
+    });
+    const step = k.action(() => {
+      const on = enabled();
+      if (on) {
+        cur = 1 - cur;
+        // (a fresh start when it has just come on, or the view has moved: this frame alone)
+        H.set({ share: wasOn && this.still > 0 ? Math.max(1 / (this.still + 1), 1 / HISTORY) : 1 });
+      }
+      wasOn = on;
+    }, `cosmos.${label}.step`);
+    this.before.push(step, p, ...blends);
+    const up = this.scene.fullscreen(volShader, { label: `cosmos.${label}.up`, fragment: 'fs_tent', blend: 'premultiplied', bind: { volTex: hist[0] }, enabled: () => {
+      if (!enabled()) return false;
+      up.set('volTex', hist[cur]);
+      return true;
+    } }) as unknown as Draw;
+  }
+
+  /** frames the view has held still (0: it moved this frame), for the volumes' history */
+  still = 0;
+  private readonly lastView = new Float64Array(12);
+  /** where this frame's marches start along their first step (0..1): 0 while the view moves, a new offset each frame
+   *  while it holds still (the golden ratio's sequence, so any run of frames covers the step evenly) */
+  get marchJitter() { return this.volumeScale < 1 && this.still > 0 ? (this.still * 0.6180339887) % 1 : 0; }
+  private noteView(c: CosmosControls, W: number, H: number) {
+    const v = [c.logS, ...c.forward, ...c.up, ...this.offset, W, H];
+    let moved = false;
+    for (let i = 0; i < v.length; i++) { if (Math.abs(v[i] - this.lastView[i]) > 1e-7 * Math.max(1, Math.abs(v[i]))) moved = true; this.lastView[i] = v[i]; }
+    this.still = moved ? 0 : this.still + 1;
   }
 
   /** every level's view for this frame (the camera's, from the controls, in each level's own units) */
@@ -175,6 +222,8 @@ export class CosmosRenderer {
     const pxAngle = this.dome ? Math.PI / W : (2 * tanHalf) / H;
     const view = [1 / W, 1 / H, this.dome ? 1 : 0, this.elevation];
     this.ladder.pivotOffset(logS, this.offset);
+    this.noteView(c, W, H);
+    const march = [this.marchJitter, 0, 0, 0];
     for (const lv of this.levels) {
       lv.weight = bandWeight(logS, lv.band);
       const f = lv.frame;
@@ -191,7 +240,7 @@ export class CosmosRenderer {
       }
       lv.L.set({
         origin: lv.origin, weight: lv.weight, eye: lv.eye, scale: lv.scale, fwd: lv.fwd, tanHalf, right: lv.right, aspect,
-        up: lv.up, time: time % TIME_WRAP, pxAngle, view,
+        up: lv.up, time: time % TIME_WRAP, pxAngle, view, march,
       });
     }
   }
