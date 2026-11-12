@@ -17,6 +17,8 @@ import { BLOOM_LEVELS, COSMOS_FILM, filmFields, type Film } from './film';
 
 const BLOOM_MIPS = BLOOM_LEVELS;
 export const TIME_WRAP = 4096;
+/** the most of the frame's resolution a volume marches at (volume()): they've no hard edge, and their cost is per pixel */
+export const VOLUME_SCALE = 0.5;
 
 /** a level's weight over the zoom (log10 m): 0 above a, rising to 1 at b, 1 down to c, 0 by d (a > b ≥ c > d) */
 export type Band = [number, number, number, number];
@@ -91,12 +93,16 @@ export class CosmosRenderer {
   /** the dome's sweet spot's elevation (rad), when drawing a dome */
   elevation: number;
 
-  /** the resolution the volumes march at (volume()), a fraction of the frame's */
+  /** the resolution the volumes march at (volume()), a fraction of the frame's: at most VOLUME_SCALE everywhere (their
+   *  grain averaged out as they're laid in), less where the host asks (a phone, a light GPU) */
   readonly volumeScale: number;
+  /** the host asked for less (a phone, a light GPU): what's loaded for the volumes can be smaller too */
+  readonly light: boolean;
 
   constructor(readonly kit: Kit, readonly ladder: Ladder, readonly dome: DomeOptions | null = null, volumeScale = 1) {
     const k = kit;
-    this.volumeScale = dome ? 1 : volumeScale;
+    this.volumeScale = dome ? 1 : Math.min(volumeScale, VOLUME_SCALE);
+    this.light = volumeScale < 1;
     const N = dome?.size ?? 0;
     this.elevation = dome?.elevation ?? (35 * Math.PI) / 180;
     this.hdr = k.texture({ label: 'cosmos.hdr', format: 'rgba16float', size: dome ? [N, N] : 'render' });
@@ -162,7 +168,7 @@ export class CosmosRenderer {
     const p = k.pass({ label: `cosmos.${label}`, color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled });
     draw(p);
     this.before.push(p);
-    this.scene.fullscreen(volShader, { label: `cosmos.${label}.up`, fragment: 'fs', blend: 'premultiplied', bind: { volTex: tex }, enabled });
+    this.scene.fullscreen(volShader, { label: `cosmos.${label}.up`, fragment: 'fs_tent', blend: 'premultiplied', bind: { volTex: tex }, enabled });
   }
 
   /** every level's view for this frame (the camera's, from the controls, in each level's own units) */

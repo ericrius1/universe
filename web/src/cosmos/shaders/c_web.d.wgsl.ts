@@ -57,5 +57,5 @@ export interface FullscreenOut {
   uv: Vec2;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut }, 'frame' | 'L' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut }, 'frame' | 'L' | 'cellTex' | 'valTex' | 'codeTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -3,11 +3,16 @@
 // seen from outside it as a sphere at the top of the zoom and as a faint wall from within. L.b.x: its radius (Mpc), y how
 // bright (fainter past the edge, levels/web.ts).
 #include "cosmos.wgsl"
+#include "noisetex.wgsl"
 #include "weft/fullscreen"
 
+// (the baked noise's lattices turned, so its period, 16, never lines up across the sky)
+const ROT_SKY = mat3x3f(vec3f(0.95519, 0.20465, 0.21384), vec3f(-0.29213, 0.76808, 0.56983), vec3f(-0.04763, -0.60677, 0.79345));
+
 fn cmb(n: vec3f) -> f32 {
-  // Planck's sky: fine mottle on every scale down to a degree or so
-  return fbm(n * 9.0, 4) * 0.45 + fbm(n * 34.0 + 4.0, 4) * 0.35 + vnoise(n * 120.0) * 0.2;
+  // Planck's sky: fine mottle on every scale down to a degree or so (four octaves at two sizes and one finer, baked)
+  let m = ROT_SKY * n;
+  return valTap(n * 9.0).g * 0.45 + valTap(m * 34.0 + 4.0).a * 0.35 + valTap(ROT_SKY * m * 120.0).b * 0.2;
 }
 
 @fragment fn fs_cmb(in: FullscreenOut) -> @location(0) vec4f {
@@ -47,35 +52,30 @@ fn cmb(n: vec3f) -> f32 {
 // The web seen whole: filaments of galaxies where the walls between the cells of a cellular noise at two sizes (130
 // and 38 Mpc) cross, knotted into clusters where they meet, round black voids; marched through the sphere of the
 // observable universe. Near enough to tell galaxies apart, the points take over (Web.ts). L.c: gain, steps.
-// distances to the nearest three jittered points of a cellular noise: a Voronoi cell's face where the first two are
-// nearly equal, its edge where all three are
-fn cell3(p: vec3f) -> vec3f {
-  let i = vec3i(floor(p));
-  var d = vec3f(9.0);
-  for (var z = -1; z <= 1; z++) {
-    for (var y = -1; y <= 1; y++) {
-      for (var x = -1; x <= 1; x++) {
-        let g = i + vec3i(x, y, z);
-        let e = length(p - (vec3f(g) + 0.5 + (hash3i(g) - 0.5) * 0.95));
-        if (e < d.x) { d = vec3f(e, d.x, d.y); } else if (e < d.y) { d = vec3f(d.x, e, d.y); } else if (e < d.z) { d.z = e; }
-      }
-    }
-  }
-  return d;
-}
+// the two cellular noises (one baked noise at two sizes) turned off the axes, and from each other: it repeats every 8
+// cells (1 Gpc at the big size, 300 Mpc at the fine), and turned so, the repeats never line up with each other or with
+// the view's axes
+const ROT_BIG = mat3x3f(vec3f(0.64729, -0.54122, -0.53674), vec3f(0.76185, 0.48182, 0.43293), vec3f(0.02430, -0.68915, 0.72421));
+const ROT_FINE = mat3x3f(vec3f(-0.38670, 0.05647, -0.92047), vec3f(-0.69696, 0.63573, 0.33180), vec3f(0.60391, 0.76984, -0.20648));
 
 // (x: how much, y: how much of it is a cluster's hot gold rather than a filament's blue; `soft` >= 1 widens it, as
-// dimly, where the march's steps are too long to find something so thin)
+// dimly, where the march's steps are too long to find something so thin). A cellular noise's gaps between its nearest
+// three points (noisetex.wgsl): a cell's wall where the first is small, its edge where both are.
+fn gaps(p: vec3f) -> vec2f {
+  // (from outside the shell, L.c.z: the smaller texture, as the samples scatter)
+  if (L.c.z > 0.5) { return cellGapsH(p); }
+  return cellGaps(p);
+}
 fn webDensity(p: vec3f, soft: f32) -> vec2f {
-  let a = cell3(p / 130.0);
-  let wall = exp(-(a.y - a.x) * 40.0 / soft);
+  let a = gaps(ROT_BIG * (p / 130.0));
+  let wall = exp(-a.x * 40.0 / soft);
   // (deep in a void there's nothing to find at the finer size: skip it)
   if (wall < 0.05) { return vec2f(0.0); }
   // the great filaments along the big cells' edges; finer ones over their walls; clusters where they cross
-  let big = exp(-(a.z - a.x) * 95.0 / soft);
-  let b = cell3(p / 38.0 + 7.3);
-  let fine = exp(-(b.z - b.x) * 70.0 / soft) * wall;
-  let knot = big * exp(-(b.z - b.x) * 25.0 / soft);
+  let big = exp(-a.y * 95.0 / soft);
+  let b = gaps(ROT_FINE * (p / 38.0 + 7.3)).y;
+  let fine = exp(-b * 70.0 / soft) * wall;
+  let knot = big * exp(-b * 25.0 / soft);
   return vec2f(max(big * 2.0 + fine * 1.1 + knot * 14.0 + wall * 0.01 - 0.03, 0.0) / pow(soft, 1.5), ss(0.06, 0.3, knot));
 }
 

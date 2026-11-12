@@ -7,6 +7,7 @@ import type { Kit } from '@ericrius1/weft';
 import webShader from '../shaders/c_web.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
+import { noiseTex } from '../noisetex';
 import type { Ladder } from '../frames';
 
 const EDGE = 14300;   // Mpc: the last-scattering surface (comoving)
@@ -26,9 +27,10 @@ export class Web {
     this.tier(r, 30, 70, 520, 150000, 0.022);
     this.localGroup();
     // the edge first (behind everything), the web seen whole, then the galaxies
+    const { cellTex, valTex, codeTex } = noiseTex(kit, R);
     R.volume('web.vol', () => this.vol.on(), (p) => {
-      p.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: () => this.vol.on() });
-      p.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind: { L: this.vol.L }, blend: 'premultiplied', enabled: () => this.vol.on() });
+      p.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind: { L: this.vol.L, cellTex, valTex, codeTex }, blend: 'premultiplied', enabled: () => this.vol.on() });
+      p.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind: { L: this.vol.L, cellTex, valTex, codeTex }, blend: 'premultiplied', enabled: () => this.vol.on() });
     });
     drawPoints(kit, R, this.lv, this.pts, 'web', () => this.lv.on() && this.ptsOn > 0);
   }
@@ -122,6 +124,9 @@ export class Web {
       * (1 + 1.4 * Math.max(0, Math.min(1, (l - 26.9) / 0.4)));
     // (the microwave background's shell fainter there too, a skin round the web rather than a mottled ball)
     const cmb = 1 - 0.7 * Math.max(0, Math.min(1, (l - 26.9) / 0.4));
-    this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, Smpc > 6000 ? 28 : 36, 0, 0] });
+    // (fewer steps from outside the shell, where the web's a faint skin and every ray crosses the whole of it: its
+    // samples scatter across the noise, and each costs a miss)
+    const steps = Smpc > 6000 ? Math.round(28 - 12 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;
+    this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, steps, l > 26.3 ? 1 : 0, 0] });
   }
 }
