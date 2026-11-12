@@ -116,7 +116,9 @@ export class Galaxy {
     const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
     if (this.picture === 'none' && this.lv.weight > 0) this.loadPicture();
     // (and the march's steps fall away as it does, so the two are never both paid in full)
-    const steps = Math.max(8, Math.round(40 * (1 - inside)));
+    // (fewer from outside it, where it's small on the screen and soft)
+    const out = Math.max(0, Math.min(1, (Math.log10(Sk) - 1.0) / 0.4));
+    const steps = Math.max(8, Math.round((40 - 12 * out) * (1 - inside)));
     this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, steps, inside], d: [0, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
     // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
     if (this.picture === 'in') this.stars.weight *= 1 - inside;
