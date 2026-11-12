@@ -10,7 +10,7 @@
 //
 //   node tools/windows.mjs [ids…]
 //     env  CDP, PORT or ORIGIN · W=1710 H=1000 DPR=2 · EXPAND=0 to skip letting each out · OUT=dir a picture of each
-//          window's first view, and windows.json
+//          window's first view, and windows.json · UI=1 with the interface (and a screenshot of it)
 import puppeteer from 'puppeteer-core';
 import http from 'node:http';
 import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -93,7 +93,7 @@ try {
         window.__at = at;
       });
       const q = id === 'universe' ? '' : `w=${id}&`;
-      await page.goto(`${via}/?${q}notitle&gov=off`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.goto(`${via}/?${q}${process.env.UI ? '' : 'notitle&'}gov=off`, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForFunction(() => window.__allIn === true || window.__failed || (window.__ready && !window.__window && (!window.app.gardens || window.app.gardens.ready)), { timeout: 300000, polling: 100 });
       const dead = await page.evaluate(() => window.__failed ?? null);
       if (dead) throw new Error(`the page failed: ${dead}`);
@@ -108,6 +108,8 @@ try {
       if (OUT) {
         const url = await page.evaluate(() => window.__capture.blob('image/jpeg', 0.85).then((b) => new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); })));
         writeFileSync(join(OUT, `${id}.jpg`), Buffer.from(String(url).split(',')[1], 'base64'));
+        // (UI=1: the page as it's seen, its interface over it)
+        if (process.env.UI) await page.screenshot({ path: join(OUT, `${id}-ui.png`) });
       }
       const fetched = { script: 0, data: 0, page: 0 };
       for (const e of log) fetched[kind(e)] += e.bytes;

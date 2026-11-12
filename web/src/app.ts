@@ -253,10 +253,11 @@ export class App {
     const down = [...this.places.values()].filter((p) => inWindow(w, Math.log10(this.fit(p.scale) * NM), 0.3));
     return [...up.map(asPlace), ...down];
   }
-  /** the tour: its stops in the window (none if fewer than two) */
+  /** the tour: its stops in the window (none if fewer than two; the cell's kept while it's still coming in) */
   private fitTour() {
     const ids = new Set(this.dockPlaces().map((p) => p.id));
-    const stops = FULL_TOUR.filter((s) => ids.has(s.place));
+    const coming = this.realms.wants('cell') && !this.cell;
+    const stops = FULL_TOUR.filter((s) => ids.has(s.place) || (coming && !s.place.startsWith('u:')));
     TOUR.splice(0, TOUR.length, ...(stops.length >= 2 ? stops : []));
     this.hud.show('tour', TOUR.length >= 2);
   }
