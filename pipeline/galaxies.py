@@ -294,7 +294,7 @@ def write_density(xyz, d):
     vol = 4 / 3 * np.pi * (edges[1:] ** 3 - edges[:-1] ** 3) * 0.91  # 91% of the sky
     phi = gaussian_filter(n / vol, 1.0)
     phi_d = np.interp(d[ok], 0.5 * (edges[1:] + edges[:-1]), phi)
-    w = 1.0 / np.maximum(phi_d, phi.max() * 0.01)
+    w = 1.0 / np.maximum(phi_d, phi.max() * 0.05)
     idx = np.floor((xyz[ok] + half) / cell).astype(int)
     grid = np.zeros((N, N, N))
     np.add.at(grid, (idx[:, 2], idx[:, 1], idx[:, 0]), w)  # [z][y][x], x fastest in memory
@@ -314,7 +314,7 @@ def write_density(xyz, d):
         'encoding': 'byte 0: outside the 200 Mpc sphere; 1..255: log10(rho / mean) linear from -1.0 to 1.5 '
                     '(value = 1 + 254 * (log10(rho/mean) + 1) / 2.5, clipped)',
         'method': '2MRS galaxies with 2 < d < 200 Mpc, each weighted by 1/n(d) (the survey\'s own number density by '
-                  'distance, floored at 1% of its peak), binned, smoothed by a 4 Mpc Gaussian. The zone of avoidance '
+                  'distance, floored at 5% of its peak), binned, smoothed by a 4 Mpc Gaussian. The zone of avoidance '
                   '(|b| < 5-8 deg) is empty, and shot noise grows past ~150 Mpc.',
         'credit': CREDIT_2MRS})
     print(f'density.bin: {N}^3, occupied {(b > 1).mean() * 100:.0f}% of cells, mean byte inside {b[inside].mean():.0f}')
