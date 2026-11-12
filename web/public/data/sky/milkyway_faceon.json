@@ -1,0 +1,22 @@
+{
+ "files": {
+  "milkyway_faceon.webp": "2048 x 2048 RGB, sRGB",
+  "milkyway_dust.webp": "2048 x 2048, one channel (R = G = B): 0 clear, 255 darkest lane; derived here from the picture's own dark, reddish lanes, not from a dust survey"
+ },
+ "frame": {
+  "centre": "Galactic centre at the image centre (u, v) = (0.5, 0.5)",
+  "sun": [
+   0.5,
+   0.695
+  ],
+  "widthKpc": 39.25,
+  "widthLy": 128000,
+  "longitude0": "up (-v) from the Sun; l = 90 to the left (-u)",
+  "viewedFrom": "north galactic pole",
+  "accuracy": "scale and Sun position measured from PIA10748 fig 1, about 3%"
+ },
+ "nature": "artist's concept based on Spitzer data, not an image",
+ "source": "https://photojournal.jpl.nasa.gov/catalog/PIA10748",
+ "credit": "NASA/JPL-Caltech/R. Hurt (SSC)",
+ "terms": "JPL image use policy: free to use with credit"
+}
