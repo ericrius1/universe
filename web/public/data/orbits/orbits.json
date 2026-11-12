@@ -1,0 +1,168 @@
+{
+ "frame": "heliocentric (Sun centre), ecliptic and mean equinox of J2000; AU, AU/day, degrees",
+ "spacecraft": {
+  "about": "Horizons state vectors at 2026-11-12 00:00 TDB",
+  "items": [
+   {
+    "name": "Voyager 1",
+    "horizonsId": "-31",
+    "epochJD_TDB": 2461356.5,
+    "epoch": "2026-11-12T00:00:00 TDB",
+    "positionAU": [
+     -32.2132278445646,
+     -137.1547681357121,
+     99.23372155456862
+    ],
+    "velocityAUperDay": [
+     -0.001195239290625775,
+     -0.007861206677837818,
+     0.005678193137933682
+    ],
+    "distanceAU": 172.3266
+   },
+   {
+    "name": "Voyager 2",
+    "horizonsId": "-32",
+    "epochJD_TDB": 2461356.5,
+    "epoch": "2026-11-12T00:00:00 TDB",
+    "positionAU": [
+     39.99223406279272,
+     -105.6909148138263,
+     -89.97781658685503
+    ],
+    "velocityAUperDay": [
+     0.002427657926316745,
+     -0.00539440680638502,
+     -0.006535623587758709
+    ],
+    "distanceAU": 144.4505
+   }
+  ]
+ },
+ "smallBodies": {
+  "about": "SBDB osculating elements at each solution's epoch: a semi-major axis, e eccentricity, i inclination, node longitude of ascending node, peri argument of perihelion, M mean anomaly at epoch, q perihelion distance, tp time of perihelion",
+  "items": [
+   {
+    "name": "Ceres",
+    "designation": "1 Ceres (A801 AA)",
+    "epochJD_TDB": 2461200.5,
+    "a_AU": 2.765552595034094,
+    "e": 0.07969229514816586,
+    "i_deg": 10.58802780183462,
+    "node_deg": 80.24862682043221,
+    "peri_deg": 73.29421453021587,
+    "M_deg": 274.4193463761342,
+    "q_AU": 2.545159361382861,
+    "tp_JD_TDB": 2461599.841466614,
+    "period_days": 1679.853119758983,
+    "n_degPerDay": 0.21430445064843,
+    "solution": "2021-04-13 11:04:44",
+    "source": "JPL"
+   },
+   {
+    "name": "Pluto",
+    "designation": "134340 Pluto (1930 BM)",
+    "epochJD_TDB": 2457588.5,
+    "a_AU": 39.58862938517124,
+    "e": 0.2518378778576892,
+    "i_deg": 17.14771140999114,
+    "node_deg": 110.2923840543057,
+    "peri_deg": 113.7090015158565,
+    "M_deg": 38.68366347318184,
+    "q_AU": 29.61871297351516,
+    "tp_JD_TDB": 2447812.094159956,
+    "period_days": 90981.71647718345,
+    "n_degPerDay": 0.003956838955553025,
+    "solution": null,
+    "source": "JPL"
+   },
+   {
+    "name": "Eris",
+    "designation": "136199 Eris (2003 UB313)",
+    "epochJD_TDB": 2461200.5,
+    "a_AU": 67.93394687853566,
+    "e": 0.4382385347971672,
+    "i_deg": 43.9258279471791,
+    "node_deg": 36.00477044417249,
+    "peri_deg": 150.7949235840312,
+    "M_deg": 211.774434275007,
+    "q_AU": 38.16267353549761,
+    "tp_JD_TDB": 2545407.716847013,
+    "period_days": 204516.6629430732,
+    "n_degPerDay": 0.001760247770619088,
+    "solution": "2026-06-06 21:06:42",
+    "source": "JPL"
+   },
+   {
+    "name": "Haumea",
+    "designation": "136108 Haumea (2003 EL61)",
+    "epochJD_TDB": 2461200.5,
+    "a_AU": 43.06029023650952,
+    "e": 0.1944430148898797,
+    "i_deg": 28.20847393040364,
+    "node_deg": 121.7860561329425,
+    "peri_deg": 240.6905472508661,
+    "M_deg": 223.2104118812299,
+    "q_AU": 34.68751758088936,
+    "tp_JD_TDB": 2500416.599615283,
+    "period_days": 103208.1173403618,
+    "n_degPerDay": 0.003488097731816818,
+    "solution": "2026-06-06 21:06:04",
+    "source": "JPL"
+   },
+   {
+    "name": "Makemake",
+    "designation": "136472 Makemake (2005 FY9)",
+    "epochJD_TDB": 2461200.5,
+    "a_AU": 45.57093317300052,
+    "e": 0.1588889953992523,
+    "i_deg": 29.02785603743067,
+    "node_deg": 79.2948338209406,
+    "peri_deg": 297.0922733397207,
+    "M_deg": 169.9379962048232,
+    "q_AU": 38.33021338173601,
+    "tp_JD_TDB": 2408158.6940986165,
+    "period_days": 112364.8068762869,
+    "n_degPerDay": 0.003203850120050116,
+    "solution": "2026-06-06 21:09:02",
+    "source": "JPL"
+   },
+   {
+    "name": "Sedna",
+    "designation": "90377 Sedna (2003 VB12)",
+    "epochJD_TDB": 2461200.5,
+    "a_AU": 543.7195289104732,
+    "e": 0.8598824585187618,
+    "i_deg": 11.92527582847476,
+    "node_deg": 144.5061662673739,
+    "peri_deg": 311.0987725939751,
+    "M_deg": 358.5956944005428,
+    "q_AU": 76.18464364627253,
+    "tp_JD_TDB": 2479264.7506871386,
+    "period_days": 4630851.183590915,
+    "n_degPerDay": 7.773948799642578e-05,
+    "solution": "2026-06-06 14:12:24",
+    "source": "JPL"
+   },
+   {
+    "name": "Halley",
+    "designation": "1P/Halley",
+    "epochJD_TDB": 2439875.5,
+    "a_AU": 17.92863504856923,
+    "e": 0.9679359956953211,
+    "i_deg": 162.1905300439129,
+    "node_deg": 59.09894720612437,
+    "peri_deg": 112.2414314637764,
+    "M_deg": 274.3823371366792,
+    "q_AU": 0.5748638313743413,
+    "tp_JD_TDB": 2446469.9736161465,
+    "period_days": 27728.04608790421,
+    "n_degPerDay": 0.01298324443268444,
+    "solution": "2025-11-21 15:57:34",
+    "source": "JPL"
+   }
+  ]
+ },
+ "credit": "JPL Solar System Dynamics: Horizons and the Small-Body Database (NASA/JPL-Caltech)",
+ "terms": "public (NASA/JPL); credit JPL Horizons / SBDB"
+}

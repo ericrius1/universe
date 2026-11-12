@@ -8,3 +8,5 @@ pipeline/pdb/
 pipeline/__pycache__/
 .vercel/
 *.log
+pipeline/raw/
+pipeline/.venv/

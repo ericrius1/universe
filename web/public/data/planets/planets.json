@@ -1,0 +1,82 @@
+{
+ "projection": "simple cylindrical (plate carree), latitude +90 at the top",
+ "maps": {
+  "mercury_2k.webp": {
+   "size": [
+    2048,
+    1024
+   ],
+   "longitude": "centre 0, east positive, -180 at the left edge",
+   "source": "USGS Astrogeology, Mercury_MESSENGER_ClrMosaic_global_665m_v3.tif (MDIS WAC 3-colour)",
+   "colour": "three MDIS WAC filters as R, G, B (not named in the product label): enhanced, not natural; Mercury is a nearly neutral grey to the eye",
+   "filled": "4.1% of pixels had no data (gaps, the north polar cap) and were filled by a widening blur of their neighbours; colour fades to grey from 75 to 85 deg latitude (polar filter noise); north of 82 deg N is a flat zonal fill",
+   "credit": "NASA/Johns Hopkins University Applied Physics Laboratory/Carnegie Institution of Washington; USGS Astrogeology"
+  },
+  "mars_2k.webp": {
+   "size": [
+    2048,
+    1024
+   ],
+   "longitude": "centre 0, east positive, -180 at the left edge",
+   "source": "USGS Astrogeology, Mars_Viking_ClrMosaic_global_925m.tif (MDIM 2.1, colourised)",
+   "credit": "NASA/JPL/USGS (Viking Orbiter; USGS Astrogeology)"
+  },
+  "jupiter_2k.webp": {
+   "size": [
+    2048,
+    1024
+   ],
+   "longitude": "full 360 deg, planetocentric latitude; orientation not stated in the caption",
+   "source": "PIA07782, Cassini's Best Maps of Jupiter (cylindrical), 3601 x 1801, December 2000",
+   "note": "the polar regions beyond ~60 deg were not imaged and are a flat fill in the original",
+   "credit": "NASA/JPL/Space Science Institute"
+  },
+  "saturn_2k.webp": {
+   "size": [
+    1800,
+    900
+   ],
+   "longitude": "System III west longitude, 360 at the left edge decreasing to 0 at the right",
+   "latitude": "planetographic, -90..90 at 5 px a degree (native size, not enlarged to 2048)",
+   "filledLatitudes": [
+    [
+     89.9,
+     80.7
+    ],
+    [
+     5.5,
+     -0.7
+    ],
+    [
+     -85.7,
+     -89.9
+    ]
+   ],
+   "filled": "rows OPAL did not see (ring band, polar caps) interpolated per column",
+   "colour": "F631N, F502N, F395N as R, G, B with OPAL's slight contrast enhancement",
+   "source": "MAST HLSP OPAL, hlsp_opal_hst_wfc3-uvis_saturn-2025a_f395n-f502n-f631n_v1_globalmap.tif",
+   "credit": "NASA, ESA, A. Simon (GSFC) and the OPAL team. This work used data acquired from the NASA/ESA HST Space Telescope, associated with OPAL program (PI: Simon, GO13937), and archived by the Space Telescope Science Institute (doi:10.17909/T9G593)."
+  },
+  "saturn_rings_tau.bin": {
+   "file": "saturn_rings_tau.bin",
+   "count": 7051,
+   "radiusKm": [
+    72000.0,
+    142500.0
+   ],
+   "stepKm": 10.0,
+   "type": "f32 little endian, normal optical depth tau (>= 0)",
+   "saturated": "155 samples where the star vanished (dense B ring) carry their lower limit, at least 2.5 (5 where even that is unknown)",
+   "use": "transmission along a ray = exp(-tau / |cos(incidence)|); opacity seen face on = 1 - exp(-tau)",
+   "colour": "none: no public-domain radial colour profile was assembled (see SOURCES.md)",
+   "source": "Voyager 2 PPS delta Sco occultation, 1981-08-26, PDS VG_2801 EASYDATA/KM010/PS1P01.TAB",
+   "credit": "NASA/JPL Voyager PPS team (Esposito, Lane et al.); PDS Ring-Moon Systems Node"
+  }
+ },
+ "missing": {
+  "venus": "no free, honest global colour map of its clouds",
+  "uranus": "none made",
+  "neptune": "none made"
+ },
+ "terms": "USGS, NASA/JPL and PDS products are public domain; OPAL HLSP is free to use with the acknowledgement above"
+}

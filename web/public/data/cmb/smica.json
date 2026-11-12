@@ -1,0 +1,23 @@
+{
+ "file": "smica_4k.webp",
+ "size": [
+  4096,
+  2048
+ ],
+ "frame": "galactic coordinates, plate carree: u = (180 - l) / 360 (l = 0 at the centre, increasing to the left), v = (90 - b) / 180",
+ "encoding": {
+  "channel": "one (R = G = B)",
+  "temperature": "T_uK = (byte - 127.5) / 127.5 * 500",
+  "rangeMicroK": [
+   -500.0,
+   500.0
+  ],
+  "stepMicroK": 3.92,
+  "clippedFraction": 2e-05,
+  "note": "WebP is lossy: about +-2 uK of coding noise, under the map's own noise"
+ },
+ "stdMicroK": 101.8,
+ "source": "Planck 2015 SMICA CMB map, COM_CMB_IQU-smica_1024_R2.02_full.fits, field I_STOKES (IRSA)",
+ "credit": "Based on observations obtained with Planck (http://www.esa.int/Planck), an ESA science mission with instruments and contributions directly funded by ESA Member States, NASA, and Canada.",
+ "caveat": "Not inpainted: faint foreground residue remains along the galactic plane (|b| < ~5 deg)."
+}

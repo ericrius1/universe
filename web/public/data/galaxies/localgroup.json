@@ -1,0 +1,2658 @@
+{
+ "source": "McConnachie 2012, AJ 144, 4, \"The observed properties of dwarf galaxies in and around the Local Group\", updated table (Jan 2021) from the CADC.",
+ "url": "https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/community/nearby/",
+ "frame": "heliocentric, equatorial J2000 axes, Mpc (as 2mrs.bin)",
+ "fields": {
+  "distanceKpc": "from the distance modulus dmod",
+  "MV": "absolute V, extinction-corrected (A_V = 3.1 E(B-V))",
+  "halfLightRadiusPc": "McConnachie rh (arcmin) at its distance",
+  "radiusKpc": "approximate optical radius for the big ones (RC3 D25/2, rounded)",
+  "type": "spiral, elliptical, irregular (gas-rich dwarf), spheroidal (gas-poor dwarf), candidate",
+  "candidate": "McConnachie marks it * (nature or membership not settled)"
+ },
+ "galaxies": [
+  {
+   "name": "Milky Way",
+   "aka": "the Galaxy",
+   "candidate": false,
+   "ra": 266.41683,
+   "dec": -29.00781,
+   "distanceKpc": 8.2,
+   "type": "spiral",
+   "morphology": "SBbc",
+   "MV": -20.8,
+   "halfLightRadiusPc": null,
+   "radiusKpc": 15.0,
+   "vHelio": null,
+   "note": "position is the Galactic centre (Sgr A*); the Sun is 8.2 kpc from it (Bland-Hawthorn & Gerhard 2016)",
+   "xyzMpc": [
+    -0.00045,
+    -0.00716,
+    -0.00398
+   ]
+  },
+  {
+   "name": "Andromeda",
+   "aka": "M31",
+   "candidate": false,
+   "ra": 10.68471,
+   "dec": 41.26875,
+   "dmod": 24.47,
+   "distanceKpc": 783.0,
+   "type": "spiral",
+   "morphology": "SA(s)b",
+   "MV": -21.2,
+   "halfLightRadiusPc": null,
+   "radiusKpc": 23.0,
+   "vHelio": -300.0,
+   "note": "McConnachie 2012 Table 2",
+   "xyzMpc": [
+    0.57832,
+    0.10911,
+    0.51646
+   ]
+  },
+  {
+   "name": "CanisMajor",
+   "candidate": true,
+   "ra": 108.14583,
+   "dec": -27.66667,
+   "distanceKpc": 7.2,
+   "dmod": 14.289999961853027,
+   "xyzMpc": [
+    -0.00199,
+    0.00607,
+    -0.00335
+   ],
+   "type": "candidate",
+   "morphology": "stellar overdensity, disputed",
+   "MV": -15.21,
+   "halfLightRadiusPc": null,
+   "vHelio": 87.0
+  },
+  {
+   "name": "Hydra1",
+   "candidate": true,
+   "ra": 133.9,
+   "dec": 3.6,
+   "distanceKpc": 12.7,
+   "dmod": 15.520000457763672,
+   "xyzMpc": [
+    -0.00879,
+    0.00914,
+    0.0008
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.62,
+   "halfLightRadiusPc": null,
+   "vHelio": 89.4000015258789
+  },
+  {
+   "name": "Draco2",
+   "candidate": true,
+   "ra": 238.19833,
+   "dec": 64.56528,
+   "distanceKpc": 21.6,
+   "dmod": 16.670000076293945,
+   "xyzMpc": [
+    -0.00488,
+    -0.00788,
+    0.01949
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.73,
+   "halfLightRadiusPc": 18.8,
+   "vHelio": -342.5
+  },
+  {
+   "name": "Segue(1)",
+   "candidate": false,
+   "ra": 151.76667,
+   "dec": 16.08194,
+   "distanceKpc": 22.9,
+   "dmod": 16.799999237060547,
+   "xyzMpc": [
+    -0.01939,
+    0.01041,
+    0.00635
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -1.4,
+   "halfLightRadiusPc": 26.3,
+   "vHelio": 208.5
+  },
+  {
+   "name": "DESJ0225+0304",
+   "candidate": true,
+   "ra": 36.42667,
+   "dec": 3.06947,
+   "distanceKpc": 23.8,
+   "dmod": 16.8799991607666,
+   "xyzMpc": [
+    0.0191,
+    0.01409,
+    0.00127
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -1.22,
+   "halfLightRadiusPc": 18.5,
+   "vHelio": null
+  },
+  {
+   "name": "Tucana3",
+   "candidate": true,
+   "ra": 359.15,
+   "dec": -59.6,
+   "distanceKpc": 25.2,
+   "dmod": 17.010000228881836,
+   "xyzMpc": [
+    0.01277,
+    -0.00019,
+    -0.02177
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.45,
+   "halfLightRadiusPc": 44.0,
+   "vHelio": -102.30000305175781
+  },
+  {
+   "name": "Cetus2",
+   "candidate": true,
+   "ra": 19.47,
+   "dec": -17.42,
+   "distanceKpc": 26.3,
+   "dmod": 17.100000381469727,
+   "xyzMpc": [
+    0.02366,
+    0.00836,
+    -0.00787
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": 0.24,
+   "halfLightRadiusPc": 14.5,
+   "vHelio": null
+  },
+  {
+   "name": "SagittariusdSph",
+   "candidate": false,
+   "ra": 283.83125,
+   "dec": -30.54528,
+   "distanceKpc": 26.3,
+   "dmod": 17.100000381469727,
+   "xyzMpc": [
+    0.00542,
+    -0.022,
+    -0.01337
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -13.97,
+   "halfLightRadiusPc": 2625.4,
+   "vHelio": 140.0
+  },
+  {
+   "name": "Hydrus1",
+   "candidate": false,
+   "ra": 37.38917,
+   "dec": -79.30889,
+   "distanceKpc": 27.5,
+   "dmod": 17.200000762939453,
+   "xyzMpc": [
+    0.00406,
+    0.0031,
+    -0.02706
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.99,
+   "halfLightRadiusPc": 59.4,
+   "vHelio": 80.4000015258789
+  },
+  {
+   "name": "Carina3",
+   "candidate": false,
+   "ra": 114.63,
+   "dec": -57.89972,
+   "distanceKpc": 27.8,
+   "dmod": 17.219999313354492,
+   "xyzMpc": [
+    -0.00616,
+    0.01343,
+    -0.02355
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.01,
+   "halfLightRadiusPc": 30.3,
+   "vHelio": 284.6000061035156
+  },
+  {
+   "name": "Reticulum2",
+   "candidate": true,
+   "ra": 53.92542,
+   "dec": -54.04917,
+   "distanceKpc": 30.2,
+   "dmod": 17.399999618530273,
+   "xyzMpc": [
+    0.01044,
+    0.01433,
+    -0.02445
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.94,
+   "halfLightRadiusPc": 49.1,
+   "vHelio": 64.69999694824219
+  },
+  {
+   "name": "Triangulum2",
+   "candidate": true,
+   "ra": 33.3225,
+   "dec": 36.17833,
+   "distanceKpc": 30.2,
+   "dmod": 17.399999618530273,
+   "xyzMpc": [
+    0.02037,
+    0.01339,
+    0.01783
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.04,
+   "halfLightRadiusPc": 34.3,
+   "vHelio": -381.70001220703125
+  },
+  {
+   "name": "UrsaMajor2",
+   "candidate": false,
+   "ra": 132.875,
+   "dec": 63.13,
+   "distanceKpc": 31.6,
+   "dmod": 17.5,
+   "xyzMpc": [
+    -0.00972,
+    0.01047,
+    0.02821
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.54,
+   "halfLightRadiusPc": 128.3,
+   "vHelio": -116.5
+  },
+  {
+   "name": "Segue2",
+   "candidate": false,
+   "ra": 34.81667,
+   "dec": 20.17528,
+   "distanceKpc": 34.7,
+   "dmod": 17.700000762939453,
+   "xyzMpc": [
+    0.02672,
+    0.01858,
+    0.01196
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.43,
+   "halfLightRadiusPc": 36.7,
+   "vHelio": -39.20000076293945
+  },
+  {
+   "name": "Carina2",
+   "candidate": false,
+   "ra": 114.10667,
+   "dec": -57.99917,
+   "distanceKpc": 36.1,
+   "dmod": 17.790000915527344,
+   "xyzMpc": [
+    -0.00782,
+    0.01748,
+    -0.03065
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.08,
+   "halfLightRadiusPc": 91.4,
+   "vHelio": 477.20001220703125
+  },
+  {
+   "name": "Willman1",
+   "candidate": false,
+   "ra": 162.3375,
+   "dec": 51.05,
+   "distanceKpc": 38.0,
+   "dmod": 17.899999618530273,
+   "xyzMpc": [
+    -0.02277,
+    0.00725,
+    0.02957
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.57,
+   "halfLightRadiusPc": 28.0,
+   "vHelio": -12.300000190734863
+  },
+  {
+   "name": "Bootes2",
+   "candidate": false,
+   "ra": 209.5,
+   "dec": 12.85,
+   "distanceKpc": 41.7,
+   "dmod": 18.100000381469727,
+   "xyzMpc": [
+    -0.03537,
+    -0.02001,
+    0.00927
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.04,
+   "halfLightRadiusPc": 37.0,
+   "vHelio": -117.0
+  },
+  {
+   "name": "ComaBerenices",
+   "candidate": false,
+   "ra": 186.74583,
+   "dec": 23.90417,
+   "distanceKpc": 43.7,
+   "dmod": 18.200000762939453,
+   "xyzMpc": [
+    -0.03963,
+    -0.00469,
+    0.01769
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.43,
+   "halfLightRadiusPc": 71.5,
+   "vHelio": 98.0999984741211
+  },
+  {
+   "name": "Pictor2",
+   "candidate": false,
+   "ra": 101.18,
+   "dec": -59.89694,
+   "distanceKpc": 45.7,
+   "dmod": 18.299999237060547,
+   "xyzMpc": [
+    -0.00445,
+    0.02249,
+    -0.03954
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.53,
+   "halfLightRadiusPc": 50.5,
+   "vHelio": null
+  },
+  {
+   "name": "Bootes3",
+   "candidate": true,
+   "ra": 209.3,
+   "dec": 26.8,
+   "distanceKpc": 46.8,
+   "dmod": 18.350000381469727,
+   "xyzMpc": [
+    -0.03641,
+    -0.02043,
+    0.02109
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.82,
+   "halfLightRadiusPc": null,
+   "vHelio": 197.5
+  },
+  {
+   "name": "Tucana4",
+   "candidate": true,
+   "ra": 0.73,
+   "dec": -60.85,
+   "distanceKpc": 48.1,
+   "dmod": 18.40999984741211,
+   "xyzMpc": [
+    0.02342,
+    0.0003,
+    -0.04199
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.55,
+   "halfLightRadiusPc": 130.1,
+   "vHelio": 15.899999618530273
+  },
+  {
+   "name": "LMC",
+   "candidate": false,
+   "ra": 80.89375,
+   "dec": -69.75611,
+   "distanceKpc": 50.6,
+   "dmod": 18.520000457763672,
+   "xyzMpc": [
+    0.00277,
+    0.01728,
+    -0.04746
+   ],
+   "type": "irregular",
+   "morphology": "SB(s)m",
+   "MV": -20.99,
+   "halfLightRadiusPc": null,
+   "vHelio": 262.20001220703125,
+   "radiusKpc": 4.3
+  },
+  {
+   "name": "Grus2",
+   "candidate": true,
+   "ra": 331.02,
+   "dec": -46.44,
+   "distanceKpc": 53.0,
+   "dmod": 18.6200008392334,
+   "xyzMpc": [
+    0.03193,
+    -0.01768,
+    -0.03838
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.97,
+   "halfLightRadiusPc": 92.4,
+   "vHelio": -110.0
+  },
+  {
+   "name": "Tucana5",
+   "candidate": true,
+   "ra": 354.35,
+   "dec": -63.27,
+   "distanceKpc": 55.2,
+   "dmod": 18.709999084472656,
+   "xyzMpc": [
+    0.02471,
+    -0.00244,
+    -0.04931
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -1.68,
+   "halfLightRadiusPc": 33.7,
+   "vHelio": -36.29999923706055
+  },
+  {
+   "name": "Tucana2",
+   "candidate": false,
+   "ra": 342.97958,
+   "dec": -58.56889,
+   "distanceKpc": 57.5,
+   "dmod": 18.799999237060547,
+   "xyzMpc": [
+    0.02869,
+    -0.00878,
+    -0.0491
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.86,
+   "halfLightRadiusPc": 164.5,
+   "vHelio": -129.10000610351562
+  },
+  {
+   "name": "SMC",
+   "candidate": false,
+   "ra": 13.18667,
+   "dec": -72.82861,
+   "distanceKpc": 64.0,
+   "dmod": 19.030000686645508,
+   "xyzMpc": [
+    0.01839,
+    0.00431,
+    -0.06112
+   ],
+   "type": "irregular",
+   "morphology": "SB(s)m pec",
+   "MV": -18.13,
+   "halfLightRadiusPc": null,
+   "vHelio": 145.60000610351562,
+   "radiusKpc": 2.7
+  },
+  {
+   "name": "Bootes(1)",
+   "candidate": false,
+   "ra": 210.025,
+   "dec": 14.5,
+   "distanceKpc": 66.4,
+   "dmod": 19.110000610351562,
+   "xyzMpc": [
+    -0.05564,
+    -0.03215,
+    0.01662
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -6.07,
+   "halfLightRadiusPc": 217.4,
+   "vHelio": 99.0
+  },
+  {
+   "name": "Sagittarius2",
+   "candidate": true,
+   "ra": 298.16875,
+   "dec": -22.06806,
+   "distanceKpc": 73.1,
+   "dmod": 19.31999969482422,
+   "xyzMpc": [
+    0.03199,
+    -0.05973,
+    -0.02747
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.76,
+   "halfLightRadiusPc": 36.2,
+   "vHelio": -177.3000030517578
+  },
+  {
+   "name": "Draco",
+   "candidate": false,
+   "ra": 260.05167,
+   "dec": 57.91528,
+   "distanceKpc": 75.9,
+   "dmod": 19.399999618530273,
+   "xyzMpc": [
+    -0.00696,
+    -0.03969,
+    0.06427
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.79,
+   "halfLightRadiusPc": 219.1,
+   "vHelio": -291.0
+  },
+  {
+   "name": "UrsaMinor",
+   "candidate": false,
+   "ra": 227.28542,
+   "dec": 67.2225,
+   "distanceKpc": 75.9,
+   "dmod": 19.399999618530273,
+   "xyzMpc": [
+    -0.01992,
+    -0.02158,
+    0.06994
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.13,
+   "halfLightRadiusPc": 382.2,
+   "vHelio": -246.89999389648438
+  },
+  {
+   "name": "Horologium2",
+   "candidate": true,
+   "ra": 49.13375,
+   "dec": -50.01806,
+   "distanceKpc": 78.0,
+   "dmod": 19.459999084472656,
+   "xyzMpc": [
+    0.03279,
+    0.03789,
+    -0.05975
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -1.62,
+   "halfLightRadiusPc": 64.2,
+   "vHelio": 168.6999969482422
+  },
+  {
+   "name": "Horologium1",
+   "candidate": true,
+   "ra": 43.88208,
+   "dec": -54.11889,
+   "distanceKpc": 79.4,
+   "dmod": 19.5,
+   "xyzMpc": [
+    0.03356,
+    0.03227,
+    -0.06436
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.59,
+   "halfLightRadiusPc": 35.6,
+   "vHelio": 112.80000305175781
+  },
+  {
+   "name": "Phoenix2",
+   "candidate": true,
+   "ra": 354.9975,
+   "dec": -54.40611,
+   "distanceKpc": 83.2,
+   "dmod": 19.600000381469727,
+   "xyzMpc": [
+    0.04823,
+    -0.00422,
+    -0.06764
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.34,
+   "halfLightRadiusPc": 39.0,
+   "vHelio": 32.400001525878906
+  },
+  {
+   "name": "Sculptor",
+   "candidate": false,
+   "ra": 15.03917,
+   "dec": -33.70917,
+   "distanceKpc": 85.9,
+   "dmod": 19.670000076293945,
+   "xyzMpc": [
+    0.06901,
+    0.01854,
+    -0.04767
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.88,
+   "halfLightRadiusPc": 308.1,
+   "vHelio": 111.4000015258789
+  },
+  {
+   "name": "Sextans(1)",
+   "candidate": false,
+   "ra": 153.2625,
+   "dec": -1.61472,
+   "distanceKpc": 85.9,
+   "dmod": 19.670000076293945,
+   "xyzMpc": [
+    -0.07669,
+    0.03863,
+    -0.00242
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.42,
+   "halfLightRadiusPc": 694.7,
+   "vHelio": 224.1999969482422
+  },
+  {
+   "name": "Eridanus3",
+   "candidate": true,
+   "ra": 35.68958,
+   "dec": -52.28361,
+   "distanceKpc": 87.1,
+   "dmod": 19.700000762939453,
+   "xyzMpc": [
+    0.04327,
+    0.03108,
+    -0.0689
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.45,
+   "halfLightRadiusPc": 7.3,
+   "vHelio": null
+  },
+  {
+   "name": "Virgo1",
+   "candidate": false,
+   "ra": 180.03792,
+   "dec": 0.681,
+   "distanceKpc": 91.2,
+   "dmod": 19.799999237060547,
+   "xyzMpc": [
+    -0.09119,
+    -6e-05,
+    0.00108
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -0.4,
+   "halfLightRadiusPc": 46.7,
+   "vHelio": null
+  },
+  {
+   "name": "Reticulum3",
+   "candidate": true,
+   "ra": 56.36,
+   "dec": -60.45,
+   "distanceKpc": 91.6,
+   "dmod": 19.809999465942383,
+   "xyzMpc": [
+    0.02503,
+    0.03762,
+    -0.0797
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.46,
+   "halfLightRadiusPc": 64.0,
+   "vHelio": 274.20001220703125
+  },
+  {
+   "name": "UrsaMajor(1)",
+   "candidate": false,
+   "ra": 158.72,
+   "dec": 51.92,
+   "distanceKpc": 96.8,
+   "dmod": 19.93000030517578,
+   "xyzMpc": [
+    -0.05565,
+    0.02167,
+    0.07622
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.18,
+   "halfLightRadiusPc": 234.9,
+   "vHelio": -55.29999923706055
+  },
+  {
+   "name": "Indus1",
+   "candidate": true,
+   "ra": 317.20458,
+   "dec": -51.16556,
+   "distanceKpc": 100.0,
+   "dmod": 20.0,
+   "xyzMpc": [
+    0.04601,
+    -0.0426,
+    -0.0779
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.42,
+   "halfLightRadiusPc": 25.3,
+   "vHelio": null
+  },
+  {
+   "name": "Carina",
+   "candidate": false,
+   "ra": 100.40292,
+   "dec": -50.96611,
+   "distanceKpc": 105.2,
+   "dmod": 20.110000610351562,
+   "xyzMpc": [
+    -0.01196,
+    0.06516,
+    -0.08171
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.62,
+   "halfLightRadiusPc": 349.8,
+   "vHelio": 222.89999389648438
+  },
+  {
+   "name": "Aquarius2",
+   "candidate": false,
+   "ra": 338.48125,
+   "dec": -9.3275,
+   "distanceKpc": 107.6,
+   "dmod": 20.15999984741211,
+   "xyzMpc": [
+    0.09882,
+    -0.03896,
+    -0.01745
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.57,
+   "halfLightRadiusPc": 159.7,
+   "vHelio": -71.0999984741211
+  },
+  {
+   "name": "Pictor1",
+   "candidate": true,
+   "ra": 70.9475,
+   "dec": -50.28306,
+   "distanceKpc": 114.8,
+   "dmod": 20.299999237060547,
+   "xyzMpc": [
+    0.02395,
+    0.06935,
+    -0.08832
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.49,
+   "halfLightRadiusPc": 22.0,
+   "vHelio": null
+  },
+  {
+   "name": "Centaurus1",
+   "candidate": false,
+   "ra": 189.585,
+   "dec": -40.902,
+   "distanceKpc": 116.4,
+   "dmod": 20.329999923706055,
+   "xyzMpc": [
+    -0.08676,
+    -0.01465,
+    -0.07622
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.93,
+   "halfLightRadiusPc": 97.5,
+   "vHelio": null
+  },
+  {
+   "name": "Crater2",
+   "candidate": false,
+   "ra": 177.31,
+   "dec": -18.41306,
+   "distanceKpc": 117.5,
+   "dmod": 20.350000381469727,
+   "xyzMpc": [
+    -0.11135,
+    0.00523,
+    -0.03711
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.29,
+   "halfLightRadiusPc": 1066.3,
+   "vHelio": 87.5
+  },
+  {
+   "name": "Grus1",
+   "candidate": true,
+   "ra": 344.17667,
+   "dec": -50.16333,
+   "distanceKpc": 120.2,
+   "dmod": 20.399999618530273,
+   "xyzMpc": [
+    0.0741,
+    -0.021,
+    -0.09232
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -3.49,
+   "halfLightRadiusPc": 72.7,
+   "vHelio": -140.5
+  },
+  {
+   "name": "Antlia2",
+   "candidate": false,
+   "ra": 143.88667,
+   "dec": -36.76722,
+   "distanceKpc": 131.8,
+   "dmod": 20.600000381469727,
+   "xyzMpc": [
+    -0.08531,
+    0.06224,
+    -0.07891
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.5,
+   "halfLightRadiusPc": 2922.5,
+   "vHelio": 290.70001220703125
+  },
+  {
+   "name": "Hercules",
+   "candidate": false,
+   "ra": 247.75833,
+   "dec": 12.79167,
+   "distanceKpc": 131.8,
+   "dmod": 20.600000381469727,
+   "xyzMpc": [
+    -0.04866,
+    -0.11899,
+    0.02919
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -6.02,
+   "halfLightRadiusPc": 229.7,
+   "vHelio": 45.20000076293945
+  },
+  {
+   "name": "Hydra2",
+   "candidate": false,
+   "ra": 185.42542,
+   "dec": -31.98528,
+   "distanceKpc": 134.3,
+   "dmod": 20.639999389648438,
+   "xyzMpc": [
+    -0.11338,
+    -0.01077,
+    -0.07113
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.79,
+   "halfLightRadiusPc": 58.6,
+   "vHelio": 303.1000061035156
+  },
+  {
+   "name": "Fornax",
+   "candidate": false,
+   "ra": 39.99708,
+   "dec": -34.44917,
+   "distanceKpc": 147.2,
+   "dmod": 20.84000015258789,
+   "xyzMpc": [
+    0.09301,
+    0.07804,
+    -0.08329
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -13.53,
+   "halfLightRadiusPc": 788.0,
+   "vHelio": 55.29999923706055
+  },
+  {
+   "name": "Leo4",
+   "candidate": false,
+   "ra": 173.2375,
+   "dec": -0.53333,
+   "distanceKpc": 154.2,
+   "dmod": 20.940000534057617,
+   "xyzMpc": [
+    -0.15309,
+    0.01815,
+    -0.00144
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.07,
+   "halfLightRadiusPc": 117.0,
+   "vHelio": 132.3000030517578
+  },
+  {
+   "name": "CanesVenatici2",
+   "candidate": false,
+   "ra": 194.29167,
+   "dec": 34.32083,
+   "distanceKpc": 160.0,
+   "dmod": 21.020000457763672,
+   "xyzMpc": [
+    -0.12802,
+    -0.03261,
+    0.09019
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -5.2,
+   "halfLightRadiusPc": 70.3,
+   "vHelio": -128.89999389648438
+  },
+  {
+   "name": "Columba1",
+   "candidate": true,
+   "ra": 82.86,
+   "dec": -28.03,
+   "distanceKpc": 182.0,
+   "dmod": 21.299999237060547,
+   "xyzMpc": [
+    0.01996,
+    0.15938,
+    -0.08551
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.58,
+   "halfLightRadiusPc": 100.6,
+   "vHelio": 153.6999969482422
+  },
+  {
+   "name": "Pisces2",
+   "candidate": false,
+   "ra": 344.62917,
+   "dec": 5.9525,
+   "distanceKpc": 182.8,
+   "dmod": 21.309999465942383,
+   "xyzMpc": [
+    0.17532,
+    -0.0482,
+    0.01896
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.43,
+   "halfLightRadiusPc": 64.9,
+   "vHelio": -226.5
+  },
+  {
+   "name": "Leo5",
+   "candidate": false,
+   "ra": 172.79,
+   "dec": 2.22,
+   "distanceKpc": 195.9,
+   "dmod": 21.459999084472656,
+   "xyzMpc": [
+    -0.19419,
+    0.02457,
+    0.00759
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.69,
+   "halfLightRadiusPc": 57.0,
+   "vHelio": 173.3000030517578
+  },
+  {
+   "name": "Pegasus3",
+   "candidate": true,
+   "ra": 336.09417,
+   "dec": 5.42,
+   "distanceKpc": 205.1,
+   "dmod": 21.559999465942383,
+   "xyzMpc": [
+    0.18668,
+    -0.08275,
+    0.01937
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.52,
+   "halfLightRadiusPc": 77.6,
+   "vHelio": -222.89999389648438
+  },
+  {
+   "name": "Bootes4",
+   "candidate": false,
+   "ra": 233.68917,
+   "dec": 43.72611,
+   "distanceKpc": 208.9,
+   "dmod": 21.600000381469727,
+   "xyzMpc": [
+    -0.08941,
+    -0.12166,
+    0.14441
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.61,
+   "halfLightRadiusPc": 461.9,
+   "vHelio": null
+  },
+  {
+   "name": "Indus2",
+   "candidate": true,
+   "ra": 309.72,
+   "dec": -46.16,
+   "distanceKpc": 213.8,
+   "dmod": 21.649999618530273,
+   "xyzMpc": [
+    0.09463,
+    -0.1139,
+    -0.15421
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -4.36,
+   "halfLightRadiusPc": 180.4,
+   "vHelio": null
+  },
+  {
+   "name": "CanesVenatici(1)",
+   "candidate": false,
+   "ra": 202.01458,
+   "dec": 33.55583,
+   "distanceKpc": 217.8,
+   "dmod": 21.690000534057617,
+   "xyzMpc": [
+    -0.16825,
+    -0.06803,
+    0.12037
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.63,
+   "halfLightRadiusPc": 563.8,
+   "vHelio": 30.899999618530273
+  },
+  {
+   "name": "Leo2",
+   "candidate": false,
+   "ra": 168.37,
+   "dec": 22.15167,
+   "distanceKpc": 233.3,
+   "dmod": 21.84000015258789,
+   "xyzMpc": [
+    -0.21169,
+    0.04357,
+    0.08799
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.79,
+   "halfLightRadiusPc": 168.3,
+   "vHelio": 78.0
+  },
+  {
+   "name": "Cetus3",
+   "candidate": false,
+   "ra": 31.33083,
+   "dec": -4.27,
+   "distanceKpc": 251.2,
+   "dmod": 22.0,
+   "xyzMpc": [
+    0.21396,
+    0.13025,
+    -0.0187
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -2.52,
+   "halfLightRadiusPc": 89.9,
+   "vHelio": null
+  },
+  {
+   "name": "Leo1",
+   "candidate": false,
+   "ra": 152.11708,
+   "dec": 12.30639,
+   "distanceKpc": 253.5,
+   "dmod": 22.020000457763672,
+   "xyzMpc": [
+    -0.21893,
+    0.11584,
+    0.05403
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -11.89,
+   "halfLightRadiusPc": 243.4,
+   "vHelio": 282.5
+  },
+  {
+   "name": "Eridanus2",
+   "candidate": false,
+   "ra": 56.08792,
+   "dec": -43.53333,
+   "distanceKpc": 380.2,
+   "dmod": 22.899999618530273,
+   "xyzMpc": [
+    0.15378,
+    0.22874,
+    -0.26187
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.24,
+   "halfLightRadiusPc": 200.2,
+   "vHelio": 75.5999984741211
+  },
+  {
+   "name": "Phoenix",
+   "candidate": false,
+   "ra": 27.77625,
+   "dec": -44.44472,
+   "distanceKpc": 409.3,
+   "dmod": 23.059999465942383,
+   "xyzMpc": [
+    0.25852,
+    0.13616,
+    -0.28657
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.91,
+   "halfLightRadiusPc": 273.8,
+   "vHelio": -21.200000762939453
+  },
+  {
+   "name": "LeoT",
+   "candidate": false,
+   "ra": 143.7225,
+   "dec": 17.05139,
+   "distanceKpc": 416.9,
+   "dmod": 23.100000381469727,
+   "xyzMpc": [
+    -0.32129,
+    0.23582,
+    0.12224
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.7,
+   "halfLightRadiusPc": 151.6,
+   "vHelio": 38.099998474121094
+  },
+  {
+   "name": "NGC6822",
+   "candidate": false,
+   "ra": 296.23583,
+   "dec": -14.78917,
+   "distanceKpc": 459.2,
+   "dmod": 23.309999465942383,
+   "xyzMpc": [
+    0.19627,
+    -0.39825,
+    -0.11722
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -15.93,
+   "halfLightRadiusPc": 354.0,
+   "vHelio": -54.5
+  },
+  {
+   "name": "AndromedaXVI",
+   "candidate": false,
+   "ra": 14.87417,
+   "dec": 32.37667,
+   "distanceKpc": 476.4,
+   "dmod": 23.389999389648438,
+   "xyzMpc": [
+    0.38889,
+    0.10329,
+    0.25512
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.2,
+   "halfLightRadiusPc": 123.3,
+   "vHelio": -367.29998779296875
+  },
+  {
+   "name": "AndromedaXXIV",
+   "candidate": false,
+   "ra": 19.625,
+   "dec": 46.36611,
+   "distanceKpc": 599.8,
+   "dmod": 23.889999389648438,
+   "xyzMpc": [
+    0.38984,
+    0.13901,
+    0.43411
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.85,
+   "halfLightRadiusPc": 366.4,
+   "vHelio": -128.1999969482422
+  },
+  {
+   "name": "NGC185",
+   "candidate": false,
+   "ra": 9.74167,
+   "dec": 48.3375,
+   "distanceKpc": 616.6,
+   "dmod": 23.950000762939453,
+   "xyzMpc": [
+    0.40397,
+    0.06935,
+    0.46064
+   ],
+   "type": "elliptical",
+   "morphology": "dE3 pec",
+   "MV": -15.32,
+   "halfLightRadiusPc": 457.4,
+   "vHelio": -203.8000030517578,
+   "radiusKpc": 1.7
+  },
+  {
+   "name": "AndromedaXV",
+   "candidate": false,
+   "ra": 18.57792,
+   "dec": 38.1175,
+   "distanceKpc": 625.2,
+   "dmod": 23.979999542236328,
+   "xyzMpc": [
+    0.46622,
+    0.1567,
+    0.3859
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.53,
+   "halfLightRadiusPc": 220.0,
+   "vHelio": -323.0
+  },
+  {
+   "name": "AndromedaII",
+   "candidate": false,
+   "ra": 19.12417,
+   "dec": 33.41917,
+   "distanceKpc": 651.6,
+   "dmod": 24.06999969482422,
+   "xyzMpc": [
+    0.51387,
+    0.17819,
+    0.35889
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -12.76,
+   "halfLightRadiusPc": 1175.2,
+   "vHelio": -192.39999389648438
+  },
+  {
+   "name": "AndromedaXXVIII",
+   "candidate": false,
+   "ra": 338.17167,
+   "dec": 31.21611,
+   "distanceKpc": 660.7,
+   "dmod": 24.100000381469727,
+   "xyzMpc": [
+    0.52453,
+    -0.2101,
+    0.34242
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.78,
+   "halfLightRadiusPc": 213.3,
+   "vHelio": -326.20001220703125
+  },
+  {
+   "name": "AndromedaX",
+   "candidate": false,
+   "ra": 16.64042,
+   "dec": 44.80444,
+   "distanceKpc": 669.9,
+   "dmod": 24.1299991607666,
+   "xyzMpc": [
+    0.45539,
+    0.13611,
+    0.47206
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.93,
+   "halfLightRadiusPc": 253.3,
+   "vHelio": -164.10000610351562
+  },
+  {
+   "name": "NGC147",
+   "candidate": false,
+   "ra": 8.30042,
+   "dec": 48.50889,
+   "distanceKpc": 676.1,
+   "dmod": 24.149999618530273,
+   "xyzMpc": [
+    0.44322,
+    0.06466,
+    0.50643
+   ],
+   "type": "elliptical",
+   "morphology": "dE5 pec",
+   "MV": -15.19,
+   "halfLightRadiusPc": 623.4,
+   "vHelio": -193.10000610351562,
+   "radiusKpc": 2.0
+  },
+  {
+   "name": "AndromedaXXX",
+   "candidate": false,
+   "ra": 9.14542,
+   "dec": 49.64667,
+   "distanceKpc": 682.3,
+   "dmod": 24.170000076293945,
+   "xyzMpc": [
+    0.4362,
+    0.07022,
+    0.51999
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.48,
+   "halfLightRadiusPc": 268.0,
+   "vHelio": -139.8000030517578
+  },
+  {
+   "name": "AndromedaXVII",
+   "candidate": false,
+   "ra": 9.27917,
+   "dec": 44.32222,
+   "distanceKpc": 727.8,
+   "dmod": 24.309999465942383,
+   "xyzMpc": [
+    0.51386,
+    0.08396,
+    0.50849
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.74,
+   "halfLightRadiusPc": 262.5,
+   "vHelio": -251.60000610351562
+  },
+  {
+   "name": "AndromedaXXIX",
+   "candidate": false,
+   "ra": 359.73167,
+   "dec": 30.75556,
+   "distanceKpc": 731.1,
+   "dmod": 24.31999969482422,
+   "xyzMpc": [
+    0.6283,
+    -0.00294,
+    0.37389
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.46,
+   "halfLightRadiusPc": 361.6,
+   "vHelio": -194.39999389648438
+  },
+  {
+   "name": "AndromedaXI",
+   "candidate": false,
+   "ra": 11.58333,
+   "dec": 33.80139,
+   "distanceKpc": 734.5,
+   "dmod": 24.329999923706055,
+   "xyzMpc": [
+    0.59793,
+    0.12256,
+    0.40862
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.08,
+   "halfLightRadiusPc": 151.7,
+   "vHelio": -419.6000061035156
+  },
+  {
+   "name": "AndromedaXX",
+   "candidate": false,
+   "ra": 1.87792,
+   "dec": 35.13222,
+   "distanceKpc": 741.3,
+   "dmod": 24.350000381469727,
+   "xyzMpc": [
+    0.60594,
+    0.01987,
+    0.4266
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -6.33,
+   "halfLightRadiusPc": 114.3,
+   "vHelio": -456.20001220703125
+  },
+  {
+   "name": "AndromedaI",
+   "candidate": false,
+   "ra": 11.41583,
+   "dec": 38.04111,
+   "distanceKpc": 744.7,
+   "dmod": 24.360000610351562,
+   "xyzMpc": [
+    0.57492,
+    0.11609,
+    0.45892
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -12.02,
+   "halfLightRadiusPc": 671.6,
+   "vHelio": -376.29998779296875
+  },
+  {
+   "name": "AndromedaIII",
+   "candidate": false,
+   "ra": 8.89083,
+   "dec": 36.49778,
+   "distanceKpc": 748.2,
+   "dmod": 24.3700008392334,
+   "xyzMpc": [
+    0.59421,
+    0.09295,
+    0.44501
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.34,
+   "halfLightRadiusPc": 478.8,
+   "vHelio": -344.29998779296875
+  },
+  {
+   "name": "Cetus",
+   "candidate": false,
+   "ra": 6.54583,
+   "dec": -11.04444,
+   "distanceKpc": 755.1,
+   "dmod": 24.389999389648438,
+   "xyzMpc": [
+    0.73628,
+    0.08448,
+    -0.14465
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -11.38,
+   "halfLightRadiusPc": 702.9,
+   "vHelio": -83.9000015258789
+  },
+  {
+   "name": "IC1613",
+   "candidate": false,
+   "ra": 16.19917,
+   "dec": 2.11778,
+   "distanceKpc": 755.1,
+   "dmod": 24.389999389648438,
+   "xyzMpc": [
+    0.72462,
+    0.21051,
+    0.0279
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -15.27,
+   "halfLightRadiusPc": 1495.8,
+   "vHelio": -231.60000610351562
+  },
+  {
+   "name": "AndromedaXXXI",
+   "candidate": false,
+   "ra": 344.56792,
+   "dec": 41.29111,
+   "distanceKpc": 758.6,
+   "dmod": 24.399999618530273,
+   "xyzMpc": [
+    0.54942,
+    -0.15167,
+    0.50057
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -12.13,
+   "halfLightRadiusPc": 926.8,
+   "vHelio": null
+  },
+  {
+   "name": "AndromedaVII",
+   "candidate": false,
+   "ra": 351.63208,
+   "dec": 50.67583,
+   "distanceKpc": 762.1,
+   "dmod": 24.40999984741211,
+   "xyzMpc": [
+    0.47779,
+    -0.07028,
+    0.58952
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -13.81,
+   "halfLightRadiusPc": 775.9,
+   "vHelio": -307.20001220703125
+  },
+  {
+   "name": "AndromedaXXVI",
+   "candidate": false,
+   "ra": 5.94,
+   "dec": 47.91611,
+   "distanceKpc": 762.1,
+   "dmod": 24.40999984741211,
+   "xyzMpc": [
+    0.50802,
+    0.05286,
+    0.56559
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.45,
+   "halfLightRadiusPc": 221.7,
+   "vHelio": -261.6000061035156
+  },
+  {
+   "name": "AndromedaIX",
+   "candidate": false,
+   "ra": 13.22083,
+   "dec": 43.19583,
+   "distanceKpc": 765.6,
+   "dmod": 24.420000076293945,
+   "xyzMpc": [
+    0.54334,
+    0.12765,
+    0.52405
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.35,
+   "halfLightRadiusPc": 556.8,
+   "vHelio": -209.39999389648438
+  },
+  {
+   "name": "AndromedaXXIII",
+   "candidate": false,
+   "ra": 22.34083,
+   "dec": 38.71889,
+   "distanceKpc": 769.1,
+   "dmod": 24.43000030517578,
+   "xyzMpc": [
+    0.55505,
+    0.22811,
+    0.48109
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.43,
+   "halfLightRadiusPc": 1029.2,
+   "vHelio": -237.6999969482422
+  },
+  {
+   "name": "LGS3",
+   "candidate": false,
+   "ra": 15.97917,
+   "dec": 21.885,
+   "distanceKpc": 769.1,
+   "dmod": 24.43000030517578,
+   "xyzMpc": [
+    0.68613,
+    0.19647,
+    0.28669
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.25,
+   "halfLightRadiusPc": 469.8,
+   "vHelio": -286.5
+  },
+  {
+   "name": "AndromedaV",
+   "candidate": false,
+   "ra": 17.57125,
+   "dec": 47.62806,
+   "distanceKpc": 772.7,
+   "dmod": 24.440000534057617,
+   "xyzMpc": [
+    0.49644,
+    0.15721,
+    0.57085
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.93,
+   "halfLightRadiusPc": 314.7,
+   "vHelio": -403.0
+  },
+  {
+   "name": "AndromedaXXXIII",
+   "candidate": false,
+   "ra": 45.34833,
+   "dec": 40.98833,
+   "distanceKpc": 772.7,
+   "dmod": 24.440000534057617,
+   "xyzMpc": [
+    0.40991,
+    0.41492,
+    0.50681
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.74,
+   "halfLightRadiusPc": 382.1,
+   "vHelio": null
+  },
+  {
+   "name": "AndromedaXXXII",
+   "candidate": false,
+   "ra": 8.9975,
+   "dec": 51.55972,
+   "distanceKpc": 776.2,
+   "dmod": 24.450000762939453,
+   "xyzMpc": [
+    0.47665,
+    0.07547,
+    0.608
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -12.85,
+   "halfLightRadiusPc": 1467.7,
+   "vHelio": null
+  },
+  {
+   "name": "AndromedaVI",
+   "candidate": false,
+   "ra": 357.94292,
+   "dec": 24.5825,
+   "distanceKpc": 783.4,
+   "dmod": 24.469999313354492,
+   "xyzMpc": [
+    0.71196,
+    -0.02557,
+    0.32591
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -11.67,
+   "halfLightRadiusPc": 524.1,
+   "vHelio": -339.79998779296875
+  },
+  {
+   "name": "AndromedaXIV",
+   "candidate": false,
+   "ra": 12.89583,
+   "dec": 29.69694,
+   "distanceKpc": 794.3,
+   "dmod": 24.5,
+   "xyzMpc": [
+    0.6726,
+    0.15399,
+    0.39352
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.79,
+   "halfLightRadiusPc": 392.8,
+   "vHelio": -480.6000061035156
+  },
+  {
+   "name": "IC10",
+   "candidate": false,
+   "ra": 5.07208,
+   "dec": 59.30389,
+   "distanceKpc": 794.3,
+   "dmod": 24.5,
+   "xyzMpc": [
+    0.4039,
+    0.03585,
+    0.68303
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -19.86,
+   "halfLightRadiusPc": 612.3,
+   "vHelio": -348.0
+  },
+  {
+   "name": "LeoA",
+   "candidate": false,
+   "ra": 149.86042,
+   "dec": 30.74639,
+   "distanceKpc": 798.0,
+   "dmod": 24.510000228881836,
+   "xyzMpc": [
+    -0.59311,
+    0.34436,
+    0.40797
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.18,
+   "halfLightRadiusPc": 499.1,
+   "vHelio": 24.0
+  },
+  {
+   "name": "M32",
+   "candidate": false,
+   "ra": 10.67417,
+   "dec": 40.86528,
+   "distanceKpc": 805.4,
+   "dmod": 24.530000686645508,
+   "xyzMpc": [
+    0.59853,
+    0.11281,
+    0.52695
+   ],
+   "type": "elliptical",
+   "morphology": "cE2",
+   "MV": -16.91,
+   "halfLightRadiusPc": 110.1,
+   "vHelio": -199.0,
+   "radiusKpc": 1.0
+  },
+  {
+   "name": "Triangulum",
+   "candidate": false,
+   "ra": 23.46208,
+   "dec": 30.66028,
+   "distanceKpc": 809.1,
+   "dmod": 24.540000915527344,
+   "xyzMpc": [
+    0.63845,
+    0.2771,
+    0.4126
+   ],
+   "type": "spiral",
+   "morphology": "SA(s)cd",
+   "MV": -18.97,
+   "halfLightRadiusPc": null,
+   "vHelio": -179.1999969482422,
+   "radiusKpc": 9.0,
+   "aka": "M33"
+  },
+  {
+   "name": "AndromedaXXV",
+   "candidate": false,
+   "ra": 7.53708,
+   "dec": 46.85194,
+   "distanceKpc": 812.8,
+   "dmod": 24.549999237060547,
+   "xyzMpc": [
+    0.55108,
+    0.07291,
+    0.59303
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.06,
+   "halfLightRadiusPc": 709.3,
+   "vHelio": -107.80000305175781
+  },
+  {
+   "name": "AndromedaXIX",
+   "candidate": false,
+   "ra": 4.88375,
+   "dec": 35.04361,
+   "distanceKpc": 820.4,
+   "dmod": 24.56999969482422,
+   "xyzMpc": [
+    0.6692,
+    0.05718,
+    0.47105
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.16,
+   "halfLightRadiusPc": 1479.5,
+   "vHelio": -111.5999984741211
+  },
+  {
+   "name": "NGC205",
+   "candidate": false,
+   "ra": 10.09208,
+   "dec": 41.68528,
+   "distanceKpc": 824.1,
+   "dmod": 24.579999923706055,
+   "xyzMpc": [
+    0.60595,
+    0.10785,
+    0.54808
+   ],
+   "type": "elliptical",
+   "morphology": "E5 pec (dE)",
+   "MV": -16.74,
+   "halfLightRadiusPc": 589.7,
+   "vHelio": -246.0,
+   "radiusKpc": 2.5
+  },
+  {
+   "name": "AndromedaXXI",
+   "candidate": false,
+   "ra": 358.69875,
+   "dec": 42.47083,
+   "distanceKpc": 827.9,
+   "dmod": 24.59000015258789,
+   "xyzMpc": [
+    0.61055,
+    -0.01387,
+    0.55904
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.08,
+   "halfLightRadiusPc": 842.9,
+   "vHelio": -362.5
+  },
+  {
+   "name": "AndromedaXXVII",
+   "candidate": false,
+   "ra": 9.36292,
+   "dec": 45.38694,
+   "distanceKpc": 827.9,
+   "dmod": 24.59000015258789,
+   "xyzMpc": [
+    0.57373,
+    0.0946,
+    0.58938
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -8.14,
+   "halfLightRadiusPc": 433.5,
+   "vHelio": -539.5999755859375
+  },
+  {
+   "name": "AndromedaXIII",
+   "candidate": false,
+   "ra": 12.9625,
+   "dec": 33.00444,
+   "distanceKpc": 839.5,
+   "dmod": 24.6200008392334,
+   "xyzMpc": [
+    0.68606,
+    0.15792,
+    0.45726
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -6.77,
+   "halfLightRadiusPc": 190.5,
+   "vHelio": -185.39999389648438
+  },
+  {
+   "name": "Tucana",
+   "candidate": false,
+   "ra": 340.45667,
+   "dec": -64.41944,
+   "distanceKpc": 887.2,
+   "dmod": 24.739999771118164,
+   "xyzMpc": [
+    0.36099,
+    -0.12814,
+    -0.8002
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.64,
+   "halfLightRadiusPc": 283.9,
+   "vHelio": 194.0
+  },
+  {
+   "name": "AndromedaXXII",
+   "candidate": false,
+   "ra": 21.91667,
+   "dec": 28.09028,
+   "distanceKpc": 920.4,
+   "dmod": 24.81999969482422,
+   "xyzMpc": [
+    0.75334,
+    0.3031,
+    0.4334
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -7.06,
+   "halfLightRadiusPc": 251.7,
+   "vHelio": -129.8000030517578
+  },
+  {
+   "name": "PegasusdIrr",
+   "candidate": false,
+   "ra": 352.15125,
+   "dec": 14.74306,
+   "distanceKpc": 920.4,
+   "dmod": 24.81999969482422,
+   "xyzMpc": [
+    0.88181,
+    -0.12156,
+    0.23424
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.43,
+   "halfLightRadiusPc": 562.3,
+   "vHelio": -179.5
+  },
+  {
+   "name": "AndromedaXII",
+   "candidate": false,
+   "ra": 11.8625,
+   "dec": 34.37472,
+   "distanceKpc": 929.0,
+   "dmod": 24.84000015258789,
+   "xyzMpc": [
+    0.75036,
+    0.15761,
+    0.5245
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -6.88,
+   "halfLightRadiusPc": 324.3,
+   "vHelio": -558.4000244140625
+  },
+  {
+   "name": "WLM",
+   "candidate": false,
+   "ra": 0.4925,
+   "dec": -15.46083,
+   "distanceKpc": 933.3,
+   "dmod": 24.850000381469727,
+   "xyzMpc": [
+    0.89945,
+    0.00773,
+    -0.24879
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.37,
+   "halfLightRadiusPc": 2340.1,
+   "vHelio": -130.0
+  },
+  {
+   "name": "SagittariusdIrr",
+   "candidate": false,
+   "ra": 292.49583,
+   "dec": -17.68083,
+   "distanceKpc": 1066.6,
+   "dmod": 25.139999389648438,
+   "xyzMpc": [
+    0.38882,
+    -0.93889,
+    -0.32394
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -11.92,
+   "halfLightRadiusPc": 282.3,
+   "vHelio": -78.5
+  },
+  {
+   "name": "Aquarius",
+   "candidate": false,
+   "ra": 311.71583,
+   "dec": -12.84806,
+   "distanceKpc": 1071.5,
+   "dmod": 25.149999618530273,
+   "xyzMpc": [
+    0.69518,
+    -0.77981,
+    -0.23827
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -10.81,
+   "halfLightRadiusPc": 458.2,
+   "vHelio": -137.6999969482422
+  },
+  {
+   "name": "AndromedaXVIII",
+   "candidate": false,
+   "ra": 0.56042,
+   "dec": 45.08889,
+   "distanceKpc": 1213.4,
+   "dmod": 25.420000076293945,
+   "xyzMpc": [
+    0.85662,
+    0.00838,
+    0.85933
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.75,
+   "halfLightRadiusPc": 324.7,
+   "vHelio": -332.1000061035156
+  },
+  {
+   "name": "AntliaB",
+   "candidate": false,
+   "ra": 147.23375,
+   "dec": -25.99,
+   "distanceKpc": 1294.2,
+   "dmod": 25.559999465942383,
+   "xyzMpc": [
+    -0.97821,
+    0.6296,
+    -0.56713
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -9.91,
+   "halfLightRadiusPc": 271.1,
+   "vHelio": 376.0
+  },
+  {
+   "name": "NGC3109",
+   "candidate": false,
+   "ra": 150.77875,
+   "dec": -26.15972,
+   "distanceKpc": 1300.2,
+   "dmod": 25.56999969482422,
+   "xyzMpc": [
+    -1.01848,
+    0.56971,
+    -0.57321
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -15.08,
+   "halfLightRadiusPc": 1626.3,
+   "vHelio": 403.0
+  },
+  {
+   "name": "Antlia",
+   "candidate": false,
+   "ra": 151.01708,
+   "dec": -27.33111,
+   "distanceKpc": 1349.0,
+   "dmod": 25.649999618530273,
+   "xyzMpc": [
+    -1.0483,
+    0.58067,
+    -0.61935
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -10.69,
+   "halfLightRadiusPc": 470.9,
+   "vHelio": 362.0
+  },
+  {
+   "name": "UGC4879",
+   "candidate": false,
+   "ra": 139.00917,
+   "dec": 52.84,
+   "distanceKpc": 1361.4,
+   "dmod": 25.670000076293945,
+   "xyzMpc": [
+    -0.62074,
+    0.53942,
+    1.08501
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.52,
+   "halfLightRadiusPc": 162.4,
+   "vHelio": -29.200000762939453
+  },
+  {
+   "name": "SextansB",
+   "candidate": false,
+   "ra": 150.00042,
+   "dec": 5.33222,
+   "distanceKpc": 1425.6,
+   "dmod": 25.770000457763672,
+   "xyzMpc": [
+    -1.22928,
+    0.70971,
+    0.13248
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.57,
+   "halfLightRadiusPc": 439.6,
+   "vHelio": 304.0
+  },
+  {
+   "name": "SextansA",
+   "candidate": false,
+   "ra": 152.75333,
+   "dec": -4.69278,
+   "distanceKpc": 1432.2,
+   "dmod": 25.780000686645508,
+   "xyzMpc": [
+    -1.26901,
+    0.65349,
+    -0.11717
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.42,
+   "halfLightRadiusPc": 1029.0,
+   "vHelio": 324.0
+  },
+  {
+   "name": "LeoP",
+   "candidate": false,
+   "ra": 155.43792,
+   "dec": 18.08806,
+   "distanceKpc": 1621.8,
+   "dmod": 26.049999237060547,
+   "xyzMpc": [
+    -1.40216,
+    0.64084,
+    0.50354
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -9.23,
+   "halfLightRadiusPc": null,
+   "vHelio": 264.0
+  },
+  {
+   "name": "HIZSS3(A)",
+   "candidate": false,
+   "ra": 105.12208,
+   "dec": -4.20833,
+   "distanceKpc": 1674.9,
+   "dmod": 26.1200008392334,
+   "xyzMpc": [
+    -0.43578,
+    1.61258,
+    -0.12291
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": null,
+   "halfLightRadiusPc": null,
+   "vHelio": 288.0
+  },
+  {
+   "name": "HIZSS3B",
+   "candidate": false,
+   "ra": 105.12208,
+   "dec": -4.20833,
+   "distanceKpc": 1674.9,
+   "dmod": 26.1200008392334,
+   "xyzMpc": [
+    -0.43578,
+    1.61258,
+    -0.12291
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": null,
+   "halfLightRadiusPc": null,
+   "vHelio": 322.6000061035156
+  },
+  {
+   "name": "ESO410-G005",
+   "candidate": false,
+   "ra": 3.88167,
+   "dec": -32.18,
+   "distanceKpc": 1923.1,
+   "dmod": 26.420000076293945,
+   "xyzMpc": [
+    1.62393,
+    0.11019,
+    -1.0242
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -11.56,
+   "halfLightRadiusPc": 279.7,
+   "vHelio": null
+  },
+  {
+   "name": "KKR25",
+   "candidate": false,
+   "ra": 243.45,
+   "dec": 54.37111,
+   "distanceKpc": 1923.1,
+   "dmod": 26.420000076293945,
+   "xyzMpc": [
+    -0.50073,
+    -1.00213,
+    1.5631
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.95,
+   "halfLightRadiusPc": 262.9,
+   "vHelio": -65.0
+  },
+  {
+   "name": "NGC55",
+   "candidate": false,
+   "ra": 3.72333,
+   "dec": -39.19667,
+   "distanceKpc": 1932.0,
+   "dmod": 26.43000030517578,
+   "xyzMpc": [
+    1.49408,
+    0.09723,
+    -1.22097
+   ],
+   "type": "spiral",
+   "morphology": "SB(s)m edge-on",
+   "MV": -18.57,
+   "halfLightRadiusPc": 2899.9,
+   "vHelio": 129.0,
+   "radiusKpc": 9.5
+  },
+  {
+   "name": "IC5152",
+   "candidate": false,
+   "ra": 330.67292,
+   "dec": -51.29639,
+   "distanceKpc": 1949.8,
+   "dmod": 26.450000762939453,
+   "xyzMpc": [
+    1.06296,
+    -0.59717,
+    -1.52164
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -15.63,
+   "halfLightRadiusPc": 550.2,
+   "vHelio": 122.0
+  },
+  {
+   "name": "ESO294-G010",
+   "candidate": false,
+   "ra": 6.63917,
+   "dec": -41.85528,
+   "distanceKpc": 2032.4,
+   "dmod": 26.540000915527344,
+   "xyzMpc": [
+    1.50362,
+    0.17502,
+    -1.35609
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -11.26,
+   "halfLightRadiusPc": 248.3,
+   "vHelio": 117.0
+  },
+  {
+   "name": "NGC300",
+   "candidate": false,
+   "ra": 13.72292,
+   "dec": -37.68444,
+   "distanceKpc": 2079.7,
+   "dmod": 26.59000015258789,
+   "xyzMpc": [
+    1.59887,
+    0.39044,
+    -1.27134
+   ],
+   "type": "spiral",
+   "morphology": "SA(s)d",
+   "MV": -18.53,
+   "halfLightRadiusPc": 3024.8,
+   "vHelio": 146.0,
+   "radiusKpc": 6.5
+  },
+  {
+   "name": "KKs3",
+   "candidate": false,
+   "ra": 36.185,
+   "dec": -73.51417,
+   "distanceKpc": 2118.4,
+   "dmod": 26.6299991607666,
+   "xyzMpc": [
+    0.48519,
+    0.35491,
+    -2.03127
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -12.28,
+   "halfLightRadiusPc": 351.2,
+   "vHelio": 316.0
+  },
+  {
+   "name": "GR8",
+   "candidate": false,
+   "ra": 194.66833,
+   "dec": 14.2175,
+   "distanceKpc": 2177.7,
+   "dmod": 26.690000534057617,
+   "xyzMpc": [
+    -2.04221,
+    -0.53456,
+    0.53485
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.27,
+   "halfLightRadiusPc": 202.7,
+   "vHelio": 213.89999389648438
+  },
+  {
+   "name": "KKR3",
+   "candidate": false,
+   "ra": 211.79375,
+   "dec": 35.06028,
+   "distanceKpc": 2187.8,
+   "dmod": 26.700000762939453,
+   "xyzMpc": [
+    -1.52208,
+    -0.9435,
+    1.25673
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -9.54,
+   "halfLightRadiusPc": 229.1,
+   "vHelio": 63.29999923706055
+  },
+  {
+   "name": "UKS2323-326",
+   "candidate": false,
+   "ra": 351.61458,
+   "dec": -32.38889,
+   "distanceKpc": 2208.0,
+   "dmod": 26.719999313354492,
+   "xyzMpc": [
+    1.84458,
+    -0.2719,
+    -1.18275
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -13.27,
+   "halfLightRadiusPc": 578.1,
+   "vHelio": 62.0
+  },
+  {
+   "name": "IC3104",
+   "candidate": false,
+   "ra": 184.69167,
+   "dec": -79.72611,
+   "distanceKpc": 2269.9,
+   "dmod": 26.780000686645508,
+   "xyzMpc": [
+    -0.40348,
+    -0.03311,
+    -2.23347
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -15.25,
+   "halfLightRadiusPc": 1327.2,
+   "vHelio": 429.0
+  },
+  {
+   "name": "UGC9128",
+   "candidate": false,
+   "ra": 213.98542,
+   "dec": 23.05528,
+   "distanceKpc": 2290.9,
+   "dmod": 26.799999237060547,
+   "xyzMpc": [
+    -1.74782,
+    -1.17827,
+    0.89715
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.47,
+   "halfLightRadiusPc": 426.5,
+   "vHelio": 152.0
+  },
+  {
+   "name": "KK258",
+   "candidate": false,
+   "ra": 340.18292,
+   "dec": -30.79972,
+   "distanceKpc": 2344.2,
+   "dmod": 26.850000381469727,
+   "xyzMpc": [
+    1.89436,
+    -0.68265,
+    -1.20034
+   ],
+   "type": "spheroidal",
+   "morphology": "dSph",
+   "MV": -10.59,
+   "halfLightRadiusPc": null,
+   "vHelio": 92.0
+  },
+  {
+   "name": "IC4662",
+   "candidate": false,
+   "ra": 266.78667,
+   "dec": -64.64167,
+   "distanceKpc": 2443.4,
+   "dmod": 26.940000534057617,
+   "xyzMpc": [
+    -0.05866,
+    -1.04482,
+    -2.208
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -16.06,
+   "halfLightRadiusPc": 341.2,
+   "vHelio": 302.0
+  },
+  {
+   "name": "KKH98",
+   "candidate": false,
+   "ra": 356.39167,
+   "dec": 38.71778,
+   "distanceKpc": 2523.5,
+   "dmod": 27.010000228881836,
+   "xyzMpc": [
+    1.96501,
+    -0.12391,
+    1.5784
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -12.19,
+   "halfLightRadiusPc": 469.8,
+   "vHelio": -136.89999389648438
+  },
+  {
+   "name": "DDO125",
+   "candidate": false,
+   "ra": 186.92042,
+   "dec": 43.49556,
+   "distanceKpc": 2582.3,
+   "dmod": 27.059999465942383,
+   "xyzMpc": [
+    -1.8596,
+    -0.22571,
+    1.77736
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.42,
+   "halfLightRadiusPc": 781.2,
+   "vHelio": 194.89999389648438
+  },
+  {
+   "name": "KKH86",
+   "candidate": false,
+   "ra": 208.63958,
+   "dec": 4.24306,
+   "distanceKpc": 2582.3,
+   "dmod": 27.059999465942383,
+   "xyzMpc": [
+    -2.26011,
+    -1.23428,
+    0.19106
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -10.04,
+   "halfLightRadiusPc": 210.3,
+   "vHelio": 287.20001220703125
+  },
+  {
+   "name": "UGC8508",
+   "candidate": false,
+   "ra": 202.685,
+   "dec": 54.91,
+   "distanceKpc": 2582.3,
+   "dmod": 27.059999465942383,
+   "xyzMpc": [
+    -1.36961,
+    -0.5725,
+    2.11293
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -13.41,
+   "halfLightRadiusPc": 315.5,
+   "vHelio": 56.0
+  },
+  {
+   "name": "DDO99",
+   "candidate": false,
+   "ra": 177.72083,
+   "dec": 38.88028,
+   "distanceKpc": 2594.2,
+   "dmod": 27.06999969482422,
+   "xyzMpc": [
+    -2.01787,
+    0.08031,
+    1.62835
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -13.25,
+   "halfLightRadiusPc": 679.2,
+   "vHelio": 251.0
+  },
+  {
+   "name": "DDO190",
+   "candidate": false,
+   "ra": 216.18083,
+   "dec": 44.52583,
+   "distanceKpc": 2792.5,
+   "dmod": 27.229999542236328,
+   "xyzMpc": [
+    -1.60697,
+    -1.1753,
+    1.95822
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.47,
+   "halfLightRadiusPc": 519.9,
+   "vHelio": 150.0
+  },
+  {
+   "name": "NGC4163",
+   "candidate": false,
+   "ra": 183.03792,
+   "dec": 36.16917,
+   "distanceKpc": 2857.6,
+   "dmod": 27.280000686645508,
+   "xyzMpc": [
+    -2.30363,
+    -0.12226,
+    1.68647
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -14.14,
+   "halfLightRadiusPc": 374.1,
+   "vHelio": 165.0
+  },
+  {
+   "name": "DDO113",
+   "candidate": false,
+   "ra": 183.74125,
+   "dec": 36.21889,
+   "distanceKpc": 2951.2,
+   "dmod": 27.350000381469727,
+   "xyzMpc": [
+    -2.37586,
+    -0.15536,
+    1.74379
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -11.01,
+   "halfLightRadiusPc": 600.9,
+   "vHelio": 284.0
+  },
+  {
+   "name": "UGCA86",
+   "candidate": false,
+   "ra": 59.95125,
+   "dec": 67.13861,
+   "distanceKpc": 2964.8,
+   "dmod": 27.360000610351562,
+   "xyzMpc": [
+    0.57677,
+    0.99704,
+    2.73194
+   ],
+   "type": "irregular",
+   "morphology": "dIrr",
+   "MV": -16.07,
+   "halfLightRadiusPc": 810.7,
+   "vHelio": 67.0
+  }
+ ]
+}

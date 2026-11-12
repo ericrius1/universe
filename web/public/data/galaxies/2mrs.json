@@ -1,0 +1,58 @@
+{
+ "file": "2mrs.bin",
+ "count": 43533,
+ "order": "brightest total Ks first",
+ "record": {
+  "bytes": 20,
+  "littleEndian": true,
+  "fields": [
+   [
+    "x",
+    "f32",
+    "Mpc"
+   ],
+   [
+    "y",
+    "f32",
+    "Mpc"
+   ],
+   [
+    "z",
+    "f32",
+    "Mpc"
+   ],
+   [
+    "logLK",
+    "f32",
+    "log10 of K-band luminosity in solar units"
+   ],
+   [
+    "typeFlags",
+    "u32",
+    "low byte: type; next byte: flags"
+   ]
+  ]
+ },
+ "types": {
+  "0": "unknown (not yet typed)",
+  "1": "spiral (Sa-Sm, unclassified S)",
+  "2": "elliptical or lenticular (E, E/S0, S0)",
+  "3": "other (irregular, peculiar, compact)"
+ },
+ "typeCounts": {
+  "unknown (not yet typed)": 17801,
+  "spiral (Sa-Sm, unclassified S)": 13185,
+  "elliptical or lenticular (E, E/S0, S0)": 12176,
+  "other (irregular, peculiar, compact)": 371
+ },
+ "flags": {
+  "1": "distance measured (McConnachie 2012), not from the redshift",
+  "2": "v_LG < 70 km/s with no measured distance: placed at 1 Mpc"
+ },
+ "frame": "heliocentric, equatorial J2000 axes: +x RA 0h Dec 0, +y RA 6h Dec 0, +z north celestial pole",
+ "distance": "redshift distance v_LG / H0, H0 = 70 km/s/Mpc; v_LG per Courteau & van den Bergh 1999",
+ "luminosity": "from extinction-corrected total Ks (Ktmag), M_K,sun = 3.28",
+ "coverage": "all sky except |b| < 5 deg (|b| < 8 deg toward the bulge, l < 30 or > 330): the zone of avoidance",
+ "credit": "2MASS Redshift Survey: Huchra et al. 2012, ApJS 199, 26 (VizieR J/ApJS/199/26). This publication makes use of data products from the Two Micron All Sky Survey, a joint project of the University of Massachusetts and IPAC/Caltech, funded by NASA and the NSF.",
+ "terms": "VizieR/CDS: free to use with acknowledgement; 2MASS acknowledgement as given"
+}

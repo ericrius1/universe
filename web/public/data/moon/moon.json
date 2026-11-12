@@ -1,0 +1,30 @@
+{
+ "projection": "plate carree: u = (lon + 180) / 360, v = (90 - lat) / 180; the near side (lon 0) at u = 0.5",
+ "files": {
+  "color_4k.webp": {
+   "size": [
+    4096,
+    2048
+   ],
+   "channels": "RGB, sRGB",
+   "source": "LROC WAC colour (lroc_color_poles_4k.tif)"
+  },
+  "height_1440.png": {
+   "size": [
+    1440,
+    720
+   ],
+   "channels": "16-bit greyscale",
+   "decode": "km = value * 0.01 + (-10.0)",
+   "reference": "height above a sphere of radius 1737.4 km",
+   "rangeKm": [
+    -8.878,
+    10.504
+   ],
+   "source": "LOLA elevation (ldem_4.tif)"
+  }
+ },
+ "source": "https://svs.gsfc.nasa.gov/4720",
+ "credit": "NASA's Scientific Visualization Studio (Ernie Wright), CGI Moon Kit; LRO LROC and LOLA teams",
+ "terms": "NASA SVS: public domain, credit NASA SVS"
+}

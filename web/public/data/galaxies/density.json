@@ -1,0 +1,26 @@
+{
+ "file": "density.bin",
+ "dims": [
+  128,
+  128,
+  128
+ ],
+ "order": "x fastest, then y, then z (index = x + 128 (y + 128 z))",
+ "boxMpc": {
+  "min": [
+   -200.0,
+   -200.0,
+   -200.0
+  ],
+  "max": [
+   200.0,
+   200.0,
+   200.0
+  ]
+ },
+ "cellMpc": 3.125,
+ "frame": "heliocentric, equatorial J2000 axes (as 2mrs.bin), redshift space",
+ "encoding": "byte 0: outside the 200 Mpc sphere; 1..255: log10(rho / mean) linear from -1.0 to 1.5 (value = 1 + 254 * (log10(rho/mean) + 1) / 2.5, clipped)",
+ "method": "2MRS galaxies with 2 < d < 200 Mpc, each weighted by 1/n(d) (the survey's own number density by distance, floored at 5% of its peak), binned, smoothed by a 4 Mpc Gaussian. The zone of avoidance (|b| < 5-8 deg) is empty, and shot noise grows past ~150 Mpc.",
+ "credit": "2MASS Redshift Survey: Huchra et al. 2012, ApJS 199, 26 (VizieR J/ApJS/199/26). This publication makes use of data products from the Two Micron All Sky Survey, a joint project of the University of Massachusetts and IPAC/Caltech, funded by NASA and the NSF."
+}

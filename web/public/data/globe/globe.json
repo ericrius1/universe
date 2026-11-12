@@ -1,0 +1,56 @@
+{
+ "oneChannel": "WebP has no greyscale mode: the one-channel maps decode as RGB with R = G = B; read R",
+ "projection": "equirectangular (plate carree): u = (lon + 180) / 360, v = (90 - lat) / 180; Greenwich at u = 0.5",
+ "maps": {
+  "day_8k.webp": {
+   "size": [
+    8192,
+    4096
+   ],
+   "channels": "RGB, sRGB",
+   "source": "Blue Marble Next Generation, December 2004, with topography and bathymetry"
+  },
+  "day_4k.webp": {
+   "size": [
+    4096,
+    2048
+   ],
+   "channels": "RGB, sRGB",
+   "source": "as day_8k"
+  },
+  "night_4k.webp": {
+   "size": [
+    4096,
+    2048
+   ],
+   "channels": "one (greyscale): night light, sRGB-encoded",
+   "source": "Black Marble 2016 (greyscale), Suomi NPP VIIRS day/night band composite"
+  },
+  "clouds_2k.webp": {
+   "size": [
+    2048,
+    1024
+   ],
+   "channels": "one (greyscale): cloud brightness, 0 clear",
+   "source": "Blue Marble (2002) combined cloud map; NASA serves only 2048 x 1024 now"
+  },
+  "relief_4k.webp": {
+   "size": [
+    4096,
+    2048
+   ],
+   "channels": "one: 0..127 ocean (127 shoreline, darker deeper), 128..255 land (128 sea level, brighter higher); NASA's greyscales, not metres",
+   "source": "GEBCO_08 elevation and bathymetry greyscales from Blue Marble Next Generation"
+  },
+  "mask_4k.webp": {
+   "size": [
+    4096,
+    2048
+   ],
+   "channels": "one: 255 land (incl. ice sheets and lakes below the bathymetry's reach), 0 ocean; lossless",
+   "source": "from the GEBCO_08 bathymetry"
+  }
+ },
+ "credit": "NASA Earth Observatory: Blue Marble Next Generation (Reto Stockli, NASA Goddard); Black Marble 2016 (Joshua Stevens, Miguel Roman, NASA GSFC, Suomi NPP); Blue Marble clouds (2002); GEBCO_08 Grid (General Bathymetric Chart of the Oceans) via NASA",
+ "terms": "NASA imagery: public domain, credit NASA; GEBCO grid: public domain with acknowledgement"
+}
