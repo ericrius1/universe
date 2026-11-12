@@ -1,0 +1,203 @@
+{
+ "frame": "heliocentric, equatorial J2000 axes, Mpc, redshift distance v_LG / 70 (as 2mrs.bin)",
+ "note": "Clusters: centred on the named galaxy, at the median v_LG of the 2MRS galaxies within 1.5 Mpc and 2,000 km/s of it. Voids and walls: approximate literature positions.",
+ "structures": [
+  {
+   "name": "Virgo Cluster",
+   "kind": "cluster",
+   "centre": "M87 (NGC 4486)",
+   "ra": 187.7059,
+   "dec": 12.3911,
+   "vLG": 1032,
+   "members2MRS": 174,
+   "redshiftDistanceMpc": 14.74,
+   "xyzMpc": [
+    -14.269,
+    -1.931,
+    3.163
+   ],
+   "source": "Binggeli, Sandage & Tammann 1985, AJ 90, 1681; measured distance 16.5 Mpc from surface-brightness fluctuations (Mei et al. 2007, ApJ 655, 144)",
+   "measuredDistanceMpc": 16.5
+  },
+  {
+   "name": "Fornax Cluster",
+   "kind": "cluster",
+   "centre": "NGC 1399",
+   "ra": 54.6212,
+   "dec": -35.4507,
+   "vLG": 1333,
+   "members2MRS": 47,
+   "redshiftDistanceMpc": 19.04,
+   "xyzMpc": [
+    8.981,
+    12.648,
+    -11.045
+   ],
+   "source": "Ferguson 1989, AJ 98, 367; SBF distance 20.0 Mpc (Blakeslee et al. 2009, ApJ 694, 556)",
+   "measuredDistanceMpc": 20.0
+  },
+  {
+   "name": "Centaurus Cluster (Abell 3526)",
+   "kind": "cluster",
+   "centre": "NGC 4696",
+   "ra": 192.2051,
+   "dec": -41.3112,
+   "vLG": 3089,
+   "members2MRS": 96,
+   "redshiftDistanceMpc": 44.12,
+   "xyzMpc": [
+    -32.394,
+    -7.007,
+    -29.129
+   ],
+   "source": "Lucey, Currie & Dickens 1986, MNRAS 221, 453"
+  },
+  {
+   "name": "Hydra Cluster (Abell 1060)",
+   "kind": "cluster",
+   "centre": "NGC 3311",
+   "ra": 159.1779,
+   "dec": -27.5285,
+   "vLG": 3350,
+   "members2MRS": 79,
+   "redshiftDistanceMpc": 47.85,
+   "xyzMpc": [
+    -39.664,
+    15.084,
+    -22.117
+   ],
+   "source": "Richter 1987, A&AS 67, 237"
+  },
+  {
+   "name": "Perseus Cluster (Abell 426)",
+   "kind": "cluster",
+   "centre": "NGC 1275",
+   "ra": 49.9507,
+   "dec": 41.5117,
+   "vLG": 5616,
+   "members2MRS": 94,
+   "redshiftDistanceMpc": 80.23,
+   "xyzMpc": [
+    38.656,
+    45.988,
+    53.173
+   ],
+   "source": "Abell, Corwin & Olowin 1989, ApJS 70, 1; heart of the Perseus-Pisces supercluster (Haynes & Giovanelli 1986)"
+  },
+  {
+   "name": "Norma Cluster (Abell 3627)",
+   "kind": "cluster",
+   "centre": "ESO 137-G006",
+   "ra": 243.766,
+   "dec": -60.907,
+   "vLG": 4695,
+   "members2MRS": 82,
+   "redshiftDistanceMpc": 67.07,
+   "xyzMpc": [
+    -14.416,
+    -29.254,
+    -58.61
+   ],
+   "source": "Kraan-Korteweg et al. 1996, Nature 379, 519: the core of the Great Attractor"
+  },
+  {
+   "name": "Coma Cluster (Abell 1656)",
+   "kind": "cluster",
+   "centre": "NGC 4874",
+   "ra": 194.8988,
+   "dec": 27.9594,
+   "vLG": 6923,
+   "members2MRS": 62,
+   "redshiftDistanceMpc": 98.89,
+   "xyzMpc": [
+    -84.414,
+    -22.459,
+    46.366
+   ],
+   "source": "Abell, Corwin & Olowin 1989; centre of the CfA2 Great Wall (Geller & Huchra 1989, Science 246, 897)"
+  },
+  {
+   "name": "Hercules Cluster (Abell 2151)",
+   "kind": "cluster",
+   "centre": "NGC 6041",
+   "ra": 241.149,
+   "dec": 17.7215,
+   "vLG": 10537,
+   "members2MRS": 25,
+   "redshiftDistanceMpc": 150.53,
+   "xyzMpc": [
+    -69.189,
+    -125.589,
+    45.82
+   ],
+   "source": "Abell, Corwin & Olowin 1989; Hercules supercluster (Einasto et al. 2001)"
+  },
+  {
+   "name": "Shapley Supercluster core (Abell 3558)",
+   "kind": "supercluster",
+   "centre": "ESO 444-G046",
+   "ra": 201.987,
+   "dec": -31.4955,
+   "vLG": 14766,
+   "members2MRS": 19,
+   "redshiftDistanceMpc": 210.94,
+   "xyzMpc": [
+    -166.781,
+    -67.34,
+    -110.2
+   ],
+   "source": "Shapley 1930; Raychaudhury 1989, Nature 342, 251; the largest concentration of mass within 200 Mpc"
+  },
+  {
+   "name": "Bootes Void",
+   "kind": "void",
+   "ra": 222.5,
+   "dec": 46.0,
+   "cz": 15500,
+   "radiusMpc": 50,
+   "source": "Kirshner, Oemler, Schechter & Shectman 1981, ApJ 248, L57; Kirshner et al. 1987, ApJ 314, 493 (centre ~14h50m +46 deg, cz ~15,500 km/s, radius ~62/h Mpc)",
+   "vLG": 15608,
+   "redshiftDistanceMpc": 223.0,
+   "xyzMpc": [
+    -114.19,
+    -104.64,
+    160.39
+   ],
+   "approximate": true
+  },
+  {
+   "name": "Sloan Great Wall",
+   "kind": "wall",
+   "ra": 195.0,
+   "dec": 1.0,
+   "cz": 22000,
+   "lengthMpc": 420,
+   "source": "Gott et al. 2005, ApJ 624, 463 (SDSS slice at Dec ~0, RA ~9h-15h, z ~0.07-0.08; 1.37 billion ly long)",
+   "vLG": 21843,
+   "redshiftDistanceMpc": 312.0,
+   "xyzMpc": [
+    -301.36,
+    -80.75,
+    5.45
+   ],
+   "approximate": true
+  },
+  {
+   "name": "CfA2 Great Wall",
+   "kind": "wall",
+   "ra": 195.0,
+   "dec": 29.0,
+   "cz": 7000,
+   "lengthMpc": 200,
+   "source": "Geller & Huchra 1989, Science 246, 897 (RA ~8h-17h, Dec ~+27 to +40, cz ~5,000-10,000 km/s)",
+   "vLG": 6977,
+   "redshiftDistanceMpc": 99.7,
+   "xyzMpc": [
+    -84.2,
+    -22.56,
+    48.32
+   ],
+   "approximate": true
+  }
+ ]
+}
