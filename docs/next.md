@@ -138,8 +138,14 @@ What round one left that you'll build on:
   while the view holds still (`L.march.x` is this frame's offset along the first step). Their noise is baked into
   small tiling textures (`cosmos/noisetex.ts`): a tap, not a hash.
 - **The band behind everything** is the real sky's picture (`havens/sky/milkyway.webp`, in `levels/galaxy.ts`).
-- Timings after round one are in `perf/air-next1.json` once it's there; until then compare with `perf/air-main.json`
-  and don't make anything slower than it was.
+- **Windows** (`src/windows.ts`, `src/realms.ts`): any stretch of the zoom opened by itself, each realm (a cosmos
+  level, the gardens, the cell) a chunk built only when its window takes it in. A new level or realm is added there.
+- **The cell** at a quarter of its frame time: the upscaler on by default on a computer (the cell drawn at two thirds
+  of the canvas or less, `main.ts` `taau()`), see-through membranes at half size, beads' depth first, organelles out
+  of view not drawn, noise from a baked texture. Still over 16.7 ms at the page's settings: the nuclear pore (20.5),
+  rough ER (20), Golgi (18.9), the membrane (18.2), microtubules (17.6).
+- Timings: `perf/air-next1.json` (after the cosmos work, beside `main`). Compare side by side (`AGAINST=`), never with
+  a kept file on a warm laptop. Port 5751 serves `main` as it was; 5754 serves `next` with all of round one.
 
 The pieces, and whose files are whose (if it isn't in your row, it's someone else's: a few lines at most, and say so):
 

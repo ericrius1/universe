@@ -45,14 +45,14 @@ export interface Globals {
   fogColor: Vec3;
   fogDist: number;
   bgColor: Vec3;
-  pad1: number;
+  spot: number;
   clearRadius: number;
   pxAngle: number;
   cutRadius: number;
   organelleCount: number;
   hover: number;
   selected: number;
-  quality: number;
+  spots: number;
   flags: number;
   timeScale: number;
   shellSolid: number;
@@ -169,5 +169,5 @@ export interface CutHit {
   t: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Material: Material; MeshV: MeshV; VOut: VOut; GOut: GOut; GOutD: GOutD; OitOut: OitOut; Lipid: Lipid; Detail: Detail; CutHit: CutHit }, 'frame' | 'G' | 'organelles' | 'verts' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Material: Material; MeshV: MeshV; VOut: VOut; GOut: GOut; GOutD: GOutD; OitOut: OitOut; Lipid: Lipid; Detail: Detail; CutHit: CutHit }, 'frame' | 'G' | 'organelles' | 'verts' | 'noiseTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

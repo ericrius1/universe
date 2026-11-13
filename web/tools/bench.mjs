@@ -39,8 +39,7 @@ async function open(at) {
   const tag = `about:blank#bench-${process.pid}-${Date.now()}-${pages.length}`;
   await s.send('Target.createTarget', { url: tag, newWindow: true, width: Number(w), height: Number(h) });
   const page = await (await browser.waitForTarget((t) => t.url() === tag, { timeout: 15000 })).page();
-  const cdp = await page.createCDPSession();
-  pages.push({ page, cdp, at });
+  pages.push({ page, at });
   if (phone) await page.setUserAgent(IPHONE);
   await page.setViewport({ width: Number(w), height: Number(h), deviceScaleFactor: Number(dpr), isMobile: phone, hasTouch: phone });
   page.on('console', (m) => { if (m.type() === 'error') console.error(`[error] ${m.text()}`); });
@@ -51,12 +50,19 @@ async function open(at) {
   await page.waitForFunction(() => !window.app.gardens || window.app.gardens.ready, { timeout: 240000, polling: 500 });
   return pages[pages.length - 1];
 }
-/** a page stopped (no frames, no timers) or let go again: only one draws at a time */
-const frozen = (p, on) => p.cdp.send('Page.setWebLifecycleState', { state: on ? 'frozen' : 'active' });
+/** a page held (its frames kept back, so it draws nothing) or let go again: only one draws at a time. Held by its own
+ *  requestAnimationFrame (window.__hold, made in install): Chrome's lifecycle 'frozen' would do, but a headless page
+ *  thawed from it stays hidden and never draws again */
+const frozen = (p, on) => p.page.evaluate((on) => window.__hold(on), on);
 /** what a page can time: its places by name, each set up and timed when asked (window.__bench) */
 const install = (only) => {
   const { app, kit } = window;
   kit.profiler.force = true;
+  // (holding the page: the frames it asks for kept till it's let go)
+  const raf = window.requestAnimationFrame.bind(window);
+  let kept = null;
+  window.requestAnimationFrame = (f) => (kept ? (kept.push(f), 0) : raf(f));
+  window.__hold = (on) => { if (on) kept ??= []; else { const q = kept ?? []; kept = null; for (const f of q) raf(f); } };
   const frames = (n) => new Promise((res) => { let i = 0; const f = () => (++i >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
   const measure = async () => {
     await frames(30);
@@ -75,6 +81,9 @@ const install = (only) => {
     [22.6, -0.6, 'local group'], [21.35, -0.75, 'milky way'], [20.0, -0.55, 'entering the disc'], [17.7, -0.3, 'neighbours'], [15.0, -0.5, 'past the planets'],
     [13, -0.62, 'solar system'], [11.2, -0.5, 'inner planets'], [8.9, -0.2, 'earth and moon'], [7.35, -0.15, 'earth'], [5.3, -0.4, 'coming down'],
     [3.5, -0.42, 'gardens, 3 km'], [1.4, -0.6, 'gardens, 25 m'], [0.35, -0.95, 'her, 2 m'], [-1.75, -1.1, 'her eye'], [-3.6, -1.1, 'cornea']];
+  // (on the well's way, ?w=hepatocyte: its own stretch, the camera looking down as the way does: lab/way.ts)
+  if (app.realms.way === 'well') SPOTS.splice(0, SPOTS.length, [0, -0.85, 'well: bench'], [-0.7, -0.85, 'well: plate'], [-1.6, -1.3, 'well: down a well'],
+    [-2.2, -1.32, 'well: meniscus'], [-3.1, -0.9, 'well: field'], [-3.9, -0.6, 'well: cells'], [-4.6, -0.42, 'well: one cell'], [-5.7, -0.3, 'well: organelles'], [-6.3, -0.25, 'well: deep']);
   /** each place: go there, and say what can be left out of it (a part's name, off, on) */
   const go = new Map();
   for (const [l, pitch, name] of SPOTS) go.set(name, () => {
@@ -112,6 +121,14 @@ const install = (only) => {
 };
 const time = (p, name, parts) => p.page.evaluate((n, sc, pt) => window.__bench.time(n, sc, pt), name, scales, parts);
 
+// (a run that hangs stops itself and closes its pages, well inside the lock's own limit)
+const deadline = setTimeout(async () => {
+  console.error('bench: 18 minutes and not done: stopping');
+  for (const p of pages) await p.page.close().catch(() => {});
+  unlock();
+  process.exit(2);
+}, 18 * 60e3);
+deadline.unref();
 try {
   const mine = await open(origin);
   const names = await mine.page.evaluate(install, only);
@@ -133,6 +150,7 @@ try {
     else { r = await turn(mine, !!process.env.PARTS); if (ref) other = await turn(ref, false); }
     r.ref = other?.ms ?? null;
     rows.push(r);
+    console.error(`  ${name}: ${r.ms[scales[0]]}${other ? ` beside ${other.ms[scales[0]]}` : ''}`);
   }
 
   const base = process.env.BASE ? JSON.parse(readFileSync(process.env.BASE, 'utf8')) : null;

@@ -85,9 +85,31 @@ struct MeterU { a: vec4f, b: vec4f }
   return vec4f(stops, avg, 0.0, M.a.x);
 }
 
+// the upscaler's sharpening, here rather than in a pass of its own at the canvas's size (main.ts: Taau's sharpen off):
+// where what comes in is bigger than the render — the upscaler's output — each pixel's edges restored by its local
+// contrast as weft's taau.wgsl sharpen does it (AMD's CAS in spirit, its 0.35)
+fn tmS(c: vec3f) -> vec3f { return c / (1.0 + dot(c, vec3f(0.2126, 0.7152, 0.0722))); }
+fn sharpened(px: vec2i) -> vec3f {
+  let ld = vec2i(textureDimensions(srcTex)) - 1;
+  let e = textureLoad(srcTex, clamp(px, vec2i(0), ld), 0).rgb;
+  let b = textureLoad(srcTex, clamp(px + vec2i(0, -1), vec2i(0), ld), 0).rgb;
+  let d = textureLoad(srcTex, clamp(px + vec2i(-1, 0), vec2i(0), ld), 0).rgb;
+  let f = textureLoad(srcTex, clamp(px + vec2i(1, 0), vec2i(0), ld), 0).rgb;
+  let h = textureLoad(srcTex, clamp(px + vec2i(0, 1), vec2i(0), ld), 0).rgb;
+  let te = tmS(e); let tb = tmS(b); let td = tmS(d); let tf = tmS(f); let th = tmS(h);
+  let mn = min(te, min(min(tb, td), min(tf, th)));
+  let mx = max(te, max(max(tb, td), max(tf, th)));
+  let amp = sqrt(clamp(min(mn, 1.0 - mx) / max(mx, vec3f(1e-4)), vec3f(0.0), vec3f(1.0)));
+  let w = amp * (-1.0 / mix(8.0, 5.0, 0.35));
+  let r = (tb * w + td * w + tf * w + th * w + te) / (1.0 + 4.0 * w);
+  let o = clamp(r, vec3f(0.0), vec3f(0.999));
+  return o / max(1.0 - dot(o, vec3f(0.2126, 0.7152, 0.0722)), 1e-3);
+}
+
 @fragment fn fs_final(in: FullscreenOut) -> @location(0) vec4f {
   if (F.out.z > 0.5 && length(in.uv - 0.5) > 0.5) { return vec4f(0.0, 0.0, 0.0, F.out.x); }
-  let c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;
+  var c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;
+  if (F.out.z < 0.5 && any(vec2f(textureDimensions(srcTex)) > frame.res + 0.5)) { c = sharpened(vec2i(in.pos.xy)); }
   let b = textureSampleLevel(bloomTex, samp_linear, in.uv, 0.0).rgb;
   let px = vec2u(in.pos.xy);
   let d = filmFinish(F, filmCurve(F, c, b), in.uv, in.pos.xy, frame.aspect, hash3u(vec3u(px, 7u)).x, hash3u(vec3u(px, frame.frame)).x);

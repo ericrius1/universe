@@ -53,3 +53,20 @@ fn cellular(p: vec3f, jitter: f32) -> Cell3 {
   }
   return o;
 }
+
+// the same, searching only the 2×2×2 cells nearest p (the half of its own cell it's in, along each axis): exact wherever
+// the nearest point is within about half a cell of p — all that a pattern drawn within that of its points (lipid heads,
+// specks) shows — and an eighth less hashing than 27
+fn cellular8(p: vec3f, jitter: f32) -> Cell3 {
+  let i = vec3i(floor(p));
+  let lo = i - vec3i(select(vec3i(0), vec3i(1), p - floor(p) < vec3f(0.5)));
+  var o: Cell3; o.d1 = 9.0; o.d2 = 9.0;
+  for (var k = 0; k < 8; k++) {
+    let g = lo + vec3i(k & 1, (k >> 1) & 1, k >> 2);
+    let h = hash3i(g);
+    let c = vec3f(g) + 0.5 + (h - 0.5) * jitter;
+    let d = length(p - c);
+    if (d < o.d1) { o.d2 = o.d1; o.d1 = d; o.id = h; o.c = c; } else if (d < o.d2) { o.d2 = d; }
+  }
+  return o;
+}

@@ -10,6 +10,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 5751 --strictPort",
     "typecheck": "tsc --noEmit",
     "havens": "node tools/havens-sync.mjs",
+    "hepatocyte": "node tools/hepatocyte-sync.mjs",
     "weft": "node tools/engine-latest.mjs --strict"
   },
   "dependencies": {
