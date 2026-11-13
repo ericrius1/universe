@@ -479,6 +479,10 @@ export class App {
   private seam(dt: number): boolean {
     if (!this.cell) return false;
     const c = this.controls, cc = this.cosmos.controls, J = JEWEL, D = SEAM.DOWN;
+    // (a flight to a place, the free flight or the tour is the visitor leaving the dive: without this the dive's way
+    // kept its hold — the camera asks the guide only between flights — and once a flight landed the view settled
+    // back onto the dive's way at that zoom, so every place's button after a dive from above led to the same spot)
+    if (c.flying || c.fly || this.tour.active) this.diving = false;
     let off = vec3.distance(c.pivot, J.at);
     // (diving down to the jewel, or on it, the pivot is the dive's: a touch doesn't move it onto what's under the finger,
     // nor a pinch's drift pan it)
