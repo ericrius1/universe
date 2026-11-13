@@ -1,10 +1,11 @@
-// The Earth from space (kilometres; L.b.xyz its centre relative to the level's origin, the meadow at Chautauqua in
-// Boulder): Boulder's planet (space/planet.wgsl), on the coastlines its map traces (levels/continents.ts) — land by
-// latitude, dryness and season, mountains, ice, the sea with the sun's glint, clouds in bands by latitude drifting with
-// their winds, the cities' lights by night — and round the spot the real thing: the aerial picture and the relief of a
-// window 120 km across (the same the ground level stands on, so the one hands over to the other). Lit and seen through
-// Boulder's air (air.wgsl). The Moon where it is today.
-// L.a: exposure, -, how near (finer detail), day of the year.
+// The Earth from space (kilometres; L.b.xyz its centre relative to the level's origin), as it is (data/globe/): NASA's
+// Blue Marble by day, the Black Marble's city lights faded in across the terminator, a real day's clouds casting their
+// shadows (the cloud map looked up again along the Sun's way down), the relief catching the low sun, the sea from the
+// sea mask with the Sun's glint on it and never on land — and round the spot the dive ends on the real thing: the aerial
+// picture and the relief of a window 120 km across (the same the ground level stands on, so the one hands over to the
+// other). Lit and seen through the air (air.wgsl). The Moon from its colour and height maps, lit by the Sun and, on its
+// night side, by the Earth.
+// L.a: exposure, -, how near (finer detail), day of the year. L.c: the Moon's centre; w 1: it's more than a speck.
 #include "cosmos.wgsl"
 #include "air.wgsl"
 #include "weft/fullscreen"
@@ -12,14 +13,28 @@
 struct EarthU {
   gx: vec4f, gy: vec4f, gz: vec4f,   // the ground's axes (east, up, south) at the spot, in the Earth's
   spot: vec4f,                       // the spot relative to the level's origin (km); w the window's half (km)
-  hr: vec4f,                         // the window's heights: x min, y max (m, relative to the spot)
+  hr: vec4f,                         // the window's heights: x min, y max (m, relative to the spot); z 1: its data's in;
+                                     // w 1: the Earth is more than a speck
+  mx: vec4f,                         // the Moon's near side (unit, the Earth's axes); w 1: its maps are in
+  mz: vec4f,                         // its pole; w the Earth's light on it (earthshine, the Sun's 1)
 }
-@group(2) @binding(1) var earthMap: texture_2d<f32>;     // r land, g dry, b the cities' light, a ice or mountains
-@group(2) @binding(2) var regionMap: texture_2d<f32>;    // the window's aerial picture (sRGB)
-@group(2) @binding(3) var regionH: texture_2d<f32>;      // its heights (0..1 between hr.x and hr.y)
+@group(2) @binding(1) var dayMap: texture_2d<f32>;      // Blue Marble (sRGB, sampled linear)
+@group(2) @binding(2) var regionMap: texture_2d<f32>;   // the window's aerial picture (sRGB)
+@group(2) @binding(3) var regionH: texture_2d<f32>;     // its heights (0..1 between hr.x and hr.y)
 @group(2) @binding(4) var<uniform> E: EarthU;
+@group(2) @binding(5) var nightMap: texture_2d<f32>;    // the city lights (sRGB-encoded grey)
+@group(2) @binding(6) var cloudMap: texture_2d<f32>;    // a day's clouds (0 clear)
+@group(2) @binding(7) var reliefMap: texture_2d<f32>;   // 0..0.5 the sea's depth (0.5 the shore), 0.5..1 the land's height
+@group(2) @binding(8) var seaMask: texture_2d<f32>;     // 1 land, 0 sea
+@group(2) @binding(9) var moonColor: texture_2d<f32>;   // LROC WAC (sRGB)
+@group(2) @binding(14) var moonHeight: texture_2d<f32>; // LOLA, km above 1737.4
 
 const PLANET_R = R_BOTTOM + PLANET_KM;
+const MOON_R = 1737.4;
+/** the clouds' shell above the ground (km): where they're looked up for the limb's parallax and their shadows */
+const CLOUD_KM = 8.0;
+/** the relief map's land heights as km: NASA's greyscale isn't metres; this takes its top as the highest summits */
+const RELIEF_KM = 7.0;
 
 fn hash31(p: vec3f) -> f32 {
   var q = fract(p * 0.1031);
@@ -31,35 +46,25 @@ fn hash22(p: vec2f) -> vec2f {
   q += dot(q, q.yzx + 33.33);
   return fract((q.xx + q.yz) * q.zy);
 }
-fn noise3(p: vec3f) -> f32 {
-  let i = floor(p);
-  let f = fract(p);
-  let u = f * f * (3.0 - 2.0 * f);
-  let a = mix(mix(hash31(i), hash31(i + vec3f(1.0, 0.0, 0.0)), u.x), mix(hash31(i + vec3f(0.0, 1.0, 0.0)), hash31(i + vec3f(1.0, 1.0, 0.0)), u.x), u.y);
-  let b = mix(mix(hash31(i + vec3f(0.0, 0.0, 1.0)), hash31(i + vec3f(1.0, 0.0, 1.0)), u.x), mix(hash31(i + vec3f(0.0, 1.0, 1.0)), hash31(i + vec3f(1.0, 1.0, 1.0)), u.x), u.y);
-  return mix(a, b, u.z);
-}
-// octaves, each turned against the last, as many as a pixel's footprint can hold
-fn fbm3(p0: vec3f, n: i32, gain: f32) -> f32 {
-  let m = mat3x3f(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
-  var p = p0;
-  var a = 0.5; var s = 0.0; var w = 0.0;
-  for (var k = 0; k < 6; k++) {
-    if (k >= n) { break; }
-    s += a * noise3(p);
-    w += a;
-    p = m * p * 2.03;
-    a *= gain;
-  }
-  return s / w;
-}
-fn octaves(cell: f32, pix: f32) -> i32 { return clamp(i32(ceil(log2(cell / max(pix, 1e-3)))), 1, 5); }
 fn clampLen(d: vec2f, most: f32) -> vec2f { return d * min(1.0, most / max(length(d), 1e-12)); }
 fn unwrapLon(d: vec2f) -> vec2f { return vec2f(d.x - 2.0 * PI * round(d.x / (2.0 * PI)), d.y); }
 fn srgbIn(c: vec3f) -> vec3f { return select(pow((c + 0.055) / 1.055, vec3f(2.4)), c / 12.92, c <= vec3f(0.04045)); }
+fn lum(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
 
-// the land's fine texture away from the window: the window's own picture laid over the globe in tiles, each turned
-// its own way, two lattices half a tile apart blended (Boulder's landDetail); only its fine part
+// a point on the globe (unit, the Earth's axes: x Greenwich, y north) to the maps' plate carrée (globe.json)
+fn globeUv(n: vec3f) -> vec2f {
+  let lat = asin(clamp(n.y, -1.0, 1.0));
+  let lon = atan2(-n.z, n.x);
+  return vec2f(fract(lon / (2.0 * PI) + 0.5), 0.5 - lat / PI);
+}
+// a map's mip for a footprint on the ground (km) at a latitude (its texels narrow toward the poles)
+fn mapLod(t: texture_2d<f32>, foot: f32, cosLat: f32) -> f32 {
+  let w = f32(textureDimensions(t).x);
+  return log2(max(foot / (2.0 * PI * PLANET_R / w * max(cosLat, 0.05)), 1.0));
+}
+
+// the land's fine texture past what the map holds: the window's own picture laid over the globe in tiles, each turned its
+// own way, two lattices half a tile apart blended (Boulder's landDetail); only its fine part
 fn landDetail(ll: vec2f, dx: vec2f, dy: vec2f, size: f32, coarse: f32) -> f32 {
   let lw = vec3f(0.2126, 0.7152, 0.0722);
   let k0 = PLANET_R / (2.0 * E.spot.w * 0.7 * size);
@@ -82,34 +87,6 @@ fn landDetail(ll: vec2f, dx: vec2f, dy: vec2f, size: f32, coarse: f32) -> f32 {
     w += wt;
   }
   return s / w;
-}
-
-// the land's colour from its latitude (deg), dryness, high ground and the noise's variation (Boulder's landAlbedo)
-fn landAlbedo(lat: f32, dry: f32, high: f32, v: f32, w: f32) -> vec3f {
-  let a = abs(lat);
-  let doy = L.a.w;
-  let summerN = 0.5 - 0.5 * cos(6.2831853 * (doy - 15.0) / 365.0);
-  let summer = select(1.0 - summerN, summerN, lat >= 0.0);
-  let rain = vec3f(0.040, 0.075, 0.030);
-  let temperate = mix(vec3f(0.15, 0.13, 0.10), vec3f(0.08, 0.12, 0.05), summer);
-  let boreal = mix(vec3f(0.06, 0.065, 0.055), vec3f(0.045, 0.07, 0.04), summer);
-  let tundra = vec3f(0.14, 0.13, 0.10);
-  var c = mix(rain, mix(vec3f(0.17, 0.15, 0.08), temperate, smoothstep(22.0, 32.0, a)), smoothstep(8.0, 18.0, a));
-  c = mix(c, boreal, smoothstep(48.0, 56.0, a));
-  c = mix(c, tundra, smoothstep(62.0, 70.0, a));
-  let sand = mix(vec3f(0.55, 0.40, 0.24), vec3f(0.36, 0.25, 0.16), smoothstep(0.35, 0.75, v));
-  let steppe = vec3f(0.28, 0.22, 0.14);
-  c = mix(c, steppe, smoothstep(0.15, 0.5, dry));
-  c = mix(c, sand, smoothstep(0.55, 0.95, dry));
-  let cover = smoothstep(0.44, 0.6, v);
-  let other = c * mix(vec3f(0.74, 0.86, 0.7), vec3f(1.12, 1.04, 0.96), smoothstep(0.2, 0.6, dry));
-  c = mix(other, c * 1.06, cover) * (0.75 + 0.5 * w) * (0.88 + 0.24 * v);
-  let mount = smoothstep(0.12, 0.3, high) * (1.0 - smoothstep(0.5, 0.65, high));
-  let range = mix(vec3f(0.045, 0.058, 0.042), vec3f(0.17, 0.15, 0.13), smoothstep(0.35, 0.75, v + 0.4 * dry));
-  c = mix(c, range, mount * smoothstep(0.1, 0.4, v + 0.3 * mount));
-  let snowLat = 55.0 - 17.0 * cos(6.2831853 * (doy - 15.0) / 365.0) * select(-1.0, 1.0, lat >= 0.0);
-  let snow = smoothstep(snowLat - 3.0, snowLat + 6.0, a + (v - 0.5) * 8.0 + mount * (2.0 + 12.0 * v * v)) * (1.0 - 0.6 * dry * (1.0 - mount));
-  return mix(c, vec3f(0.8, 0.83, 0.88), max(smoothstep(0.6, 0.85, high), snow * 0.85));
 }
 
 // the window's picture as the ground grades it (shared with c_ground.wgsl's look, so the hand-over doesn't show)
@@ -146,6 +123,61 @@ fn ggxSpec(n: vec3f, v: vec3f, l: vec3f, rough: f32) -> f32 {
   return d * f * saturate(dot(n, l)) / max(4.0 * saturate(dot(n, v)), 0.1);
 }
 
+// the clouds' cover at a point of their shell (unit), at a footprint (km): the map's grey has a floor over clear sea
+fn cloudAt(n: vec3f, foot: f32) -> f32 {
+  let uv = globeUv(n);
+  let v = textureSampleLevel(cloudMap, samp_repeat, uv, mapLod(cloudMap, foot, sqrt(max(1.0 - n.y * n.y, 0.0)))).r;
+  return pow(saturate((v - 0.12) / 0.78), 1.2);
+}
+
+// ---------------------------------------------------------------- the Moon
+fn moonShade(ro: vec3f, rd: vec3f, t: f32) -> vec3f {
+  let mc = L.c.xyz;
+  let n = normalize(ro + rd * t - mc);
+  let px = E.mx.xyz;
+  let pz = E.mz.xyz;
+  let east = cross(pz, px);   // (selenographic east: on the right of the near side seen from the Earth, north up)
+  let lat = asin(clamp(dot(n, pz), -1.0, 1.0));
+  let lon = atan2(dot(n, east), dot(n, px));
+  let uv = vec2f(fract(lon / (2.0 * PI) + 0.5), 0.5 - lat / PI);
+  let v = -rd;
+  let mu = max(dot(n, v), 1e-3);
+  let foot = t * L.pxAngle / max(mu, 0.15);
+  var alb = vec3f(0.11);
+  var nr = n;
+  if (E.mx.w > 0.5) {
+    let cl = cos(lat);
+    // (LROC's colour map is reflectance stretched for display, its mean 0.33: brought to the Moon's own albedo, 0.12)
+    alb = textureSampleLevel(moonColor, samp_repeat, uv, mapLod(moonColor, foot * PLANET_R / MOON_R, cl)).rgb * 0.36;
+    // the relief from LOLA's heights: their slopes east and north over a step the footprint can hold
+    let hd = vec2f(textureDimensions(moonHeight));
+    let st = max(1.0 / hd.x, foot / (2.0 * PI * MOON_R));
+    let lod = log2(max(st * hd.x, 1.0));
+    let du = vec2f(st / max(cl, 0.1), 0.0);
+    let dv = vec2f(0.0, st);
+    let hE = textureSampleLevel(moonHeight, samp_repeat, uv + du, lod).r - textureSampleLevel(moonHeight, samp_repeat, uv - du, lod).r;
+    let hN = textureSampleLevel(moonHeight, samp_repeat, uv - dv, lod).r - textureSampleLevel(moonHeight, samp_repeat, uv + dv, lod).r;
+    let span = 2.0 * st * 2.0 * PI * MOON_R;
+    let north = normalize(pz - n * dot(pz, n));
+    let e = cross(north, n);
+    nr = normalize(n - (e * hE + north * hN * 2.0) / span);
+  }
+  // Lommel–Seeliger, as the regolith sends light back (the full Moon's disc as bright at its edge as its middle),
+  // darkening into the terminator as its roughness shadows itself
+  let s = L.sun;
+  let mu0 = dot(nr, s);
+  var lit = 0.0;
+  if (mu0 > 0.0) { lit = 2.0 * mu0 / (mu0 + mu) * mix(0.55, 1.0, saturate(dot(n, s) * 4.0)); }
+  // the Earth's shadow on it (an eclipse): the Sun's way from here passing through the Earth
+  let es = sphereHit(ro + rd * t, s, L.b.xyz, PLANET_R + 30.0);
+  if (es.y > 0.0) { lit = 0.0; }
+  // earthshine: the Earth's light from its direction, as faint as it is
+  let toE = normalize(L.b.xyz - (ro + rd * t));
+  let shine = E.mz.w * saturate(dot(nr, toE)) * vec3f(0.85, 0.92, 1.0);
+  // (π: the albedo's Lambertian radiance is albedo · μ0 / π under a sun of 1; the Earth's ground is lit so too)
+  return alb * (lit + shine) / PI;
+}
+
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
   let rd = rayDir(in.uv);
   let ro = L.eye;
@@ -168,16 +200,14 @@ fn ggxSpec(n: vec3f, v: vec3f, l: vec3f, rough: f32) -> f32 {
   let ruv = (xz + half) / (2.0 * half);
   let rx = clampLen(dpdx(ruv), 0.5);
   let ry = clampLen(dpdy(ruv), 0.5);
+  let region = E.hr.z > 0.5;
   // the Moon
-  let mh = sphereHit(ro, rd, L.c.xyz, 1737.4);
-  let tHit = select(1e9, hp.x, hp.x > 0.0);
-  if (mh.x > 0.0 && mh.x < tHit) {
-    let n = normalize(ro + rd * mh.x - L.c.xyz);
-    let cr = cellular(n * 9.0, 1.0);
-    let mare = ss(0.1, 0.45, fbm(n * 2.0 + 5.0, 4));
-    let alb = mix(0.32, 0.14, mare) * (0.85 + 0.15 * ss(0.0, 0.25, cr.d1)) * (0.9 + 0.2 * fbm(n * 30.0, 3));
-    return vec4f(vec3f(alb) * max(dot(n, L.sun), 0.0) / PI * exposure * L.weight, L.weight);
+  let mh = sphereHit(ro, rd, L.c.xyz, MOON_R);
+  let tHit = select(1e9, hp.x, hp.x > 0.0 && E.hr.w > 0.5);
+  if (L.c.w > 0.5 && mh.x > 0.0 && mh.x < tHit) {
+    return vec4f(moonShade(ro, rd, mh.x) * exposure * L.weight, L.weight);
   }
+  if (E.hr.w < 0.5) { discard; }
   if (hp.x <= 0.0) {
     // the air round the limb (from inside it, the sky): light, hiding nothing behind it
     return vec4f(skyAt(rd) * exposure * L.weight, 0.0);
@@ -186,79 +216,93 @@ fn ggxSpec(n: vec3f, v: vec3f, l: vec3f, rough: f32) -> f32 {
   let v = -rd;
   let muV = max(dot(n, v), 0.0);
   let pix = t * L.pxAngle / max(muV, 0.06);
-  let dim = vec2f(textureDimensions(earthMap));
-  let uv = vec2f(fract(lon / (2.0 * PI) + 0.5), clamp(0.5 - lat / PI, 0.5 / dim.y, 1.0 - 0.5 / dim.y));
-  let texel = 2.0 * PI * PLANET_R / dim.x;
-  let m = textureSampleLevel(earthMap, samp_repeat, uv, max(log2(pix / texel), 0.0));
-  let latD = lat * 180.0 / PI;
-  let e3 = n;
-  let detail = fbm3(e3 * 110.0, octaves(60.0, pix), 0.68);
-  let broad = fbm3(e3 * 23.0 + 5.1, 2, 0.5);
-  let fine = landDetail(ll, lx, ly, 1.0, 5.5) * mix(1.0, landDetail(ll + 0.37, lx, ly, 8.0, 8.5), 0.45);
-  let aa = clamp(pix / texel * 0.35, 0.03, 0.5);
-  let land = smoothstep(0.5 - aa, 0.5 + aa, m.r + (detail - 0.5) * 0.5);
+  let cl = cos(lat);
+  let uv = vec2f(fract(lon / (2.0 * PI) + 0.5), 0.5 - lat / PI);
   let s = L.sun;
   let muS = dot(n, s);
 
+  // the land and the sea: the mask, its edge as soft as a pixel's footprint
+  let land = textureSampleLevel(seaMask, samp_repeat, uv, mapLod(seaMask, pix, cl)).r;
+  var day = textureSampleLevel(dayMap, samp_repeat, uv, mapLod(dayMap, pix, cl)).rgb;
+  // the relief: the land's slopes from its heights, so ranges catch a low sun (the day map's own shading is a high one)
+  let rd2 = vec2f(textureDimensions(reliefMap));
+  let rl = mapLod(reliefMap, pix, cl);
+  let step = max(1.0, exp2(rl)) / rd2;
+  let du = vec2f(step.x, 0.0);
+  let dv = vec2f(0.0, step.y);
+  let hc = textureSampleLevel(reliefMap, samp_repeat, uv, rl).r;
+  let hE = max(textureSampleLevel(reliefMap, samp_repeat, uv + du, rl).r - 0.5, 0.0) - max(textureSampleLevel(reliefMap, samp_repeat, uv - du, rl).r - 0.5, 0.0);
+  let hN = max(textureSampleLevel(reliefMap, samp_repeat, uv - dv, rl).r - 0.5, 0.0) - max(textureSampleLevel(reliefMap, samp_repeat, uv + dv, rl).r - 0.5, 0.0);
+  let spanE = 2.0 * step.x * 2.0 * PI * PLANET_R * max(cl, 0.05);
+  let spanN = 2.0 * step.y * PI * PLANET_R;
+  let northV = normalize(vec3f(0.0, 1.0, 0.0) - n * n.y + vec3f(1e-6));
+  let eastT = cross(northV, n);
+  let k = RELIEF_KM * 2.0;
+  var nr = normalize(n - (eastT * hE * k / spanE + northV * hN * k / spanN) * land);
+
   // the window round the spot: its own picture and relief, handed over across its edge
   let e2 = max(abs(xz.x), abs(xz.y)) / half;
-  var nr = n;
-  var albedo = landAlbedo(latD, m.g, m.a, detail, broad) * mix(1.0, fine, 0.8 * (1.0 - smoothstep(0.6, 0.85, m.a)));
+  var albedo = day;
+  // (the map's own grain runs out within a few km: past it, the window's picture's fine texture over it)
+  let texel = 2.0 * PI * PLANET_R / f32(textureDimensions(dayMap).x);
+  let magnified = 1.0 - smoothstep(0.25, 1.0, pix / texel);
+  if (region && magnified > 0.0) {
+    let fine = landDetail(ll, lx, ly, 1.0, 5.5) * mix(1.0, landDetail(ll + 0.37, lx, ly, 8.0, 8.5), 0.45);
+    albedo *= mix(1.0, fine, 0.8 * magnified * land);
+  }
   // (round, inside and out: its colours a soft region fading into the planet's, not the window's square)
   let er = length(xz) / half;
-  if (er < 3.5) {
+  if (region && er < 3.5) {
     let ruvC = clamp((xz + half) / (2.0 * half), vec2f(0.0), vec2f(1.0));
-    let near = srgbIn(textureSampleLevel(regionMap, samp_linear, ruvC, mix(8.0, 10.0, smoothstep(1.0, 2.5, er))).rgb) * fine;
+    let near = srgbIn(textureSampleLevel(regionMap, samp_linear, ruvC, mix(8.0, 10.0, smoothstep(1.0, 2.5, er))).rgb);
     albedo = mix(albedo, regionAlbedo(near), 0.85 * (1.0 - smoothstep(0.9, 3.5, er)));
   }
-  if (e2 < 1.0) {
+  if (region && e2 < 1.0) {
     let rc = srgbIn(textureSampleGrad(regionMap, samp_linear, ruv, rx, ry).rgb);
     let tn = regionNormal(xz, clamp(t * 0.002, 0.07, 0.4));
     let inside = (1.0 - smoothstep(0.85, 1.0, e2)) * (1.0 - smoothstep(0.55, 1.0, er));
-    nr = normalize(mix(n, normalize(E.gx.xyz * tn.x + E.gy.xyz * tn.y + E.gz.xyz * tn.z), inside));
+    nr = normalize(mix(nr, normalize(E.gx.xyz * tn.x + E.gy.xyz * tn.y + E.gz.xyz * tn.z), inside));
     albedo = mix(albedo, regionAlbedo(rc), inside);
   }
-  var col = albedo * groundLight(n, nr) * land;
 
-  // the sea: deep, teal over the shelves, the sun's glint, the sky's sheen toward the limb
-  if (land < 1.0) {
-    let shelf = smoothstep(0.12, 0.45, m.r + (detail - 0.5) * 0.3);
-    let sea = mix(vec3f(0.006, 0.018, 0.042), vec3f(0.018, 0.060, 0.072), shelf);
-    let glint = ggxSpec(n, v, s, 0.22) * sunAt(PLANET_KM, muS);
-    let fres = 0.02 + 0.98 * pow(1.0 - muV, 5.0);
-    let sheen = vec3f(0.05, 0.08, 0.13) * smoothstep(-0.1, 0.3, muS) * fres;
-    col += (sea * groundLight(n, n) + glint + sheen) * (1.0 - land);
-  }
-
-  // the clouds: a cover by latitude (the doldrums, the subtropics' clear belts, the storm tracks), less over the
-  // deserts, drifting with their latitude's winds; a clear day over the spot
+  // the clouds over this point, and their shadow on it: the cloud map looked up again where the Sun's way down crosses
+  // their shell. A clear sky over the spot (the gardens' own sky is what's seen there)
   let fromSpot = length(xz);
-  let clear = smoothstep(180.0, 500.0, fromSpot);
-  var cloud = 0.0;
-  if (clear > 0.0) {
-    let a = abs(latD);
-    var cover = 0.42 + 0.28 * exp(-latD * latD / 60.0) - 0.3 * exp(-(a - 24.0) * (a - 24.0) / 70.0) + 0.18 * smoothstep(38.0, 55.0, a);
-    cover -= 0.35 * m.g * land;
-    let wind = mix(-0.6, 1.0, smoothstep(18.0, 32.0, a)) * mix(1.0, 0.4, smoothstep(60.0, 75.0, a));
-    let ang = L.time * 2e-4 * wind;
-    let q = vec3f(e3.x * cos(ang) + e3.z * sin(ang), e3.y, -e3.x * sin(ang) + e3.z * cos(ang));
-    let w = vec3f(noise3(q * 3.1), noise3(q * 3.1 + 17.3), noise3(q * 3.1 + 41.7)) - 0.5;
-    let f = fbm3(q * 7.0 + w * 1.4, octaves(900.0, pix), 0.55);
-    let dens = smoothstep(1.0 - cover, 1.25 - cover, f) * clear;
-    cloud = dens;
-    if (dens > 0.0) {
-      let up = smoothstep(-0.25, 0.1, muS);
-      let sunC = sunAt(8.0, muS);
-      let cl = 0.82 * (sunC * (0.15 + 0.85 * saturate(muS + 0.05)) / PI + vec3f(0.03, 0.04, 0.06) * up);
-      col = mix(col, cl, dens);
-    }
+  let clear = select(1.0, smoothstep(180.0, 500.0, fromSpot), region);
+  let hc2 = sphereHit(ro, rd, c, PLANET_R + CLOUD_KM);
+  let nc = normalize(ro + rd * max(hc2.x, 0.0) - c);
+  let cloud = cloudAt(nc, pix) * clear;
+  let shadowAt = normalize(n * (PLANET_R + CLOUD_KM) + s * (CLOUD_KM / max(muS, 0.08)));
+  let shadow = 1.0 - 0.8 * cloudAt(shadowAt, max(pix, 6.0)) * clear * ss(-0.05, 0.1, muS);
+
+  // the ground: the land lit through the air and under the clouds' shadows
+  var col = albedo * groundLight(n, nr) * land * shadow;
+
+  // the sea: its own dark colour (not the map's shaded bathymetry, which no satellite sees), teal over the shelves,
+  // sea ice where the day map is white; the Sun's glint and the sky's sheen toward the limb
+  if (land < 1.0) {
+    let shelf = smoothstep(0.42, 0.495, hc);
+    let ice = smoothstep(0.12, 0.35, lum(day));
+    let sea = mix(mix(vec3f(0.006, 0.018, 0.042), vec3f(0.018, 0.060, 0.072), shelf), day, ice);
+    let glint = ggxSpec(n, v, s, 0.22) * sunAt(PLANET_KM, muS) * (1.0 - ice) * shadow;
+    let fres = 0.02 + 0.98 * pow(1.0 - muV, 5.0);
+    let sheen = vec3f(0.05, 0.08, 0.13) * smoothstep(-0.1, 0.3, muS) * fres * (1.0 - ice);
+    col += (sea * groundLight(n, n) * shadow + glint + sheen) * (1.0 - land);
   }
-  // the cities' lights where the sun has set
-  let dusk = 1.0 - smoothstep(-0.14, 0.02, muS);
-  if (dusk > 0.0 && m.b > 0.002) {
-    let f = fbm3(e3 * 2600.0, octaves(2.5, pix), 0.62);
-    let lit = smoothstep(1.0 - m.b * 1.6, 1.12 - m.b * 1.6, f) * (0.4 + 0.6 * m.b);
-    col += vec3f(1.0, 0.66, 0.36) * lit * 0.05 * dusk * land * (1.0 - 0.8 * cloud);
+
+  // the clouds themselves, lit through the air above them
+  if (cloud > 0.0) {
+    let up = smoothstep(-0.25, 0.1, muS);
+    let sunC = sunAt(CLOUD_KM, muS);
+    let cl2 = 0.82 * (sunC * (0.15 + 0.85 * saturate(muS + 0.05)) / PI + vec3f(0.03, 0.04, 0.06) * up);
+    col = mix(col, cl2, cloud);
+  }
+  // the cities' lights where the sun has set: faded in across the terminator over 8° (from the sun 2° up to 6° down),
+  // dimmed through the clouds
+  let dusk = 1.0 - smoothstep(-0.105, 0.035, muS);
+  if (dusk > 0.0) {
+    let lights = srgbIn(vec3f(textureSampleLevel(nightMap, samp_repeat, uv, mapLod(nightMap, pix, cl)).r)).r;
+    col += vec3f(1.0, 0.7, 0.42) * lights * 0.06 * dusk * (1.0 - 0.85 * cloud);
   }
   return vec4f(throughAir(col, n, rd) * exposure * L.weight, L.weight);
 }

@@ -273,7 +273,6 @@ export class App {
   /** the main line's place (Seven Havens') while the bench has the ladder, and its guide down onto her */
   private havensPlace: LadderPlace | null = null;
   private havensGuide: CosmosControls['guide'] = null;
-  private earthBand: [number, number, number, number] | null = null;
 
   /** the well's realm, in */
   attachWell(lab: Lab) {
@@ -311,7 +310,7 @@ export class App {
     if (way === 'havens') {
       cc.guide = this.havensGuide;
       this.lab?.leave();
-      if (this.earthBand && this.cosmos.has('earth')) this.cosmos.earth.lv.band = this.earthBand;
+      if (this.cosmos.has('earth')) { this.cosmos.earth.reach(null); this.cosmos.earth.spotGround = true; }
       if (this.cosmos.has('ground')) this.cosmos.surface.hidden = false;
     }
     this.applyWindow();
@@ -352,11 +351,7 @@ export class App {
     if (cc.guide) { this.havensGuide = cc.guide; cc.guide = null; }
     // the Earth on this way: seen down into the fog, and without the main line's own ground round the spot on it (its
     // real ground is Seven Havens', and the spot's at the bench now); her meadow not drawn
-    if (c.has('earth')) {
-      this.earthBand ??= [...c.earth.lv.band];
-      c.earth.lv.band = [this.earthBand[0], this.earthBand[1], 4.3, 4.0];
-      c.earth['E'].set({ spot: [1e7, 1e7, 1e7, (c.data?.manifest?.far.half ?? 60000) / 1000] });
-    }
+    if (c.has('earth')) { c.earth.reach([4.3, 4.0]); c.earth.spotGround = false; }
     if (c.has('ground')) c.surface.hidden = true;
     if (this.lab && this.realms.isReady('well')) this.lab.update(dt);
   }
