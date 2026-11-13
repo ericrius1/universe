@@ -94,14 +94,18 @@ export function orbitPoint(a: number, e: number, i: number, w: number, O: number
   out[0] = X; out[1] = Z; out[2] = -Y;
   return out;
 }
-/** the Moon's geocentric position (km) in the Earth's inertial terms (a circular orbit, 5.1° to the ecliptic) */
+/** the Moon's geocentric position (km) in the Earth's inertial terms: its mean orbit and the largest of its
+ *  perturbations (the equation of the centre, evection, variation, the annual equation; Meeus, Astronomical Algorithms
+ *  ch. 47, the terms over 0.1°), good to a few tenths of a degree and a few hundred km: tonight's phase as it is */
 export function moonPos(d: number, out: Vec3 = [0, 0, 0]): Vec3 {
-  const L = (218.316 + 13.176396 * d) * DEG, Om = (125.08 - 0.052954 * d) * DEG, I = 5.145 * DEG;
+  const Lp = 218.3164477 + 13.17639648 * d, D = (297.8501921 + 12.19074912 * d) * DEG, M = (357.5291092 + 0.98560028 * d) * DEG;
+  const Mp = (134.9633964 + 13.06499295 * d) * DEG, F = (93.272095 + 13.22935024 * d) * DEG, s = Math.sin;
+  // (the longitude of date, back to the equinox of J2000: precession's 1.397° a century)
+  const lam = (Lp + 6.289 * s(Mp) + 1.274 * s(2 * D - Mp) + 0.658 * s(2 * D) + 0.214 * s(2 * Mp) - 0.186 * s(M) - 0.114 * s(2 * F) - 1.397 * (d / 36525)) * DEG;
+  const bet = (5.128 * s(F) + 0.281 * s(Mp + F) + 0.278 * s(Mp - F) + 0.173 * s(2 * D - F)) * DEG;
+  const r = 385001 - 20905 * Math.cos(Mp) - 3699 * Math.cos(2 * D - Mp) - 2956 * Math.cos(2 * D) - 570 * Math.cos(2 * Mp);
   // in the ecliptic, then into the frame's axes (x, y, z) = (X, Z, −Y)
-  const u = L - Om, r = 384400;
-  const X = r * (Math.cos(Om) * Math.cos(u) - Math.sin(Om) * Math.sin(u) * Math.cos(I));
-  const Y = r * (Math.sin(Om) * Math.cos(u) + Math.cos(Om) * Math.sin(u) * Math.cos(I));
-  const Z = r * Math.sin(u) * Math.sin(I);
+  const X = r * Math.cos(bet) * Math.cos(lam), Y = r * Math.cos(bet) * Math.sin(lam), Z = r * Math.sin(bet);
   out[0] = X; out[1] = Z; out[2] = -Y;
   return out;
 }
@@ -125,6 +129,13 @@ export class Ladder {
   readonly all: Frame[] = [this.cosmos, this.galaxy, this.local, this.solar, this.earth, this.ground, this.eye];
   /** days since J2000 */
   day = 0;
+  /** the ephemeris's day (days since J2000): where the planets, the Moon and the Earth on its orbit are drawn. The
+   *  page's moment (`day`) unless the time dial has run it on (setEphemeris); the Earth's spin and everything below it
+   *  stay on the page's moment */
+  eday = 0;
+  /** the camera's pivot moved off the line by this (metres, the top frame's axes): the camera's focus on a body, or
+   *  its zoom toward the cursor (controls.ts) */
+  readonly focus: Vec3 = [0, 0, 0];
   /** the Earth's spin (rad, Greenwich from the equinox) */
   gmst = 0;
   /** the Sun's direction in the ground frame (the light for the Earth, the meadow and the eye) */
@@ -148,7 +159,7 @@ export class Ladder {
   /** place the Earth, its spin and everything below it for a moment */
   setTime(ms: number) {
     const d = daysJ2000(ms);
-    this.day = d;
+    this.day = this.eday = d;
     planetPos(PLANETS[2], d, this.earth.at);
     this.gmst = ((280.46061837 + 360.98564736629 * d) % 360) * DEG;
     // tilt about the equinox, then the day's turn about the axis
@@ -165,6 +176,14 @@ export class Ladder {
     // the Sun from the meadow: from the Earth toward the solar frame's origin, carried down
     const toSun = vec3.negate(vec3.create(), this.earth.at);
     vec3.normalize(this.sunGround, this.dirInto(this.solar, this.ground, toSun));
+  }
+
+  /** run the ephemeris to another day (the time dial): the Earth moved along its orbit (the Moon and the planets are
+   *  placed from `eday` by their levels); its spin held, so the ground, its sun and the gardens' clock don't race */
+  setEphemeris(d: number) {
+    this.eday = d;
+    planetPos(PLANETS[2], d, this.earth.at);
+    this.update();
   }
 
   /** each frame's orientation in the top frame and the target in its units */
@@ -201,6 +220,9 @@ export class Ladder {
       // (off the galaxy's middle — the origin, up here — onto theirs)
       if (k > 0) vec3.scaleAndAdd(out, out, b.at, k);
     }
+    // (off the line: a body the camera's focused on, or toward the cursor; nothing at all when it's on the line)
+    const f = this.focus;
+    if (f[0] !== 0 || f[1] !== 0 || f[2] !== 0) vec3.add(out, out, f);
     return out;
   }
 

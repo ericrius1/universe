@@ -62,11 +62,15 @@ export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
 }
-export interface Planet {
+export interface Body {
   pos: Vec3;
   r: number;
   color: Vec3;
   kind: number;
+  pole: Vec3;
+  flat: number;
+  mer: Vec3;
+  layer: number;
 }
 export interface POut {
   pos: Vec4;
@@ -76,8 +80,8 @@ export interface POut {
 }
 export interface OOut {
   pos: Vec4;
-  a: number;
+  col: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Planet: Planet; POut: POut; OOut: OOut }, 'frame' | 'L' | 'planets' | 'orbit' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Body: Body; POut: POut; OOut: OOut }, 'frame' | 'L' | 'bodies' | 'orbit' | 'maps' | 'ringTau' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
