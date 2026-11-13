@@ -261,7 +261,7 @@ fn fade(p: vec3f) -> f32 {
       inst.tint = u32(j); inst.id = 0x80000000u | (u32(j) & 0xffffu);
       emit(inst, false);
     }
-  } else if (s.kind == 3u) {
+  } else if (s.kind == 3u && !chromatinShut((s.a + s.b) * 0.5, length(ax) * 0.5 + 30.0)) {
     // chromatin: a nucleosome every 11 nm in a zig-zag round the fibre (world.wgsl nucleosome) — the molecule while
     // it's big on screen, filament.wgsl's lumps after — and linker DNA between them
     let j0 = i32(ceil(s.s0 / 11.0));

@@ -45,8 +45,8 @@ const PER_LEVEL: u32 = SIDE * SIDE * SIDE * PER_TILE;
   // a speck the size a few hundredths of its tile, faint, gone close to the lens and far into the haze
   let r = C * mix(0.006, 0.02, h2.x);
   let near = smoothstep(G.scale * 0.15, G.scale * 0.4, dist);
-  let far = exp(-dist / (G.fogDist * 0.9));
-  out.a = wL * near * far * mix(0.05, 0.16, h2.y) * (1.0 - G.fluo);
+  let far = exp(-dist / (G.fogDist * 0.45));
+  out.a = wL * near * far * mix(0.03, 0.1, h2.y) * (1.0 - G.fluo);
   if (out.a < 0.003 || isCut(c)) { return out; }
   let corner = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0))[vi % 6u];
   // (out of focus by how far from the focus's distance it lies: a speck far off the plane a wider, fainter disc)

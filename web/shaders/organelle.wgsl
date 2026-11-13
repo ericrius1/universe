@@ -4,7 +4,7 @@
 //   vs_outer/fs_glass   membranes from afar: glass, into the weighted blended transparency targets (accum, reveal) —
 //                       you see the organelles through the cell, the cristae through a mitochondrion
 //   vs_cap*/fs_cap      where the wedge cuts the cell open, the cut face of each organelle's material: the far side's
-//                       back faces stand in for it, moved onto the cut plane (frag_depth) and drawn as a cross-section
+//                       back faces stand in for it, moved onto the cut plane (onCut) and drawn as a cross-section
 // Between glass and solid (G.shellSolid) the solid draw dithers in as the glass fades.
 #include "world.wgsl"
 #include "palette.wgsl"
@@ -16,8 +16,6 @@ struct MeshV { px: f32, py: f32, pz: f32, nx: f32, ny: f32, nz: f32, org: u32, f
 // hand — one fetch for eight hashes
 @group(2) @binding(1) var noiseTex: texture_3d<f32>;
 const NOISE_N = 64.0;
-// the scene's depth before the cut faces (renderer.ts late): world.wgsl hiddenAt
-@group(2) @binding(2) var occDepth: texture_depth_2d;
 // whether a fragment may be cut away (the wedge) or dithered out (between glass and solid): a draw without either is
 // made with this off, so the GPU knows nothing of it is discarded and hides what's behind it before shading it
 override CLIP: bool = true;
@@ -29,7 +27,6 @@ struct VOut {
   @location(2) @interpolate(flat) org: u32,
 }
 struct GOut { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32 }
-struct GOutD { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32, @builtin(frag_depth) depth: f32 }
 struct OitOut { @location(0) accum: vec4f, @location(1) reveal: vec4f }
 
 // the thickness a membrane is drawn with: true to life up close, widened far away so the cut still shows it
@@ -65,16 +62,25 @@ fn reachesCut(o: Organelle) -> bool {
   let m = min(dot(q, G.cutN1), dot(q, G.cutN2));
   return m > -o.bound && m < o.bound;
 }
-@vertex fn vs_cap(@builtin(vertex_index) vi: u32) -> VOut {
-  var out = vsCommon(vi, false);
-  if (!reachesCut(orgAt(out.org))) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
+// A cut face is drawn by the far side's back faces, each vertex moved along its own ray onto the wedge's face that ray
+// leaves it by: a point slid along its ray stays where it is on screen, so the triangle covers what it did, but now at
+// the depth of the cut face itself — no frag_depth, so what's in front hides it before it's shaded (the fragment
+// finds the exact point from its own ray: cutFace). Only a triangle across the wedge's edge, its vertices on its two
+// faces, is a little off in depth, along that line.
+fn onCut(out0: VOut) -> VOut {
+  var out = out0;
+  if (!reachesCut(orgAt(out.org))) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); return out; }
+  let ro = frame.camPos;
+  let d = normalize(out.world - ro);
+  let t = cutExit(ro, d);
+  if (t > frame.near * 2.0) {
+    out.world = ro + d * t;
+    out.pos = frame.viewProj * vec4f(out.world, 1.0);
+  }
   return out;
 }
-@vertex fn vs_cap_inner(@builtin(vertex_index) vi: u32) -> VOut {
-  var out = vsCommon(vi, true);
-  if (!reachesCut(orgAt(out.org))) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
-  return out;
-}
+@vertex fn vs_cap(@builtin(vertex_index) vi: u32) -> VOut { return onCut(vsCommon(vi, false)); }
+@vertex fn vs_cap_inner(@builtin(vertex_index) vi: u32) -> VOut { return onCut(vsCommon(vi, true)); }
 
 fn viewNormal(n: vec3f) -> vec4f { return octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz)); }
 
@@ -237,12 +243,29 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   return out;
 }
 
-// where the ray to this fragment left the removed wedge: the cut face it crossed, or none
+// how far along a ray from the eye it leaves the removed wedge (its exit through one of the two faces), or -1 if it never
+// passes through it; failing that, where it meets the face nearer to being its exit (for a vertex: onCut)
+fn cutExit(o: vec3f, d: vec3f) -> f32 {
+  let q = o - G.cutCenter;
+  let a1 = dot(q, G.cutN1); let b1 = dot(d, G.cutN1);
+  let a2 = dot(q, G.cutN2); let b2 = dot(d, G.cutN2);
+  var t0 = 0.0; var t1 = 1e12;
+  if (abs(b1) < 1e-8) { if (a1 <= 0.0) { t1 = -1.0; } } else { let t = -a1 / b1; if (b1 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
+  if (abs(b2) < 1e-8) { if (a2 <= 0.0) { t1 = -1.0; } } else { let t = -a2 / b2; if (b2 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
+  if (t1 > t0 && t1 < 1e11) { return t1; }
+  // (no passage: the face whose plane the ray leaves the half-space by, if either)
+  let s1 = select(1e12, -a1 / b1, b1 < -1e-8 && -a1 / b1 > 0.0);
+  let s2 = select(1e12, -a2 / b2, b2 < -1e-8 && -a2 / b2 > 0.0);
+  let s = min(s1, s2);
+  return select(-1.0, s, s < 1e11);
+}
+
+// where the ray through this pixel left the removed wedge: the cut face it crossed, or none
 struct CutHit { ok: bool, p: vec3f, n: vec3f, t: f32 }
-fn cutFace(world: vec3f) -> CutHit {
+fn cutFace(pos: vec4f) -> CutHit {
   var h: CutHit; h.ok = false;
   let o = frame.camPos;
-  let d = normalize(world - o);
+  let d = viewRay(pos.xy / frame.res);
   let q = o - G.cutCenter;
   let a1 = dot(q, G.cutN1); let b1 = dot(d, G.cutN1);
   let a2 = dot(q, G.cutN2); let b2 = dot(d, G.cutN2);
@@ -250,9 +273,7 @@ fn cutFace(world: vec3f) -> CutHit {
   var t0 = 0.0; var t1 = 1e12;
   if (abs(b1) < 1e-8) { if (a1 <= 0.0) { return h; } } else { let t = -a1 / b1; if (b1 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
   if (abs(b2) < 1e-8) { if (a2 <= 0.0) { return h; } } else { let t = -a2 / b2; if (b2 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
-  if (t1 <= t0) { return h; }
-  let tw = length(world - o);
-  if (t1 >= tw) { return h; }
+  if (t1 <= t0 || t1 > 1e11) { return h; }
   h.ok = true;
   h.t = t1;
   h.p = o + d * t1;
@@ -292,12 +313,9 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
   return mix(tails, heads, clamp(hd, 0.0, 1.0));
 }
 
-@fragment fn fs_cap(in: VOut) -> GOutD {
-  let h = cutFace(in.world);
+@fragment fn fs_cap(in: VOut) -> GOut {
+  let h = cutFace(in.pos);
   if (!h.ok) { discard; }
-  let clip = frame.viewProj * vec4f(h.p, 1.0);
-  let depth = clip.z / clip.w;
-  if (hiddenAt(occDepth, in.pos, depth)) { discard; }
   let o = orgAt(in.org);
   // (outside its bounding sphere it can't be in its material: no need to ask its surface)
   if (length(h.p - o.center) > o.bound) { discard; }
@@ -328,10 +346,9 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
   s.albedo = capPattern(o, h.p, fp, sd); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
   var c = bioLightAt(h.p, h.n, v, s) * 0.85;
   c = fluoro(c, o.kind, h.n, v);
-  var out: GOutD;
+  var out: GOut;
   out.color = vec4f(c, 1.0);
   out.nrm = viewNormal(h.n);
   out.id = in.org + 1u;
-  out.depth = depth;
   return out;
 }

@@ -112,7 +112,7 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   let z0 = linearDepth(d);
   if (d <= 0.0) {
     var bg = background(in.uv);
-    if (V.look > 0.5) { bg = inked(illustratedFog(), px, 1e30, 0u, 0.0); }
+    if (V.look > 0.5) { bg = illustratedFog(); }
     return vec4f(clean(glassOver(bg * (1.0 - 0.7 * G.spot), px, z0)), 1.0);
   }
   var c = textureLoad(hdrTex, px, 0).rgb;
@@ -134,7 +134,8 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   cr = cr / max(wsum, 1e-4);
   // the crowd's occlusion and its shadow from the key (world.wgsl crowdLight): the key is most of a surface's light
   // where it reaches, the water's light the rest; in the illustrative look the occlusion alone
-  if (V.look > 0.5) { c *= 1.0 - 0.75 * cr.x; } else { c *= (1.0 - 0.6 * cr.y) * (1.0 - 0.45 * cr.x); }
+  // (deep in a crowd it goes properly dark, but by the multi-bounce fit: toward the crowd's own colour, never grey)
+  if (V.look > 0.5) { c *= multiBounce(1.0 - 0.7 * cr.x, c); } else { c *= (1.0 - 0.6 * cr.y) * multiBounce(1.0 - 0.75 * cr.x, c); }
   // (tinted by what it's on, never grey: light that bounces about in a crease takes the colour of its walls — Jimenez
   // et al.'s multi-bounce fit, the albedo guessed from the pixel's own hue)
   let aoK = mix(1.0, ao, P.aoStrength * (1.0 - G.fluo * 0.8));
@@ -143,8 +144,8 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   let wp = worldFromDepth(in.uv, d);
   let f = fogAmount(length(wp - frame.camPos));
   if (V.look > 0.5) {
-    c = inked(mix(c, illustratedFog(), f * 0.6), px, z0, textureLoad(idTex, px, 0).r, f);
-  } else { c = mix(c, G.fogColor * hz, f); }
+    c = mix(c, illustratedFog(), f * (0.45 + 0.55 * f * f));
+  } else { c = mix(c, G.fogColor * hz, f * (0.85 + 0.15 * f)); }   // (held back near, all of it far: the far wall still goes)
   // the hovered and the chosen organelle: a soft lift
   let id = textureLoad(idTex, px, 0).r;
   if (id != 0u && (id == G.hover || id == G.selected)) { c *= 1.0 + G.highlight * select(0.18, 0.32, id == G.selected); }
@@ -325,6 +326,14 @@ fn coc(d: f32) -> f32 {
     let dims = vec2f(textureDimensions(depthTex));
     let k = abs(coc(textureLoad(depthTex, vec2i(in.uv * dims), 0)));
     c = mix(c, textureSampleLevel(dofTex, samp_linear, in.uv, 0.0).rgb, smoothstep(0.6, 2.5, k));
+  }
+  // (the illustrative look's ink, after the depth of field: a line stays a line however soft what's behind it is)
+  if (V.look > 0.5) {
+    let px = vec2i(in.uv * vec2f(textureDimensions(depthTex)));
+    let d = textureLoad(depthTex, px, 0);
+    let z0 = select(1e30, linearDepth(d), d > 0.0);
+    let f = select(1.0, fogAmount(length(worldFromDepth(in.uv, d) - frame.camPos)), d > 0.0);
+    c = inked(c, px, z0, textureLoad(idTex, px, 0).r, f);
   }
   return vec4f(clean(c) * P.lay, P.lay);
 }

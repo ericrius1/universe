@@ -90,7 +90,7 @@ export interface Vol {
   n: number;
   on: number;
   look: number;
-  late: number;
+  shut: number;
 }
 export interface Place {
   inside: number;
@@ -122,8 +122,6 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
-  occl: number;
-  shad: number;
 }
 export interface Crowd {
   occl: number;
@@ -135,7 +133,6 @@ export interface VOut {
   seg: number;
   across: number;
   cover: number;
-  front: number;
 }
 export interface GOutD {
   color: Vec4;
@@ -153,5 +150,5 @@ export interface Look {
   dye: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; VOut: VOut; GOutD: GOutD; OitOut: OitOut; Look: Look }, 'frame' | 'G' | 'V' | 'organelles' | 'segs' | 'volTex' | 'occDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; VOut: VOut; GOutD: GOutD; OitOut: OitOut; Look: Look }, 'frame' | 'G' | 'V' | 'organelles' | 'segs' | 'volTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

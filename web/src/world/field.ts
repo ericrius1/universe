@@ -189,7 +189,7 @@ export class Field {
     this.F.set({
       focus: rel(focus), radius: R, camPos: rel(eye), clear: scale * 0.42, level, c0: C0, perChunk: K, maxInst: this.maxInst,
       lv0: lv[0], lv1: lv[1], lv2: lv[2], lv3: lv[3], lf, starts, total, segCount: this.segCount, actorCount: this.actorCount,
-      seed: 7, pxAngle, lod0: 34, lod1: 9, cull: 0.45,
+      seed: 7, pxAngle, lod0: 40, lod1: 9, cull: 0.45,
       p0: pl(0), p1: pl(1), p2: pl(2), p3: pl(3), p4: pl(4), p5: pl(5), latticeOn, wobble: 0.18, latticeR: RL, nearByRadius: this.nearByRadius ? 1 : 0,
     });
   }

@@ -21,10 +21,6 @@ export class Renderer {
   readonly globals: UniformBuffer<Globals>;
   readonly post: UniformBuffer<any>;
   readonly scene: RenderPass;
-  /** what writes its own depth (traced tubes, cut faces), after the scene: the GPU can't hide those before shading
-   *  them, so each fragment asks a copy of the scene's depth first (`sceneDepth`; world.wgsl hiddenAt) */
-  readonly late: RenderPass;
-  readonly sceneDepth: Texture;
   /** see-through layers (membranes from afar): weighted blended transparency over the scene's depth */
   readonly glass: RenderPass;
   readonly accum: Texture;
@@ -53,6 +49,9 @@ export class Renderer {
   look: 'light' | 'illustrative' | number = (new URLSearchParams(location.search).get('look') as 'illustrative') ?? 'light';
   /** parts of the light that can be left out (for timing them: tools/bench.mjs PARTS, or by hand) */
   parts = { crowd: true, crowdShade: true, motes: true };
+  /** whether the eye is inside the nucleus (cell.ts sets it): chromatin outside the cut is out of sight from outside
+   *  while the envelope is solid (world.wgsl chromatinShut) */
+  eyeInNucleus: () => boolean = () => true;
   /** the crowd's density round the focus, for its occlusion and shadow (engine/volume.ts) */
   readonly crowd: CrowdVolume;
 
@@ -72,7 +71,7 @@ export class Renderer {
     this.ids = k.texture({ label: 'ids', format: 'r32uint', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.depth = k.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     // (occlusion, the haze's light, the crowd's occlusion and shadow: post.wgsl fs_ao)
-    this.ao = k.texture({ label: 'ao', format: 'rgba16float', size: 'render', scale: 0.5 });
+    this.ao = k.texture({ label: 'ao', format: 'rgba8unorm', size: 'render', scale: 0.5 });
     this.lit = k.texture({ label: 'lit', format: 'rgba16float', size: 'render' });
     // (the glass at half the render's size, against the scene's depth at that size: post.wgsl glassOver lays it back
     // over the full size by depth. A film's, which has time for it, at the full size)
@@ -91,19 +90,6 @@ export class Renderer {
       label: 'scene',
       color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 0, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
       depth: { target: this.depth, clear: 0 },
-    });
-
-    this.sceneDepth = k.texture({ label: 'scene.depth', format: 'depth32float', size: 'render', usage: ['sample', 'copy-dst'] });
-    // (only with ?late for now: on this laptop the pass's own cost — the G-buffer stored and loaded again, the depth
-    // copied — came to about what its early test saved, so the tubes and cut faces draw in the scene as before)
-    const noLate = !new URLSearchParams(location.search).has('late');
-    const lateOn = () => !noLate && this.late.draws.length > 0;
-    const keep = k.raw((enc) => { if (lateOn()) enc.copyTextureToTexture({ texture: this.depth.gpu }, { texture: this.sceneDepth.gpu }, [this.depth.width, this.depth.height, 1]); }, 'scene.depth');
-    this.late = noLate ? this.scene : k.pass({
-      label: 'scene.late',
-      color: [{ target: this.hdr, clear: false }, { target: this.nrm, clear: false }, { target: this.ids, clear: false }],
-      depth: { target: this.depth, clear: false },
-      enabled: lateOn,
     });
 
     // the molecules' beads lit: after the scene has every bead's depth (field.ts draws them there depth-only, first),
@@ -141,7 +127,7 @@ export class Renderer {
     const dof = k.pass({ label: 'dof', color: [{ target: this.dofOut, clear: [0, 0, 0, 1] }], enabled: dofOn });
     dof.fullscreen(post, { label: 'dof', fragment: 'fs_dof', bind: { P, srcTex: this.dofHalf } });
 
-    this.items = [this.scene, keep, ...(noLate ? [] : [this.late]), this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
+    this.items = [this.scene, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
     this.afterComp = this.items.indexOf(comp) + 1;
   }
   private afterComp: number;
@@ -164,18 +150,19 @@ export class Renderer {
    *  weighted by the post uniform's `lay` — under what's there as the two hand over — after this frame's own work */
   layInto(target: Texture): RenderPass {
     const p = this.kit.pass({ label: 'cell.lay', color: [{ target, clear: false }] });
-    p.fullscreen(post, { label: 'cell.lay', fragment: 'fs_lay', blend: 'premultiplied', bind: { P: this.post, srcTex: this.lit, dofTex: this.dofOut, depthTex: this.depth } });
+    p.fullscreen(post, { label: 'cell.lay', fragment: 'fs_lay', blend: 'premultiplied', bind: { P: this.post, srcTex: this.lit, dofTex: this.dofOut, depthTex: this.depth, idTex: this.ids } });
     return p;
   }
 
   /** this frame's GPU work, for a host to run with its own (the film after it, in one submission) */
   work(): RunEntry[] {
     const G = this.globals;
-    // (the crowd rests past ~20 µm: field.ts)
+    // (the crowd's shadow only where its molecules are more than specks: gone by 8 µm)
     const S = G.get('scale') as number;
-    this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (20000 - S) / 8000)) : 0);
+    this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (8000 - S) / 4000)) : 0);
     if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
-    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, late: this.late === this.scene ? 0 : 1 });
+    const shut = (G.get('shellSolid') as number) >= 0.999 && !this.eyeInNucleus();
+    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, shut: shut ? 1 : 0 });
     return [...this.first(), ...this.before, ...this.crowd.work(), ...this.items];
   }
   frame() { this.kit.run(this.work()); }
