@@ -168,6 +168,9 @@ fn wobble(h: vec3f, r: f32) -> vec3f {
   var w = wD * wL * wC;
   if (w <= 0.01) { return; }
   if (isCut(p)) { return; }
+  // (out of view, whatever it turns out to be — the largest molecule, moved onto a membrane as far as the band and
+  // jostled — it would be culled in emit: so it goes before asking the world where it is, much of the work here)
+  if (planeOut(p, 130.0 + cL * 0.4)) { return; }
 
   let pl = placeOf(p);
   var inst: Inst;
@@ -218,6 +221,8 @@ fn fade(p: vec3f) -> f32 {
   if (g.x >= F.segCount) { return; }
   let s = segAt(segList[g.x]);
   let ax = s.b - s.a;
+  // (a segment wholly out of view makes nothing emit would keep: every chromatin segment is in the list, wherever it is)
+  if (planeOut((s.a + s.b) * 0.5, length(ax) * 0.5 + 40.0)) { return; }
   let T = normalize(ax);
   let R0 = normalize(cross(T, vec3f(0.31, 1.0, 0.17)));
   let R1 = cross(T, R0);
