@@ -1,53 +1,39 @@
-// The Milky Way as a volume (kiloparsecs, its centre at the frame's origin): an exponential disc of old stars, two
-// major and two minor logarithmic spiral arms of young blue stars with pink HII regions along them, a bar and a bulge,
-// and dark dust lanes on the arms' inner edges. Marched through its slab; from the Sun's place in it the same march
-// draws the band of the Milky Way across the sky, until the band is the real one: the sky's picture (NASA's Deep Star
-// Maps), with the march's steps falling away as it takes over. L.a: emission gain, dust gain, steps, how far inside the
-// disc; L.d: y the band's gain, z 1 once the picture is in, w the fraction of the frame's resolution it's drawn at. Its noise is baked (noisetex.wgsl).
+// The Milky Way as a volume (kiloparsecs, its centre at the frame's origin), made from a face-on map of it (NASA/JPL-
+// Caltech/R. Hurt's, an artist's concept built on Spitzer's survey: levels/galaxy.ts): the map's colour is the light,
+// laid out of the plane in a layer thicker round the bulge, and its dust (the map's own dark lanes) absorbs only, in a
+// thinner layer. Marched through its slab, the steps gathered where the ray crosses the plane; from the Sun's place in
+// it the same march draws the band of the Milky Way across the sky, until the band is the real one: the sky's picture
+// (NASA's Deep Star Maps), with the march's steps falling away as it takes over. L.a: emission gain, dust gain, steps,
+// how far inside the disc; L.b.x the diffuse dust that follows the light (per unit of it); L.d: x the map's share (0 till it's in, fading up as it comes), y the band's gain, z 1 once
+// the sky's picture is in, w the fraction of the frame's resolution it's drawn at.
 #include "cosmos.wgsl"
-#include "noisetex.wgsl"
 #include "weft/fullscreen"
 
 // the sky (levels/galaxy.ts, havens/sky/milkyway.webp): celestial J2000 plate carrée, right ascension 0 at the centre
 // increasing to the left, declination +90° at the top, each channel stored as its cube root
 @group(2) @binding(3) var milkyTex: texture_2d<f32>;
+// the face-on map (sRGB colour) with its dust in alpha (0 clear, 1 the darkest lane), seen from the north galactic pole:
+// the centre in the middle, the Sun below it (+v), l = 90° to the left (−u)
+@group(2) @binding(5) var faceTex: texture_2d<f32>;
 
-const PITCH = 0.22;          // the arms' pitch angle (rad, ~12.6°)
-const BAR = 0.44;            // the bar's angle
+// the map's width (kpc): 39.25 as drawn, scaled by 8.2 / 7.65 so its Sun lands where the ladder's is (galaxymap.ts)
+const MAP_W = 42.05;
+// the dust's layer (kpc, an exponential's scale height)
+const DUST_H = 0.09;
 
 struct Gal { glow: vec3f, dust: f32 }
 
-fn armPhase(p: vec3f, r: f32) -> f32 {
-  let th = atan2(p.z, p.x);
-  return th - log(max(r, 0.3)) / tan(PITCH);
-}
+// the light's scale height (kpc): a thin disc, swelling round the bar and bulge (as galaxymap.ts scaleHeight)
+fn scaleHeight(r: f32) -> f32 { return 0.2 + 0.55 * exp(-(r * r) / (2.4 * 2.4)); }
 
-fn galaxy(p: vec3f) -> Gal {
+fn galaxy(p: vec3f, lod: f32) -> Gal {
   var g: Gal;
-  let r = length(p.xz);
+  let m = textureSampleLevel(faceTex, samp_linear, vec2f(0.5 - p.z / MAP_W, 0.5 + p.x / MAP_W), lod);
+  let h = scaleHeight(length(p.xz));
   let z = abs(p.y);
-  // the thin and thick discs
-  let disc = exp(-r / 2.8) * (exp(-z / 0.28) + 0.12 * exp(-z / 0.9));
-  // the arms: two strong, two weak, with a wobble so they aren't ruled lines
-  let ph = armPhase(p, r);
-  let wob = valTap(p * 0.45).r * 1.4;
-  let a2 = pow(0.5 + 0.5 * cos(2.0 * ph + wob), 5.0);
-  let a4 = pow(0.5 + 0.5 * cos(2.0 * ph + 3.14159 + wob * 1.3), 7.0) * 0.55;
-  let arms = (a2 + a4) * ss(2.2, 4.5, r) * exp(-r / 6.0) * exp(-z / 0.16);
-  // the bar and the bulge
-  let cb = cos(BAR); let sb = sin(BAR);
-  let q = vec2f(p.x * cb + p.z * sb, -p.x * sb + p.z * cb);
-  let bar = exp(-(q.x * q.x) / (3.4 * 3.4) - (q.y * q.y) / (1.0 * 1.0)) * exp(-z / 0.35);
-  let bulge = exp(-length(p * vec3f(1.0, 1.45, 1.0)) / 0.55);
-  // knots of star formation strung along the arms
-  let knots = pow(max(valTap(p * 2.6).b * 0.5 + 0.5 - 0.62, 0.0) * 3.0, 3.0) * arms * 6.0;
-  g.glow = vec3f(1.0, 0.66, 0.32) * (bulge * 9.0 + bar * 3.2)
-         + vec3f(1.0, 0.8, 0.6) * disc * 1.4
-         + vec3f(0.42, 0.6, 1.0) * arms * 3.0
-         + vec3f(1.0, 0.25, 0.5) * knots * 1.6;
-  // dust: a thin layer, thickest just inside the arms
-  let dph = pow(0.5 + 0.5 * cos(2.0 * ph + 0.55 + wob), 4.0) + 0.5 * pow(0.5 + 0.5 * cos(2.0 * ph + 3.69 + wob * 1.3), 6.0);
-  g.dust = (dph * 0.85 + 0.15) * exp(-r / 4.5) * exp(-z / 0.09) * ss(0.8, 2.6, r) * (0.55 + 0.9 * max(valTap(p * 1.7 + 11.0).g, 0.0));
+  // (each normalised through the layer, so face on the light is the map's and the dust's its own)
+  g.glow = m.rgb * (exp(-z / h) / (2.0 * h));
+  g.dust = (m.a + L.b.x * dot(m.rgb, vec3f(0.3, 0.5, 0.2))) * (exp(-z / DUST_H) / (2.0 * DUST_H));
   return g;
 }
 
@@ -119,22 +105,36 @@ fn band(rd: vec3f) -> vec3f {
   t0 = max(t0, (-b - sh) / max(a, 1e-9)); t1 = min(t1, (-b + sh) / max(a, 1e-9));
   if (t1 <= t0) { return vec4f(0.0); }
   let steps = i32(L.a.z);
-  // (steps cluster near the eye: from inside the disc the nearby kiloparsec matters most)
   let jit = marchDither(in.pos.xy);
   var T = 1.0;
   var col = vec3f(0.0);
-  let span = t1 - t0;
-  var tPrev = t0;
-  for (var i = 0; i < steps; i++) {
-    let u = (f32(i) + jit) / f32(steps);
-    let t = t0 + span * u * u;
-    let dt = t - tPrev;
-    tPrev = t;
-    let g = galaxy(ro + rd * t);
-    let tau = g.dust * L.a.y * dt;
-    col += T * g.glow * L.a.x * dt * exp(-tau * 0.5);
-    T *= exp(-tau);
-    if (T < 0.01) { break; }
+  // (no map yet: nothing but the band)
+  if (L.d.x > 0.0) {
+    let span = t1 - t0;
+    // the steps gathered toward where the ray crosses the plane (from inside the disc that's the eye), each side's
+    // share of them its share of the span, closer together near the plane
+    var tm = t0;
+    if (abs(rd.y) > 1e-5) { tm = clamp(-ro.y / rd.y, t0, t1); }
+    let fa = (tm - t0) / max(span, 1e-6);
+    // (the map's level from a step's footprint: a pixel of the march at that distance against a texel)
+    let texel = MAP_W / f32(textureDimensions(faceTex).x);
+    let foot = L.pxAngle / max(L.d.w, 0.1) / texel;
+    var tPrev = t0;
+    for (var i = 0; i < steps; i++) {
+      let u = (f32(i) + jit) / f32(steps);
+      var t: f32;
+      if (u < fa) { let k = (fa - u) / fa; t = tm - (tm - t0) * k * k; }
+      else { let k = (u - fa) / max(1.0 - fa, 1e-6); t = tm + (t1 - tm) * k * k; }
+      let dt = t - tPrev;
+      tPrev = t;
+      let g = galaxy(ro + rd * t, log2(max(t * foot, 1.0)));
+      let tau = g.dust * L.a.y * dt;
+      col += T * g.glow * L.a.x * dt * exp(-tau * 0.5);
+      T *= exp(-tau);
+      if (T < 0.01) { break; }
+    }
+    col *= L.d.x;
+    T = mix(1.0, T, L.d.x);
   }
   col = mix(col, band(rd) * L.d.y, L.a.w);
   return vec4f(col * L.weight, mix(1.0 - T, 0.0, L.a.w) * L.weight);

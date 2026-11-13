@@ -62,5 +62,5 @@ export interface Gal {
   dust: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Gal: Gal }, 'frame' | 'L' | 'cellTex' | 'valTex' | 'codeTex' | 'milkyTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Gal: Gal }, 'frame' | 'L' | 'milkyTex' | 'faceTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
