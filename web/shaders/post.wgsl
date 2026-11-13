@@ -144,8 +144,8 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   let wp = worldFromDepth(in.uv, d);
   let f = fogAmount(length(wp - frame.camPos));
   if (V.look > 0.5) {
-    c = mix(c, illustratedFog(), f * 0.45);
-  } else { c = mix(c, G.fogColor * hz, f * 0.85); }
+    c = mix(c, illustratedFog(), f * (0.45 + 0.55 * f * f));
+  } else { c = mix(c, G.fogColor * hz, f * (0.85 + 0.15 * f)); }   // (held back near, all of it far: the far wall still goes)
   // the hovered and the chosen organelle: a soft lift
   let id = textureLoad(idTex, px, 0).r;
   if (id != 0u && (id == G.hover || id == G.selected)) { c *= 1.0 + G.highlight * select(0.18, 0.32, id == G.selected); }
