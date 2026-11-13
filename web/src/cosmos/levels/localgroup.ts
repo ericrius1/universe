@@ -6,7 +6,8 @@ import type { Kit, StorageBuffer } from '@ericrius1/weft';
 import discShader from '../shaders/c_lgdisc.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints } from './points';
-import type { Ladder } from '../frames';
+import type { Frame, Ladder } from '../frames';
+import type { Vec3 } from 'math';
 import { fetchJson, eqToGal, lbOf, type NamedPlace, type SkyAxes } from './deepsky';
 
 interface LGGalaxy {
@@ -40,9 +41,12 @@ export class LocalGroup {
   /** the dwarfs' light against the big ones': the eye's response, not the light's (a dwarf of 10⁵ Suns is a ten-
    *  millionth of Andromeda, and would never be seen), so their luminosity is shown as its 0.45 power */
   dwarfGain = 0.3;
-  discGain = 1.2e-4;
+  discGain = 5e-5;
+
+  private readonly cosmos: Frame;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder, private axes: SkyAxes) {
+    this.cosmos = ladder.cosmos;
     this.lv = R.level('localgroup', ladder.cosmos, [25.2, 24.3, 21.2, 20.4]);
     const on = () => this.lv.on() && this.state === 'in';
     this.discBuf = kit.storage({ label: 'localgroup.discs', size: 5 * 16 * 4, stride: 16 * 4 });
@@ -51,9 +55,9 @@ export class LocalGroup {
     this.ptsBuf = drawPoints(kit, R, this.lv, this.pts, 'localgroup', on);
   }
 
-  private async load() {
-    if (!this.list) this.list = (await fetchJson<{ galaxies: LGGalaxy[] }>('galaxies/localgroup.json')).galaxies;
-    return this.list;
+  private loading: Promise<LGGalaxy[]> | null = null;
+  private load() {
+    return this.loading ??= fetchJson<{ galaxies: LGGalaxy[] }>('galaxies/localgroup.json').then((j) => (this.list = j.galaxies));
   }
 
   private fill(list: LGGalaxy[]) {
@@ -111,6 +115,16 @@ export class LocalGroup {
       const [l, b] = lbOf(eqToGal(g.xyzMpc));
       return { name: g.name, aka: g.aka, kind: g.type, frame: 'cosmos' as const, at: this.axes.eqToCosmos(g.xyzMpc), distanceMpc: g.distanceKpc / 1000, l, b };
     });
+  }
+
+  /** where one of the Local Group's galaxies is, by its name in the list (ui/things.ts), with its radius; null until
+   *  the list is in (asked for the first time this is) */
+  find(name: string): { frame: Frame; at: Vec3; r?: number; name?: string } | null {
+    if (!this.list) { void this.load().catch(() => {}); return null; }
+    const g = this.list.find((x) => x.name === name || x.aka === name);
+    if (!g) return null;
+    const at: Vec3 = g.name === 'Milky Way' ? [0, 0, 0] : this.axes.eqToCosmos(g.xyzMpc);
+    return { frame: this.cosmos, at, r: g.radiusKpc ? g.radiusKpc / 1000 : (g.halfLightRadiusPc ?? 300) * 1e-6, name: g.aka ? `${g.name} (${g.aka})` : g.name };
   }
 
   update(S: number) {

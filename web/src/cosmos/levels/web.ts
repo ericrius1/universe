@@ -10,7 +10,8 @@ import webShader from '../shaders/c_web.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints } from './points';
 import { noiseTex } from '../noisetex';
-import type { Ladder } from '../frames';
+import type { Frame, Ladder } from '../frames';
+import type { Vec3 } from 'math';
 import { SkyAxes, decodeImage, fetchBytes, fetchJson, eqToGal, lbOf, type NamedPlace } from './deepsky';
 import { LocalGroup } from './localgroup';
 
@@ -20,7 +21,13 @@ const NEARBY_MAX = 300, NEARBY_PHONE = 15000;
 /** 2MRS's types (2mrs.json): unknown, spiral, elliptical or lenticular, other (irregular, peculiar) */
 const TYPE_COLOR = [[0.92, 0.88, 0.82], [0.7, 0.82, 1.0], [1.0, 0.8, 0.55], [0.62, 0.76, 1.0]];
 
-interface Structures { structures: { name: string; kind: string; xyzMpc: [number, number, number]; redshiftDistanceMpc?: number }[] }
+interface Structure { name: string; kind: string; xyzMpc: [number, number, number]; redshiftDistanceMpc?: number; lengthMpc?: number }
+interface Structures { structures: Structure[] }
+
+/** how big a named structure is drawn round its place (Mpc), for a guide's ring: a cluster's core about 2 Mpc, a wall
+ *  half its length; the Boötes Void about 300 million light-years (92 Mpc) across. (structures.json's radiusMpc for
+ *  it is from a source that used H0 = 50: not used.) */
+const extentOf = (s: Structure) => s.kind === 'void' ? 46 : s.kind === 'wall' ? (s.lengthMpc ?? 200) / 2 : s.kind === 'supercluster' ? 10 : 2;
 
 export class Web {
   readonly lv: Level;
@@ -29,6 +36,11 @@ export class Web {
   /** the galaxies (2MRS): room for them all, empty (and not drawn) till they're in */
   readonly pts: PointSet;
   private ptsBuf: StorageBuffer;
+  /** each drawn galaxy's record in 2mrs.bin */
+  private srcIndex: Int32Array | null = null;
+  private structures: Structure[] | null = null;
+  private structuresAsked = false;
+  private readonly cosmos: Frame;
   private nearby: 'none' | 'asked' | 'in' = 'none';
   /** the real density and Planck's map: asked for once the web shows, then fading in (0..1) */
   private dens: 'none' | 'asked' | 'in' = 'none';
@@ -43,14 +55,15 @@ export class Web {
   private readonly small: boolean;
   private readonly vscale: number;
   /** the real web's light: its gain, and the log density (over the mean) where it starts */
-  realGain = 0.3;
-  realFrom = 0.3;
+  realGain = 0.2;
+  realFrom = 0.6;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
     this.kit = kit;
     this.small = R.light;
     this.vscale = R.volumeScale;
     this.axes = new SkyAxes(ladder);
+    this.cosmos = ladder.cosmos;
     this.lv = R.level('web', ladder.cosmos, [99, 98, 21.9, 21.2]);
     this.vol = R.level('web.vol', ladder.cosmos, [99, 98, 24.3, 23.5]);
     this.D = kit.uniforms(webShader.structs.Deep, 'web.deep');
@@ -79,6 +92,7 @@ export class Web {
       const P = this.pts;
       P.count = 0;
       const at: [number, number, number] = [0, 0, 0];
+      const src = new Int32Array(P.max);
       for (let i = 0; i < f.length / 5 && P.count < P.max; i++) {
         const x = f[i * 5], y = f[i * 5 + 1], z = f[i * 5 + 2], logL = f[i * 5 + 3], tf = u[i * 5 + 4];
         const d = Math.hypot(x, y, z);
@@ -88,8 +102,10 @@ export class Web {
         // brightness by K-band luminosity, size roughly with it (a 3×10¹⁰ L☉ galaxy about 12 kpc across its glow)
         const lum = Math.pow(10, logL - 10.5);
         const c = TYPE_COLOR[tf & 255] ?? TYPE_COLOR[0];
+        src[P.count] = i;
         P.push(at[0], at[1], at[2], 0.012 * Math.pow(lum, 0.35), c[0], c[1], c[2], lum);
       }
+      this.srcIndex = src.subarray(0, P.count);
       // (the rest of the records empty, passed over)
       const n = P.count;
       P.data.fill(0, n * 8);
@@ -149,6 +165,41 @@ export class Web {
     return [...out, ...(await this.localGroup.named())];
   }
 
+  /** where a named thing the web draws is (ui/things.ts FindsThings): 'galaxy', the Local Group's by name as
+   *  localgroup.json has them; 'structure', the named clusters, walls and voids as structures.json has them (with a ring
+   *  for their extent); null until their file is in (asked for the first time this is) */
+  find(kind: string, name: string): { frame: Frame; at: Vec3; r?: number; name?: string; ring?: boolean } | null {
+    if (kind === 'galaxy') return this.localGroup.find(name);
+    if (kind === 'level' && name === 'web.cmb') return { frame: this.cosmos, at: [0, 0, 0], r: EDGE, name: 'The microwave background', ring: true };
+    if (kind !== 'structure') return null;
+    if (!this.structuresAsked) {
+      this.structuresAsked = true;
+      fetchJson<Structures>('galaxies/structures.json').then((s) => { this.structures = s.structures; }, (e) => console.warn('web: no structures', e));
+    }
+    const s = this.structures?.find((x) => x.name === name);
+    if (!s) return null;
+    return { frame: this.cosmos, at: this.axes.eqToCosmos(s.xyzMpc), r: extentOf(s), name: s.name, ring: s.kind === 'void' || s.kind === 'wall' };
+  }
+
+  /** the 2MRS galaxy drawn nearest a point on the screen (css px, `w` × `h` the view's size, `tanHalf` the tangent of
+   *  half its vertical field): its record's index in 2mrs.bin, or null if none is drawn within `within` px */
+  nearest(x: number, y: number, w: number, h: number, tanHalf: number, within = 24): number | null {
+    const src = this.srcIndex, lv = this.lv;
+    if (!src || this.nearby !== 'in' || !lv.on()) return null;
+    const d = this.pts.data, asp = w / Math.max(1, h);
+    let best = within * within, at: number | null = null;
+    for (let i = 0; i < src.length; i++) {
+      const rx = d[i * 8] - lv.origin[0] - lv.eye[0], ry = d[i * 8 + 1] - lv.origin[1] - lv.eye[1], rz = d[i * 8 + 2] - lv.origin[2] - lv.eye[2];
+      const z = rx * lv.fwd[0] + ry * lv.fwd[1] + rz * lv.fwd[2];
+      if (z <= 0) continue;
+      const sx = ((rx * lv.right[0] + ry * lv.right[1] + rz * lv.right[2]) / (z * tanHalf * asp) * 0.5 + 0.5) * w;
+      const sy = (0.5 - (rx * lv.up[0] + ry * lv.up[1] + rz * lv.up[2]) / (z * tanHalf) * 0.5) * h;
+      const e = (sx - x) * (sx - x) + (sy - y) * (sy - y);
+      if (e < best) { best = e; at = src[i]; }
+    }
+    return at;
+  }
+
   update(S: number) {
     const Smpc = S / this.lv.frame.unit;
     const l = Math.log10(S);
@@ -177,6 +228,8 @@ export class Web {
     // samples scatter across the noise, and each costs a miss)
     const steps = Smpc > 6000 ? Math.round(28 - 16 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;
     this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, steps, l > 26.3 ? 1 : 0, 0] });
-    this.D.set({ k: [this.densIn, this.cmbIn, this.realGain, this.vscale], m: [this.realFrom, 150, 195, 0] });
+    // (the real web's gain a little higher seen from farther: its haze of walls thins out against the noise's threads)
+    const realK = this.realGain * Math.min(3, Math.max(1, Math.sqrt(Smpc / 64)));
+    this.D.set({ k: [this.densIn, this.cmbIn, realK, this.vscale], m: [this.realFrom, 150, 195, 0] });
   }
 }
