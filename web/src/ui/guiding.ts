@@ -78,7 +78,7 @@ export class Guiding {
     if (g.open) { g.close(); return; }
     if (!g.order.length) return;
     this.dismissWelcome();
-    g.showChapter(this.nearest() ?? g.order[0], this.phone);
+    g.showChapter(this.nearest() ?? g.order[0]);
     this.app.hud.setActive('guide', true);
   }
   /** open at a chapter (from the welcome) */

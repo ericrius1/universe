@@ -30,14 +30,29 @@ const make: Make = async (p, ctx) => {
       // the line: P = a^(3/2)
       g.strokeStyle = 'rgba(179,166,255,0.7)'; g.lineWidth = 1.4; g.setLineDash([5, 4]);
       g.beginPath(); g.moveTo(X(A0), Y(A0 ** 1.5)); g.lineTo(X(A1), Y(A1 ** 1.5)); g.stroke(); g.setLineDash([]);
-      p.text('slope 3/2', X(0.5), Y(0.5 ** 1.5) - 8, { size: 10, color: INK.violet });
-      for (const q of pts) {
+      // (the key, bottom right, clear of the points)
+      g.strokeStyle = 'rgba(179,166,255,0.7)'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(W - R - 118, H - B - 12); g.lineTo(W - R - 96, H - B - 12); g.stroke(); g.setLineDash([]);
+      p.text('slope 3/2', W - R - 90, H - B - 8.5, { size: 10, color: INK.violet });
+      // the points, the planets' names brighter; each name where it overlaps no other
+      const boxes: [number, number, number, number][] = [];
+      g.font = `500 10px ${'Inter, system-ui, sans-serif'}`;
+      const order = [...pts].sort((a, b) => Number(a.dwarf) - Number(b.dwarf));
+      for (const q of order) {
         const x = X(q.a), y = Y(q.P);
         g.fillStyle = q.dwarf ? INK.dim : INK.accent;
         g.beginPath(); g.arc(x, y, q.dwarf ? 2.6 : 3.6, 0, Math.PI * 2); g.fill();
-        // (names alternate sides, so the outer crowd doesn't overlap)
-        const left = q.dwarf && q.a > 40 && q.name !== 'Eris';
-        p.text(q.name, x + (left ? -7 : 7), y + (q.dwarf ? 11 : -5), { size: 10, color: q.dwarf ? INK.dim : INK.ink, align: left ? 'right' : 'left' });
+        boxes.push([x - 4, y - 4, x + 4, y + 4]);
+      }
+      for (const q of order) {
+        const x = X(q.a), y = Y(q.P), w = g.measureText(q.name).width;
+        const tries: [number, number, CanvasTextAlign][] = [[x + 7, y + 12, 'left'], [x - 7, y - 5, 'right'], [x + 7, y - 5, 'left'], [x - 7, y + 12, 'right'], [x + 7, y + 22, 'left'], [x - 7, y - 15, 'right']];
+        const fit = tries.find(([tx, ty, al]) => {
+          const b: [number, number, number, number] = al === 'left' ? [tx, ty - 9, tx + w, ty + 2] : [tx - w, ty - 9, tx, ty + 2];
+          return b[2] < W - 2 && b[0] > L && !boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+        }) ?? tries[0];
+        const [tx, ty, al] = fit;
+        boxes.push(al === 'left' ? [tx, ty - 9, tx + w, ty + 2] : [tx - w, ty - 9, tx, ty + 2]);
+        p.text(q.name, tx, ty, { size: 10, color: q.dwarf ? INK.dim : INK.ink, align: al });
       }
     },
   };
