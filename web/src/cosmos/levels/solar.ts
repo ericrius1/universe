@@ -191,6 +191,16 @@ export class Solar {
     vec3.transformQuat(out, out, this.ladder.solar.q);
     return b.r * 1000;
   }
+  /** where a named body is now, for the guide's marks (ui/things.ts FindsThings): any of the bodies by its id (the Sun,
+   *  the planets, the Moon, "ceres", "pluto", "eris", "haumea", "makemake", "sedna", "halley", "voyager1",
+   *  "voyager2"), heliocentric in the solar frame's AU on the ephemeris's day; null for anything else */
+  find(kind: string, name: string): { frame: Ladder['solar']; at: Vec3; r?: number; name?: string } | null {
+    if (kind !== 'body') return null;
+    const b = this.bodies.get(name);
+    const at = b && this.bodies.at(name, this.ladder.eday, [0, 0, 0]);
+    if (!b || !at) return null;
+    return { frame: this.ladder.solar, at, r: (b.r * 1000) / AU, name: b.name };
+  }
   /** the ids a zoom toward the cursor can settle on */
   ids() { return this.order.filter((id) => id !== 'earth'); }
   /** every body, where it is now: the guide's engineer labels and selects them */

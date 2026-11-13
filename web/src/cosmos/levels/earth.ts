@@ -33,11 +33,16 @@ export class Earth {
   ready = false;
   /** drawn this frame: its maps in, the level showing, and the Earth or the Moon more than a speck */
   shown = false;
+  /** the spot's own ground (the window round it, its picture and relief) drawn on the globe: false where the dive goes
+   *  down somewhere else (the well's way, over San Francisco: the spot's ground is Seven Havens', not what's below) */
+  spotGround = true;
   private asked = { base: false, big: false, moon: false };
+  private readonly band0: [number, number, number, number];
   private moonIn = false;
 
   constructor(private kit: Kit, private R: CosmosRenderer, private ladder: Ladder, air: Air, private data: EarthData) {
     this.lv = R.level('earth', ladder.earth, [10.4, 9.7, 4.85, 4.6]);
+    this.band0 = [...this.lv.band];
     this.E = kit.uniforms(earthShader.structs.EarthU, 'earth.u');
     const blank = (label: string, format: GPUTextureFormat) => kit.texture({ label, format, size: [1, 1], usage: ['sample', 'copy-dst'] });
     this.day = blank('earth.day.none', 'rgba8unorm-srgb');
@@ -56,6 +61,13 @@ export class Earth {
         regionMap: new Ref(() => data.farC), regionH: new Ref(() => data.farH), ...air.bind(this.lv),
       } as never,
     });
+  }
+
+  /** hold the Earth's level on further down the zoom: its weight from 1 at `full` to nothing by `gone` (log10 m; the
+   *  well's way, down into San Francisco's fog), or with null back to its own */
+  reach(bottom: [full: number, gone: number] | null) {
+    const b = this.band0;
+    this.lv.band = bottom ? [b[0], b[1], bottom[0], bottom[1]] : [...b];
   }
 
   // ---------------------------------------------------------------- the maps
@@ -147,11 +159,12 @@ export class Earth {
     });
     // the spot's ground axes and place, and its window
     const m = this.data.manifest;
+    const own = this.spotGround && this.data.ready;
     const ax = (v: Vec3) => lad.dirInto(lad.ground, lad.earth, v);
     const g = lad.pointInto(lad.ground, lad.earth, [0, 0, 0]);
     this.E.set({
       gx: [...ax([1, 0, 0]), 0], gy: [...ax([0, 1, 0]), 0], gz: [...ax([0, 0, 1]), 0],
-      spot: [g[0] - o[0], g[1] - o[1], g[2] - o[2], m ? m.far.half / 1000 : 60], hr: [m?.far.min ?? 0, m?.far.max ?? 1, this.data.ready ? 1 : 0, ePx >= 0.75 ? 1 : 0],
+      spot: [g[0] - o[0], g[1] - o[1], g[2] - o[2], m ? m.far.half / 1000 : 60], hr: [m?.far.min ?? 0, m?.far.max ?? 1, own ? 1 : 0, ePx >= 0.75 ? 1 : 0],
       mx: [...mx, this.moonIn ? 1 : 0], mz: [...mz, shine],
     });
   }
