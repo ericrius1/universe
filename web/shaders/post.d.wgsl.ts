@@ -45,14 +45,14 @@ export interface Globals {
   fogColor: Vec3;
   fogDist: number;
   bgColor: Vec3;
-  pad1: number;
+  spot: number;
   clearRadius: number;
   pxAngle: number;
   cutRadius: number;
   organelleCount: number;
   hover: number;
   selected: number;
-  quality: number;
+  spots: number;
   flags: number;
   timeScale: number;
   shellSolid: number;
@@ -130,5 +130,5 @@ export interface Post {
   pad2: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'P' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'P' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'glassDepthTex' | 'thinAccumTex' | 'thinRevealTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

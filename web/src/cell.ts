@@ -13,6 +13,8 @@ import { Renderer } from './engine/renderer';
 import { Controls } from './engine/camera';
 import { buildPlaces, type Place } from './ui/places';
 import { cardFor, type Card } from './ui/info';
+import { spotCode, chapterPlace } from './ui/spot';
+import type { Spot } from './ui/story';
 import { GAMES } from './play/game';
 import './play/index';
 
@@ -32,6 +34,10 @@ export interface Cell {
   card(id: number): Card | null;
   /** the compartment a point is in (the innermost organelle containing it), and that organelle's index */
   where(p: Vec3): { name: string; org: number };
+  /** what the guide's spotlight lights, as the shaders read it (G.spots: ui/spot.ts) */
+  spot(spots: Spot[]): number;
+  /** the place of the chapter a picked thing works in (the guide's story), or null */
+  chapterPlace(id: number): string | null;
 }
 
 /** lay out the cell, build its membranes, fetch its molecules (`status` says how far along) */
@@ -55,6 +61,8 @@ export async function buildCell(kit: Kit, canvas: HTMLCanvasElement, o: { base: 
     world, r, controls, field, walkers, fil: filaments.set, mols, places: buildPlaces(world), wedge: WEDGE, games: GAMES,
     card: (id) => cardFor(id, (i) => world.organelles[i]?.kind ?? -1),
     where: (p) => where(world, p),
+    spot: (s) => spotCode(s),
+    chapterPlace: (id) => chapterPlace(id, (i) => world.organelles[i]?.kind ?? -1),
   };
 }
 

@@ -25,6 +25,9 @@ struct Post {
 @group(2) @binding(9) var accumTex: texture_2d<f32>;
 @group(2) @binding(10) var revealTex: texture_2d<f32>;
 @group(2) @binding(11) var dofTex: texture_2d<f32>;
+@group(2) @binding(12) var glassDepthTex: texture_depth_2d;
+@group(2) @binding(13) var thinAccumTex: texture_2d<f32>;
+@group(2) @binding(14) var thinRevealTex: texture_2d<f32>;
 
 fn viewPos(uv: vec2f, d: f32) -> vec3f {
   let ndc = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, d, 1.0);
@@ -39,7 +42,7 @@ fn viewPos(uv: vec2f, d: f32) -> vec3f {
   let d = textureLoad(depthTex, px, 0);
   if (d <= 0.0) { return vec4f(1.0); }
   let p = viewPos(in.uv, d);
-  let n = normalize(textureLoad(nrmTex, px, 0).xyz);
+  let n = unOctNormal(textureLoad(nrmTex, px, 0).xy);
   let rad = -p.z * P.aoRadius;
   // a rotated spiral of samples in the hemisphere round the normal, the rotation from interleaved gradient noise
   let ign = fract(52.9829189 * fract(dot(in.uv * dims, vec2f(0.06711056, 0.00583715))) + f32(frame.frame % 8u) * 0.618);
@@ -72,7 +75,7 @@ fn background(uv: vec2f) -> vec3f {
   // a soft gradient with the key light's side warmer, and a faint speckle of far particles
   let k = dot(r, normalize(G.keyDir)) * 0.5 + 0.5;
   var c = G.bgColor * (0.65 + 0.7 * k * k);
-  let sp = cellular(r * 180.0, 1.0);
+  let sp = cellular8(r * 180.0, 1.0);
   c += G.fogColor * 0.35 * smoothstep(0.08, 0.0, sp.d1) * step(0.8, sp.id.x);
   // (a film's, while the haze is thick: the haze itself, so no darker gaps between the things it has all but hidden)
   c = mix(c, G.fogColor, G.hazeBg);
@@ -102,11 +105,11 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   let dims = vec2f(textureDimensions(depthTex));
   let px = vec2i(in.uv * dims);
   let d = textureLoad(depthTex, px, 0);
-  if (d <= 0.0) { return vec4f(clean(glassOver(background(in.uv), px)), 1.0); }
+  let z0 = linearDepth(d);
+  if (d <= 0.0) { return vec4f(clean(glassOver(background(in.uv) * (1.0 - 0.7 * G.spot), px, z0)), 1.0); }
   var c = textureLoad(hdrTex, px, 0).rgb;
   // occlusion: a depth-aware blur of the half-resolution term
   let ad = vec2f(textureDimensions(aoTex));
-  let z0 = linearDepth(d);
   var ao = 0.0; var wsum = 0.0;
   for (var y = -1; y <= 1; y++) {
     for (var x = -1; x <= 1; x++) {
@@ -126,7 +129,19 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   // the hovered and the chosen organelle: a soft lift
   let id = textureLoad(idTex, px, 0).r;
   if (id != 0u && (id == G.hover || id == G.selected)) { c *= 1.0 + G.highlight * select(0.18, 0.32, id == G.selected); }
-  return vec4f(clean(glassOver(c, px)), 1.0);
+  // the spotlight (world.wgsl): what the guide points at breathes and is outlined warm; everything else dims
+  let lit = G.spot > 0.001 && spotlit(id);
+  if (G.spot > 0.001 && !lit) { c = mix(c, vec3f(dot(c, vec3f(0.3, 0.59, 0.11))), 0.5 * G.spot) * (1.0 - 0.7 * G.spot); }
+  var out = glassOver(c, px, z0);
+  if (lit) {
+    let pulse = 0.8 + 0.3 * sin(frame.time * 3.6);
+    let hi = vec2i(dims) - 1;
+    let edge = select(0.0, 1.0, !spotlit(textureLoad(idTex, clamp(px + vec2i(2, 0), vec2i(0), hi), 0).r) || !spotlit(textureLoad(idTex, clamp(px - vec2i(2, 0), vec2i(0), hi), 0).r)
+      || !spotlit(textureLoad(idTex, clamp(px + vec2i(0, 2), vec2i(0), hi), 0).r) || !spotlit(textureLoad(idTex, clamp(px - vec2i(0, 2), vec2i(0), hi), 0).r));
+    out = mix(out, c * (1.6 * pulse) + vec3f(0.03, 0.02, 0.01) * pulse, G.spot * 0.85);
+    out = mix(out, vec3f(1.0, 0.7, 0.54) * (1.2 + 0.4 * pulse), edge * G.spot * 0.9);
+  }
+  return vec4f(clean(out), 1.0);
 }
 
 // one pixel's stray NaN or infinity would spread through the bloom chain and the lens blur into a black block: it
@@ -135,13 +150,42 @@ fn clean(c: vec3f) -> vec3f {
   return select(vec3f(0.0), c, all((bitcast<vec3u>(c) & vec3u(0x7f800000u)) != vec3u(0x7f800000u)));
 }
 
-// the glass layers over what's behind them (weighted blended OIT resolve)
-fn glassOver(c: vec3f, px: vec2i) -> vec3f {
-  let acc = textureLoad(accumTex, px, 0);
-  let rev = textureLoad(revealTex, px, 0).r;
-  if (rev >= 0.999) { return c; }
+// the glass layers over what's behind them (weighted blended OIT resolve). The membranes are drawn at half the render's size
+// (soft by nature: renderer.ts glass): the four half-size texels round this pixel, each weighted bilinearly and by how
+// near the depth it was drawn against (the nearest of its four: fs_halfdepth) is to this pixel's — so along a
+// silhouette the layers come from this pixel's own side of it
+fn glassOver(c: vec3f, px: vec2i, z0: f32) -> vec3f {
+  let hd = vec2i(textureDimensions(revealTex));
+  let q = (vec2f(px) + 0.5) * vec2f(hd) / vec2f(textureDimensions(depthTex)) - 0.5;
+  let i0 = vec2i(floor(q));
+  let f = q - floor(q);
+  var acc = vec4f(0.0); var rev = 0.0; var wsum = 0.0; var clear = true;
+  for (var k = 0; k < 4; k++) {
+    let o = vec2i(k & 1, k >> 1);
+    let t = clamp(i0 + o, vec2i(0), hd - 1);
+    let r = textureLoad(revealTex, t, 0).r;
+    clear = clear && r >= 0.999;
+    let bw = select(1.0 - f.x, f.x, o.x == 1) * select(1.0 - f.y, f.y, o.y == 1);
+    let zh = linearDepth(textureLoad(glassDepthTex, t, 0));
+    let w = bw * (exp(-abs(zh - z0) / (z0 * 0.05)) + 1e-4);
+    acc += textureLoad(accumTex, t, 0) * w; rev += r * w; wsum += w;
+  }
+  // (the thin lines' own layers, at the full size: their sums added in, their reveal multiplied)
+  let ta = textureLoad(thinAccumTex, px, 0);
+  let tr = textureLoad(thinRevealTex, px, 0).r;
+  if (clear && tr >= 0.999) { return c; }
+  acc = acc / wsum + ta; rev = rev / wsum * tr;
   let avg = acc.rgb / clamp(acc.a, 1e-4, 5e4);
   return c * rev + avg * (1.0 - rev);
+}
+
+// the scene's depth at half its size for the glass to be drawn against: the nearest of each four
+@fragment fn fs_halfdepth(in: FullscreenOut) -> @builtin(frag_depth) f32 {
+  let ld = vec2i(textureDimensions(depthTex)) - 1;
+  let p = vec2i(in.pos.xy) * 2;
+  var d = 0.0;
+  for (var k = 0; k < 4; k++) { d = max(d, textureLoad(depthTex, min(p + vec2i(k & 1, k >> 1), ld), 0)); }
+  return d;
 }
 
 // ---------------------------------------------------------------- bloom: down a mip chain, back up with a tent

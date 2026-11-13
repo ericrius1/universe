@@ -66,7 +66,7 @@ export class Filaments {
     r.scene.draw(filamentShader, { label: 'filaments', vertex: 'vs_tube', fragment: 'fs_tube', bind: { segs }, count, cull: 'none' });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keep: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
-    r.glass.draw(filamentShader, { label: 'filaments.thin', vertex: 'vs_thin', fragment: 'fs_thin', bind: { segs }, count, cull: 'none', blend: [add, keep], depthWrite: false });
+    r.thin.draw(filamentShader, { label: 'filaments.thin', vertex: 'vs_thin', fragment: 'fs_thin', bind: { segs }, count, cull: 'none', blend: [add, keep], depthWrite: false });
     console.log(`filaments: ${world.filaments.length} (${(this.set.count / 1000).toFixed(0)}k segments)`);
   }
 }

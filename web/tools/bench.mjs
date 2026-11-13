@@ -81,6 +81,9 @@ const install = (only) => {
     [22.6, -0.6, 'local group'], [21.35, -0.75, 'milky way'], [20.0, -0.55, 'entering the disc'], [17.7, -0.3, 'neighbours'], [15.0, -0.5, 'past the planets'],
     [13, -0.62, 'solar system'], [11.2, -0.5, 'inner planets'], [8.9, -0.2, 'earth and moon'], [7.35, -0.15, 'earth'], [5.3, -0.4, 'coming down'],
     [3.5, -0.42, 'gardens, 3 km'], [1.4, -0.6, 'gardens, 25 m'], [0.35, -0.95, 'her, 2 m'], [-1.75, -1.1, 'her eye'], [-3.6, -1.1, 'cornea']];
+  // (on the well's way, ?w=hepatocyte: its own stretch, the camera looking down as the way does: lab/way.ts)
+  if (app.realms.way === 'well') SPOTS.splice(0, SPOTS.length, [0, -0.85, 'well: bench'], [-0.7, -0.85, 'well: plate'], [-1.6, -1.3, 'well: down a well'],
+    [-2.2, -1.32, 'well: meniscus'], [-3.1, -0.9, 'well: field'], [-3.9, -0.6, 'well: cells'], [-4.6, -0.42, 'well: one cell'], [-5.7, -0.3, 'well: organelles'], [-6.3, -0.25, 'well: deep']);
   /** each place: go there, and say what can be left out of it (a part's name, off, on) */
   const go = new Map();
   for (const [l, pitch, name] of SPOTS) go.set(name, () => {

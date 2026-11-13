@@ -11,6 +11,7 @@ import type { FilamentSet } from './world/filaments';
 import type { Molecules } from './world/molecules';
 import type { Renderer } from './engine/renderer';
 import type { Controls, Pick } from './engine/camera';
+import type { CosmosControls } from './cosmos/controls';
 import type { Taau } from '@ericrius1/weft';
 import type { Place } from './ui/places';
 import type { Card } from './ui/info';
@@ -33,9 +34,18 @@ import { NM } from './cosmos/frames';
 import { COSMOS_PLACES as BOULDER_PLACES, cosmosPlaces, type CosmosPlace } from './cosmos/places';
 import { CELL_TOP, inWindow, whole, type ZoomWindow } from './windows';
 import type { Realms } from './realms';
+import { Guiding, address } from './ui/guiding';
+import { WELL_PLACES, WELL_BOTTOM, BENCH, FOG_CLOSE, onWellWay, pitchAt } from './lab/way';
+import type { Lab, Hepatocyte } from './lab/lab';
+import type { Way } from './windows';
+import type { Place as LadderPlace } from './cosmos/frames';
 
 /** a view distance (log10 m) to the width of the view across the screen (log10 nm), about */
 const FOV_NM = 9.2;
+/** the well's way (lab/way.ts): where the two ways down part (the main line's places below it are its own), where the
+ *  dive's spot is moved from one to the other (the Earth seen whole: the view on its middle), and above where, zooming
+ *  out on the well's, the main line's live again */
+const WAY_FORK = 4.9, WAY_TURN = 7.15, WAY_BACK = 7.6;
 
 const asPlace = (p: CosmosPlace): Place => ({ id: p.id, name: p.name, scale: 0, at: [0, 0, 0], yaw: p.yaw, pitch: p.pitch, line: p.line, art: '' });
 
@@ -52,7 +62,7 @@ const BEYOND_PLACE: CosmosPlace = {
   id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(140), yaw: 0.3, pitch: -0.08, size: '2 m',
   line: 'What holds it all.',
 };
-export const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES)];
+export const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES), ...(params.has('dome') ? [] : WELL_PLACES)];
 if (GARDENS) for (const s of TOUR) {
   if (s.place === 'u:boulder') s.caption = HAVENS_CAPTIONS.tourSpot;
   else if (s.place === 'u:person' && s.caption.startsWith('<small>')) s.caption = HAVENS_CAPTIONS.tourPerson;
@@ -99,6 +109,8 @@ export class App {
   readonly places = new Map<string, Place>();
   readonly tour: Tour;
   readonly intro: Intro;
+  /** the guide: the story in chapters, what to look for, the instruments (ui/guiding.ts) */
+  readonly guiding: Guiding;
   flyUi: FlyUi | null = null;
   game: Game | null = null;
   /** the music: "Cosmic Drift", 20 min of Suno stems blended, round and round (audio/score.ts) */
@@ -171,6 +183,7 @@ export class App {
       cosmos.controls.set(s ? Number(s) : w.id === 'universe' ? cosmos.controls.start : w.start);
     }
     this.applyWindow();
+    this.wayInit();
 
     const ui = $('ui');
     this.hud = new Hud(ui, this.dockPlaces(), BASE);
@@ -201,6 +214,7 @@ export class App {
       if (s?.cut) this.cutTarget = 1;
     });
     this.fitTour();
+    this.guiding = new Guiding(this, ui);
     // one film for the whole dive (cosmos/film.ts): the cell's frame laid into the cosmos's HDR — under the cosmos's own
     // as the two hand over, alone below them — and graded with it, the cell's film mixed in by its share
     cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
@@ -215,7 +229,7 @@ export class App {
     };
     for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
     if (params.has('notitle') || params.has('film')) this.hud.setChrome(false);
-    else setTimeout(() => { if (!this.controls?.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall' : 'Scroll or pinch to dive in', 6000); }, 2200);
+    else if (!this.guiding.greet(ui)) setTimeout(() => { if (!this.controls?.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall' : 'Scroll or pinch to dive in', 6000); }, 2200);
   }
 
   /** the cell's realm, in: its camera set where the visit starts in it, its handlers wired, its frame laid into the
@@ -243,13 +257,131 @@ export class App {
     this.hud.setPlaces(this.dockPlaces());
     this.hud.setCell(true);
     this.fitTour();
+    this.guiding.order();
+  }
+
+  // ---- The well: the second way down from the Earth (lab/: Hepatocyte's own code, src/well), through San Francisco's
+  // fog to a plate of liver cells on a lab bench and on down into one cell, the cosmos's camera all the way (its
+  // controls' bottom below where the cell would take over). One way down is live at a time (realms.ts way): the main
+  // line's, or the well's. Taking the other goes up to the Earth seen whole first, where the view is on the Earth's
+  // middle, so moving the dive's spot (the ladder's place) to the bench or back shows nothing; zooming out past the
+  // Earth on the well's way puts the main line back.
+  /** the well's realm once it's in (lab/lab.ts), and Hepatocyte's world in it: its store (what's in the well),
+   *  pickAt(x, y) and picked() (what's under a point of the render target), describe() (what's being looked at) */
+  lab: Lab | null = null;
+  well: Hepatocyte | null = null;
+  /** the main line's place (Seven Havens') while the bench has the ladder, and its guide down onto her */
+  private havensPlace: LadderPlace | null = null;
+  private havensGuide: CosmosControls['guide'] = null;
+  private earthBand: [number, number, number, number] | null = null;
+
+  /** the well's realm, in */
+  attachWell(lab: Lab) {
+    this.lab = lab;
+    this.well = lab.hep;
+  }
+  /** take the view to the lab bench in San Francisco (from anywhere: up to the Earth first, if the main line's live) */
+  toBench() { this.goToCosmos('u:bench'); }
+  /** and back: up through the fog to the Earth, the main line live again (the window let out first, if it's the well's) */
+  fromBench() {
+    if (!whole(this.realms.window)) this.expand();
+    this.wayTo('havens', () => this.goToCosmos('u:earth'));
+  }
+  /** the way a window opens on: the bench's place and the camera looking down at it, if it's the well's */
+  private wayInit() {
+    if (this.realms.way !== 'well') return;
+    this.setPlace('well');
+    const w = this.realms.window, s = params.get('s');
+    if (w.start <= FOG_CLOSE[0]) { const l = s ? Number(s) : w.start; this.cosmos.controls.set(l, 0.5, pitchAt(l)); }
+  }
+  /** the dive's spot on the Earth: the bench, or the main line's */
+  private setPlace(way: Way) {
+    const L = this.cosmos.ladder as unknown as { place: LadderPlace; day: number; ground: { name: string }; setTime(ms: number): void };
+    this.havensPlace ??= L.place;
+    L.place = way === 'well' ? BENCH : this.havensPlace;
+    L.ground.name = L.place.name;
+    L.setTime(Date.UTC(2000, 0, 1, 12) + L.day * 86400000);
+  }
+  /** make a way the live one, here and now (wayTo goes where that's seen to be nothing first) */
+  private setWay(way: Way) {
+    if (way === this.realms.way) return;
+    const cc = this.cosmos.controls;
+    void this.realms.setWay(way, cc.logS);
+    this.setPlace(way);
+    if (way === 'havens') {
+      cc.guide = this.havensGuide;
+      this.lab?.leave();
+      if (this.earthBand && this.cosmos.has('earth')) this.cosmos.earth.lv.band = this.earthBand;
+      if (this.cosmos.has('ground')) this.cosmos.surface.hidden = false;
+    }
+    this.applyWindow();
+    this.hud.setPlaces(this.dockPlaces());
+    this.fitTour();
+  }
+  /** take a way: up to the Earth seen whole if the view's below it, the way changed there, then `then` */
+  private wayTo(way: Way, then: () => void) {
+    const cc = this.cosmos.controls;
+    const go = () => { this.setWay(way); then(); };
+    if (this.realm === 'cell') { this.leaveCell(); if (this.realm === 'cell') return; }
+    if (cc.logS >= WAY_TURN - 0.01) go();
+    else { cc.flyTo(WAY_TURN, { done: go }); this.sound('fly'); }
+  }
+  /** a place on the other way: taken there that way (true), or not (false: go on as usual) */
+  private wayFor(p: CosmosPlace): boolean {
+    const way: Way | null = onWellWay(p.id) ? 'well' : p.logS < WAY_FORK ? 'havens' : null;
+    if (!way || way === this.realms.way || !whole(this.realms.window)) return false;
+    this.tour.stop();
+    this.wayTo(way, () => this.goToCosmos(p.id));
+    return true;
+  }
+  /** whether a place is in the dock: those below the fork on the live way only, but the doors to the other (the bench,
+   *  Seven Havens) wherever the window has both ways */
+  private placeOnWay(p: CosmosPlace) {
+    const way: Way | null = onWellWay(p.id) ? 'well' : p.logS < WAY_FORK ? 'havens' : null;
+    const w = this.realms.window.way;
+    if (!way) return true;
+    if (w) return way === w;
+    return way === this.realms.way || p.id === 'u:bench' || p.id === 'u:boulder';
+  }
+  /** this frame, below the cosmos's levels (after their update): the gardens on the main line, the well on its own */
+  private below(dt: number) {
+    const cc = this.cosmos.controls, c = this.cosmos;
+    if (this.realms.way === 'well' && whole(this.realms.window) && cc.logS > WAY_BACK && !cc.flying) this.setWay('havens');
+    if (this.realms.way === 'havens') { this.gardens?.update(dt); return; }
+    // (the main line's guide down onto her kept for it: the well's camera looks down as the well's way says, lab/lab.ts)
+    if (cc.guide) { this.havensGuide = cc.guide; cc.guide = null; }
+    // the Earth on this way: seen down into the fog, and without the main line's own ground round the spot on it (its
+    // real ground is Seven Havens', and the spot's at the bench now); her meadow not drawn
+    if (c.has('earth')) {
+      this.earthBand ??= [...c.earth.lv.band];
+      c.earth.lv.band = [this.earthBand[0], this.earthBand[1], 4.3, 4.0];
+      c.earth['E'].set({ spot: [1e7, 1e7, 1e7, (c.data?.manifest?.far.half ?? 60000) / 1000] });
+    }
+    if (c.has('ground')) c.surface.hidden = true;
+    if (this.lab && this.realms.isReady('well')) this.lab.update(dt);
+  }
+  private belowAfter() { this.gardens?.after(); this.lab?.after(); }
+  /** where the view is on the well's way, coarsest first (null: the cosmos's own) */
+  private wellCrumbs(): string[] | null {
+    const l = this.cosmos.controls.logS;
+    if (this.realms.way !== 'well' || l > FOG_CLOSE[0]) return null;
+    const c = ['Universe', 'Milky Way', 'Orion Arm', 'Solar system', 'Earth', 'San Francisco'];
+    if (l > 0.9) return [...c, 'In the fog'];
+    c.push('A lab bench');
+    if (l > -0.9) return c;
+    c.push('A plate of liver cells');
+    if (l > -1.9) return c;
+    c.push('A well');
+    if (l > -2.7) return c;
+    c.push(this.well?.store.inside != null ? 'Inside a liver cell' : 'A field of liver cells');
+    return c;
   }
 
   /** the dock's places: those in the window, above the cell and in it */
   private dockPlaces(): Place[] {
     const w = this.realms.window;
     // (the keepers' world past the edge only where it's built: not on a dome)
-    const up = COSMOS_PLACES.filter((p) => inWindow(w, p.logS, 0.05) && (p.logS <= 26.97 || this.realms.wants('beyond')));
+    const up = COSMOS_PLACES.filter((p) => inWindow(w, p.logS, 0.05) && (p.logS <= 26.97 || this.realms.wants('beyond')) && this.placeOnWay(p));
     const down = [...this.places.values()].filter((p) => inWindow(w, Math.log10(this.fit(p.scale) * NM), 0.3));
     return [...up.map(asPlace), ...down];
   }
@@ -267,7 +399,7 @@ export class App {
   private applyWindow() {
     const w = this.realms.window, cc = this.cosmos.controls;
     cc.max = Math.min(this.fullMax, w.top ?? Infinity);
-    cc.bottom = w.bottom !== null && w.bottom > cc.min ? w.bottom : !this.realms.wants('cell') ? cc.min : null;
+    cc.bottom = this.realms.way === 'well' ? w.bottom ?? WELL_BOTTOM : w.bottom !== null && w.bottom > cc.min ? w.bottom : !this.realms.wants('cell') ? cc.min : null;
     const c = this.controls;
     if (!c) return;
     c.maxScale = w.top !== null && w.top < CELL_TOP ? Math.pow(10, w.top) / NM : 160000;
@@ -288,6 +420,7 @@ export class App {
     this.hud.setCell(true);
     this.hud.setPlaces(this.dockPlaces());
     this.fitTour();
+    this.guiding.order();
     this.hud.toast('The whole universe, coming in behind you…', 4000);
   }
   /** a realm's in (main.ts's realms): the dock and the tour take in its places */
@@ -295,6 +428,7 @@ export class App {
     this.applyWindow();
     this.hud.setPlaces(this.dockPlaces());
     this.fitTour();
+    this.guiding.order();
   }
 
   /** the zoom held short of what hasn't come in: the cosmos's floor below it, its ceiling above */
@@ -420,12 +554,8 @@ export class App {
     // (zooming in by hand over the gardens, the view comes round to the film's way down onto her: from her feet' side,
     // her face the right way up, never over the crown of her head)
     if (GARDENS) this.cosmos.controls.guide = { band: [this.cosmos.controls.min, 2.6], arrive: 0.3, at: approach };
-    this.cosmos.controls.onUser = () => { if (this.tour.active) this.tour.stop(); };
-    hud.onCardFly = () => {
-      const p = this.selectedPick;
-      if (!p || !this.cell) return;
-      this.controls.flyTo(p.world, Math.max(4, vec3.distance(p.world, this.controls.position) / 5));
-    };
+    this.cosmos.controls.onUser = () => { if (this.tour.active) this.tour.stop(); this.guiding.onUser(); };
+    hud.onCardFly = () => this.flyCloser();
     hud.onPlace = (id) => this.goTo(id);
     hud.onPlay = (id) => this.startGame(id);
     hud.onButton = (id) => this.button(id);
@@ -434,13 +564,15 @@ export class App {
       const k = e.key.toLowerCase();
       if (this.game) { if (k === 'escape') this.stopGame(); return; }
       if (k === 't') { if (TOUR.length) this.button('tour'); }
+      else if (k === 'i') this.button('guide');
+      else if ((k === ']' || k === '[') && this.guiding.guide.open) this.guiding.nudge(k === ']' ? 1 : -1);
       else if (!this.cell && 'fcmp'.includes(k)) return;
       else if (k === 'f') this.button('fly');
       else if (k === 'c') this.button('cut');
       else if (k === 'm') this.button('fluo');
       else if (k === 'h' || k === '?') this.button('help');
       else if (k === 'p') this.button('play');
-      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
+      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); this.guiding.instruments.close(); if (!this.guiding.instruments.open) this.guiding.guide.close(); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
       else if (k >= '1' && k <= '9') { const p = [...this.places.values()][Number(k) - 1]; if (p) this.goTo(p.id); }
     });
   }
@@ -459,7 +591,10 @@ export class App {
       const card = p ? this.card(p.id) : null;
       this.selected = card ? p!.id : 0;
       this.selectedPick = card ? p : null;
-      hud.showCard(card);
+      // (with the guide open, a thing's card is in it: nothing the cell says lies over anything else it says)
+      if (card && this.guiding.thing(card, p!.id)) hud.showCard(null);
+      else if (!card && this.guiding.guide.open) this.guiding.untapped();
+      else hud.showCard(card);
       if (card) this.sound('click');
     };
     c.onDoubleClick = (_x, _y, p) => {
@@ -479,6 +614,14 @@ export class App {
   }
 
   sound(name: string, s = 1) { this.score.event(name, s); }
+  /** fly the cell's camera closer to the thing last tapped */
+  flyCloser() {
+    const p = this.selectedPick;
+    if (!p || !this.cell) return;
+    this.controls.flyTo(p.world, Math.max(4, vec3.distance(p.world, this.controls.position) / 5));
+  }
+  /** whether a camera is on its way somewhere */
+  flying() { return this.realm === 'cosmos' ? this.cosmos.controls.flying : !!this.controls?.flying; }
 
   /** a place's distance widened on a tall screen (the field of view is vertical), so the subject still fits across */
   fit(scale: number) { const a = this.kit.size.css[0] / Math.max(1, this.kit.size.css[1]); return a < 1 ? scale / Math.pow(a, 0.65) : scale; }
@@ -528,7 +671,7 @@ export class App {
   private cosmosAt: CosmosPlace | null = null;
   goToCosmos(id: string) {
     const p = COSMOS_PLACES.find((q) => q.id === id);
-    if (!p) return;
+    if (!p || this.wayFor(p)) return;
     if (this.realm === 'cell') { this.leaveCell(); if (this.realm === 'cell') return; }
     this.hud.showCard(null);
     this.cosmos.controls.flyTo(p.logS, { pitch: p.pitch, done: () => this.sound('arrive') });
@@ -563,9 +706,10 @@ export class App {
   button(id: string) {
     const hud = this.hud;
     this.sound('click');
+    if (id === 'guide') { this.setFly(false); if (this.tour.active) this.tour.stop(); this.guiding.toggle(); return; }
     if (id === 'fly') { if (this.cell) this.setFly(!this.controls.fly); return; }
     if (id === 'tour' || id === 'play' || id === 'help') this.setFly(false);
-    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else if (TOUR.length) { hud.showCard(null); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
+    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else if (TOUR.length) { hud.showCard(null); this.guiding.guide.close(); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
     else if (id === 'cut') { this.cutTarget = this.cutTarget > 0.5 ? 0 : 1; hud.toast(this.cutTarget ? 'Cutaway: the cell opened' : 'Cutaway closed'); }
     else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Under the microscope' : 'Back to colour'); }
     else if (id === 'help') hud.toggleHelp();
@@ -642,6 +786,7 @@ export class App {
     if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
+    this.guiding.frame(dt);
     this.holds();
     // the cross-fade between the cosmos and the cell: each draws while it shows (at the loop's seam, by the zoom: seam())
     const cc = this.cosmos.controls;
@@ -665,7 +810,7 @@ export class App {
     const early = fading && !!this.jewel && !!this.cosmos.beyond && cc.logS > 26;
     if (early) {
       this.cosmos.update(dt);
-      this.gardens?.update(dt);
+      this.below(dt);
       this.kit.run(this.cosmos.r.offscreen());
     }
     // (the cell's frame, laid into the film below — cosmos/renderer.ts lay — by its share; crossing with the keepers'
@@ -680,10 +825,10 @@ export class App {
       const t0 = performance.now();
       if (!early) this.cosmos.update(dt);
       const t1 = performance.now();
-      if (!early) this.gardens?.update(dt);
+      if (!early) this.below(dt);
       const t2 = performance.now();
       if (early) this.kit.run(this.cosmos.r.finish()); else this.cosmos.r.frame();
-      this.gardens?.after();
+      this.belowAfter();
       // (the frame's CPU time, its parts: the report's, ui/report.ts)
       this.cpu.cosmos = t1 - t0; this.cpu.gardens = t2 - t1; this.cpu.run = performance.now() - t2;
       if (this.realm === 'cosmos') this.cosmosHud(dt);
@@ -700,7 +845,7 @@ export class App {
     const cc = this.cosmos.controls, kit = this.kit;
     const S = this.cosmos.S / NM;
     const fovW = 2 * S * Math.tan(kit.camera.fovY / 2) * (kit.size.css[0] / kit.size.css[1]);
-    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.cosmos.crumbs(), hover: null, mouse: cc.mouse });
+    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.wellCrumbs() ?? (this.cosmos.beyond && cc.logS > 27.4 ? this.cosmos.crumbs() : address(cc.logS, this.cosmos.short)), hover: null, mouse: cc.mouse });
     // (still at the place flown to: about as close)
     if (this.cosmosAt && !cc.flying && Math.abs(cc.logS - this.cosmosAt.logS) > 0.8) this.cosmosAt = null;
     this.hud.setHere(this.cosmosAt?.id ?? null);
@@ -751,7 +896,9 @@ export class App {
     const rotY = (v: Vec3, a: number): Vec3 => [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)];
     const n1 = rotY(this.wedgeDir, half - Math.PI / 2), n2 = rotY(this.wedgeDir, Math.PI / 2 - half);
     const fov = kit.camera.fovY;
-    const pxAngle = (2 * Math.tan(fov / 2)) / kit.size.render[1];
+    // (a pixel of the picture: the canvas's under the upscaler, which gives back its detail — so what's drawn at what detail
+    // is as it is at full size)
+    const pxAngle = (2 * Math.tan(fov / 2)) / (this.taau?.params.on ? kit.size.canvas[1] : kit.size.render[1]);
     const outside = this.compartmentName === 'outside';
     const fogK = outside ? 6 : 1.4 + 1.6 * Math.min(1, Math.max(0, Math.log10(S / 100) / 2));
     const [g0, g1] = this.shellGlass;
@@ -764,7 +911,7 @@ export class App {
       fogColor: this.haze[0].map((x) => x * (1 - this.fluo)) as Vec3, bgColor: this.haze[1].map((x) => x * (1 - this.fluo)) as Vec3,
       fogDist: S * fogK, clearRadius: S * 0.42, pxAngle,
       organelleCount: this.world.organelles.length, hover: this.hover, selected: this.selected, highlight: 1,
-      quality: 1, flags: this.shrinkWhole ? 1 : 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin, hazeBg: hb * hb * (3 - 2 * hb),
+      spots: this.guiding.spot.k > 0.002 ? this.guiding.spot.code : 0, spot: this.guiding.spot.k, flags: this.shrinkWhole ? 1 : 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin, hazeBg: hb * hb * (3 - 2 * hb),
     });
     this.r.globals.set({ jewel: this.jewel ? [...rel(this.jewel.at), this.jewel.r] as never : [0, 0, 0, 0] });
     // how far off a nucleosome (10.74 nm) and a base pair (1.1 nm) still count as over 9 px, the haze taken in

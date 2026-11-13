@@ -23,6 +23,14 @@ export class Renderer {
   readonly glass: RenderPass;
   readonly accum: Texture;
   readonly reveal: Texture;
+  /** the molecules' beads, lit (see constructor) */
+  readonly beads: RenderPass;
+  /** see-through lines at the full size (thin filaments), with their own targets */
+  readonly thin: RenderPass;
+  readonly accumThin: Texture;
+  readonly revealThin: Texture;
+  /** the scene's depth at half its size, the nearest of each four: what the glass is drawn against */
+  readonly glassDepth: Texture;
   readonly dofHalf: Texture;
   readonly dofOut: Texture;
   /** compute work that must run before the scene (molecule generation, culling) */
@@ -43,40 +51,64 @@ export class Renderer {
     k.overlay.tweak(this.post, 'post');
 
     this.hdr = k.texture({ label: 'hdr', format: 'rgba16float', size: 'render' });
-    this.nrm = k.texture({ label: 'normals', format: 'rgba16float', size: 'render' });
+    // (view normals, octahedral: world.wgsl octNormal)
+    this.nrm = k.texture({ label: 'normals', format: 'rg16float', size: 'render' });
     this.ids = k.texture({ label: 'ids', format: 'r32uint', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.depth = k.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.ao = k.texture({ label: 'ao', format: 'r16float', size: 'render', scale: 0.5 });
     this.lit = k.texture({ label: 'lit', format: 'rgba16float', size: 'render' });
-    this.accum = k.texture({ label: 'glass.accum', format: 'rgba16float', size: 'render' });
-    this.reveal = k.texture({ label: 'glass.reveal', format: 'r16float', size: 'render' });
+    // (the glass at half the render's size, against the scene's depth at that size: post.wgsl glassOver lays it back
+    // over the full size by depth. A film's, which has time for it, at the full size)
+    const gs = new URLSearchParams(location.search).has('film') ? 1 : 0.5;
+    this.accum = k.texture({ label: 'glass.accum', format: 'rgba16float', size: 'render', scale: gs });
+    this.reveal = k.texture({ label: 'glass.reveal', format: 'r16float', size: 'render', scale: gs });
+    this.glassDepth = gs < 1 ? k.texture({ label: 'glass.depth', format: 'depth32float', size: 'render', scale: gs }) : this.depth;
+    // (and what's thin — a filament under a pixel across, a line — at the full size, into targets of its own: the two
+    // sum to the one weighted blend, glassOver)
+    this.accumThin = k.texture({ label: 'glass.thin.accum', format: 'rgba16float', size: 'render' });
+    this.revealThin = k.texture({ label: 'glass.thin.reveal', format: 'r16float', size: 'render' });
     this.dofHalf = k.texture({ label: 'dof.in', format: 'rgba16float', size: 'render', scale: 0.5 });
     this.dofOut = k.texture({ label: 'dof.out', format: 'rgba16float', size: 'render', scale: 0.5 });
 
     this.scene = k.pass({
       label: 'scene',
-      color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 1, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
+      color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 0, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
       depth: { target: this.depth, clear: 0 },
     });
 
-    this.glass = k.pass({
-      label: 'glass',
-      color: [{ target: this.accum, clear: [0, 0, 0, 0] }, { target: this.reveal, clear: [1, 1, 1, 1] }],
+    // the molecules' beads lit: after the scene has every bead's depth (field.ts draws them there depth-only, first),
+    // tested against it and not writing it, so a bead behind what's there is dropped before it's shaded
+    this.beads = k.pass({
+      label: 'beads',
+      color: [{ target: this.hdr, clear: false }, { target: this.nrm, clear: false }, { target: this.ids, clear: false }],
       depth: { target: this.depth, readOnly: true },
     });
     const P = this.post;
+    const glassOn = () => (this.globals.get('shellSolid') as number) < 0.999;
+    const half = k.pass({ label: 'glass.depth', depth: { target: this.glassDepth, clear: 0 }, enabled: () => gs < 1 && glassOn() });
+    half.fullscreen(post, { label: 'glass.depth', fragment: 'fs_halfdepth', depthWrite: true, depthCompare: 'always', bind: { depthTex: this.depth } });
+    this.glass = k.pass({
+      label: 'glass',
+      color: [{ target: this.accum, clear: [0, 0, 0, 0] }, { target: this.reveal, clear: [1, 1, 1, 1] }],
+      depth: { target: this.glassDepth, readOnly: true },
+    });
+    this.thin = k.pass({
+      label: 'glass.thin',
+      color: [{ target: this.accumThin, clear: [0, 0, 0, 0] }, { target: this.revealThin, clear: [1, 1, 1, 1] }],
+      depth: { target: this.depth, readOnly: true },
+    });
     const aoPass = k.pass({ label: 'ao', color: [{ target: this.ao, clear: [1, 1, 1, 1] }] });
     aoPass.fullscreen(post, { label: 'ao', fragment: 'fs_ao', bind: { P, depthTex: this.depth, nrmTex: this.nrm } });
     const comp = k.pass({ label: 'composite', color: [{ target: this.lit, clear: [0, 0, 0, 1] }] });
-    comp.fullscreen(post, { label: 'composite', fragment: 'fs_composite', bind: { P, depthTex: this.depth, hdrTex: this.hdr, aoTex: this.ao, idTex: this.ids, accumTex: this.accum, revealTex: this.reveal } });
+    comp.fullscreen(post, { label: 'composite', fragment: 'fs_composite', bind: { P, depthTex: this.depth, hdrTex: this.hdr, aoTex: this.ao, idTex: this.ids, accumTex: this.accum, revealTex: this.reveal, glassDepthTex: this.glassDepth, thinAccumTex: this.accumThin, thinRevealTex: this.revealThin } });
     const dofOn = () => (this.globals.get('dof') as number) > 0;
     const dofDown = k.pass({ label: 'dof.down', color: [{ target: this.dofHalf, clear: [0, 0, 0, 0] }], enabled: dofOn });
     dofDown.fullscreen(post, { label: 'dof.down', fragment: 'fs_dofdown', bind: { P, srcTex: this.lit, depthTex: this.depth } });
     const dof = k.pass({ label: 'dof', color: [{ target: this.dofOut, clear: [0, 0, 0, 1] }], enabled: dofOn });
     dof.fullscreen(post, { label: 'dof', fragment: 'fs_dof', bind: { P, srcTex: this.dofHalf } });
 
-    this.items = [this.scene, this.glass, aoPass, comp, dofDown, dof];
-    this.afterComp = 4;
+    this.items = [this.scene, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
+    this.afterComp = 7;
   }
   private afterComp: number;
 

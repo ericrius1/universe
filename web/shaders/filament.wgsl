@@ -243,7 +243,7 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
   c = mix(c, dye * (0.4 + 0.6 * pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.2)), G.fluo);
   var out: GOutD;
   out.color = vec4f(c, 1.0);
-  out.nrm = vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0);
+  out.nrm = octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz));
   out.id = id;
   let clip = frame.viewProj * vec4f(p, 1.0);
   out.depth = clip.z / clip.w;
@@ -278,7 +278,7 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
   c = mix(c, l.dye * (0.4 + 0.6 * pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.2)), G.fluo);
   var out: GOutD;
   out.color = vec4f(c, 1.0);
-  out.nrm = vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0);
+  out.nrm = octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz));
   out.id = 0x40000000u | (s.kind << 16u) | (s.fil & 0xffffu);
   let clip = frame.viewProj * vec4f(p, 1.0);
   out.depth = clip.z / clip.w;
