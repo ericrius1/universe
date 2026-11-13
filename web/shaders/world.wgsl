@@ -10,9 +10,9 @@ struct Globals {
   cutN1: vec3f, bioTime: f32,       // the wedge's two half-space normals; biological time (s, slowed when close)
   cutN2: vec3f, fluo: f32,          // fluorescence-microscope look (0..1)
   fogColor: vec3f, fogDist: f32,    // the haze and the distance (nm) it takes ~63% of the light
-  bgColor: vec3f, pad1: f32,
+  bgColor: vec3f, spot: f32,        // spot: the spotlight's strength (0..1: the guide's "Look for", ui/guiding.ts)
   clearRadius: f32, pxAngle: f32, cutRadius: f32, organelleCount: u32,   // pxAngle: radians per pixel
-  hover: u32, selected: u32, quality: u32, flags: u32,
+  hover: u32, selected: u32, spots: u32, flags: u32,   // spots: what the spotlight lights (ui/spot.ts)
   timeScale: f32, shellSolid: f32, highlight: f32, dof: f32,    // shellSolid: membranes opaque (1) or glass (0)
   origin: vec3f, hazeBg: f32,       // the floating origin (nm): every position the GPU computes with is relative to it;
                                     // how far the empty background is the haze itself (a film's: src/loop.ts)
@@ -40,6 +40,18 @@ fn orgAt(i: u32) -> Organelle {
   if (o.shape == S_CAPSULE) { o.b -= G.origin; }
   return o;
 }
+
+// what the spotlight lights (G.spots, while G.spot > 0): up to two kinds, 16 bits each, the class in the top two
+// (1 organelle, 2 filament, 3 molecule) and the kind below (ui/spot.ts). Opaque things are lit in the composite
+// (post.wgsl, by the id under each pixel), membranes seen as glass in their own pass (organelle.wgsl).
+fn spotOne(id: u32, t: u32) -> bool {
+  let cls = t >> 14u; let k = t & 0x3fffu;
+  if (cls == 0u) { return false; }
+  if ((id & 0x80000000u) != 0u) { return cls == 3u && ((id >> 16u) & 0x7fffu) == k; }
+  if ((id & 0x40000000u) != 0u) { return cls == 2u && ((id >> 16u) & 0xffu) == k; }
+  return cls == 1u && id <= G.organelleCount && organelles[id - 1u].kind == k;
+}
+fn spotlit(id: u32) -> bool { return id != 0u && (spotOne(id, G.spots & 0xffffu) || spotOne(id, G.spots >> 16u)); }
 
 // kinds (layout.ts Kind)
 const K_CELL = 0u; const K_NUCLEUS = 1u; const K_NUCLEOLUS = 2u; const K_MITO = 3u; const K_CRISTA = 4u; const K_ER = 5u;
