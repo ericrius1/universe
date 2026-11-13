@@ -19,6 +19,27 @@ export interface Well {
   label: string;
 }
 
+/** how the cells are shown. 'auto' is each stretch of the dive in its own: the plate as it looks by eye, the sheet of
+ *  cells in simulated phase contrast (what anyone at the bench sees of living cells down an inverted microscope), and
+ *  inside a cell, where no light microscope reaches, the modelled view. The others hold one look wherever it can be
+ *  had (the instruments only on the sheet of cells, from just under the medium's surface to a few cells across) */
+export type LookId = 'auto' | 'phase' | 'bright' | 'fluor' | 'model';
+export interface LookInfo {
+  id: LookId;
+  /** a control's name for it */
+  name: string;
+  /** what the picture is, for a label on it ('' for a picture that's simply what's there) */
+  label: string;
+  note: string;
+}
+export const LOOKS: LookInfo[] = [
+  { id: 'auto', name: 'As seen', label: '', note: 'Each stretch as it is best seen: by eye over the plate, phase contrast on the sheet of cells, the model inside one.' },
+  { id: 'phase', name: 'Phase contrast', label: 'simulated phase contrast', note: 'Living cells as an inverted microscope shows them: thick is dark, a bright halo round each cell, the canaliculi bright lines between them.' },
+  { id: 'bright', name: 'Brightfield', label: 'simulated brightfield, PAS and haematoxylin', note: 'Fixed and stained: glycogen magenta (PAS), nuclei blue (haematoxylin). A cell that has spent its glycogen goes pale.' },
+  { id: 'fluor', name: 'Fluorescence', label: 'simulated fluorescence', note: 'A dark field, and a thing is only as bright as the dye in it — which is what high-content imaging actually sees.' },
+  { id: 'model', name: 'Modelled', label: 'modelled view', note: 'The cells as a model of them: light through each body along its path, nothing that glints under water.' },
+];
+
 export const ROWS = 8;
 export const COLS = 12;
 
@@ -32,6 +53,10 @@ export class Store {
   playing = false;
   stage: Stage = 'intro';
   mode: 'bright' | 'fluor' = 'bright';
+  /** how the cells are shown (LOOKS): set it with setLook, which keeps `mode` (the fluorescence register) with it */
+  look: LookId = 'auto';
+  /** what the picture is showing right now, for its label (the world sets it each frame: 'shown' when it changes) */
+  shown: LookInfo = LOOKS[0];
   stains = new Set<ChannelKey>(['hoechst', 'tmrm', 'cdf']);
   /** the cell the camera is inside, if any */
   inside: number | null = null;
@@ -106,6 +131,14 @@ export class Store {
     this.systemId = id;
     this.hours = Math.min(this.hours, SYSTEMS[id].maxHours);
     this.emit('system');
+  }
+
+  setLook(id: LookId) {
+    const was = this.mode;
+    this.look = id;
+    this.mode = id === 'fluor' ? 'fluor' : 'bright';
+    this.emit('look');
+    if (was !== this.mode) this.emit('mode');
   }
 
   setHours(h: number) {

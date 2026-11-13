@@ -31,17 +31,18 @@ import plateShader from './shaders/plate.wgsl';
 import bloomShader from './shaders/bloom.wgsl';
 import postShader from './shaders/post.wgsl';
 import layerShader from './shaders/layer.wgsl';
+import instrumentShader from './shaders/instrument.wgsl';
 
 import { buildField, fieldScratch, type Cell, type Field } from './world/field';
 import { cellOrgs, clearOrgCache, nucleiOnly, ORG_FLOATS } from './world/organelles';
-import { COLS, ROWS, Store } from './world/state';
+import { COLS, LOOKS, ROWS, Store, type LookId, type LookInfo } from './world/state';
 import { describe, describeDominant, type Look } from './world/describe';
 import { PART, PARTS, partById } from './data/parts';
 import { AXES, COMPOUNDS, PLATE_COLUMNS } from './data/compounds';
 import { SYSTEMS, SYSTEM_LIST } from './data/systems';
 
-export { Store, ROWS, COLS, describe, describeDominant, PART, PARTS, partById, COMPOUNDS, PLATE_COLUMNS, SYSTEMS, SYSTEM_LIST };
-export type { Look, Cell, Field };
+export { Store, ROWS, COLS, LOOKS, describe, describeDominant, PART, PARTS, partById, COMPOUNDS, PLATE_COLUMNS, SYSTEMS, SYSTEM_LIST };
+export type { Look, Cell, Field, LookId, LookInfo };
 export { fmtDose, fmtHours } from './world/state';
 
 type V3 = [number, number, number];
@@ -76,6 +77,12 @@ const KIND_TO_PART: Record<number, number> = {
   18: PART.well, 19: PART.plate,
 };
 
+/** how the optics target is written (instrument.wgsl): the roofs' path, haematoxylin and PAS kept by the brightest (a far
+ *  roof seen through a near one isn't counted twice), what's added along the way (the nuclei, the canaliculi) summed in
+ *  alpha; and the plate's painted floor laid over all of it by its own alpha */
+const OPTIC_SUM: GPUBlendState = { color: { operation: 'max', srcFactor: 'one', dstFactor: 'one' }, alpha: { operation: 'add', srcFactor: 'one', dstFactor: 'one' } };
+const OPTIC_OVER: GPUBlendState = { color: { operation: 'add', srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { operation: 'add', srcFactor: 'zero', dstFactor: 'one-minus-src-alpha' } };
+
 const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 export interface HepatocyteOptions {
@@ -105,7 +112,15 @@ export class Hepatocyte {
   readonly hdr: Texture;
   readonly depth: Texture;
   readonly pick: Texture;
+  /** what the instrument reads at each pixel (instrument.wgsl: optical path, haematoxylin, PAS), and its blur */
+  readonly optic: Texture;
+  private readonly opticQ: Texture[];
+  private readonly opticPasses: RunEntry[];
+  /** how much of the picture is the instrument's this frame (0: the world's own) */
+  instrument = 0;
   readonly scene: RenderPass;
+  /** the same scene without the optics target, drawn while no instrument shows */
+  private readonly plainScene: RenderPass;
   /** the field of cells on the chosen well's floor (rebuilt when the culture system changes) */
   field: Field;
 
@@ -167,6 +182,8 @@ export class Hepatocyte {
     this.hdr = kit.texture({ label: 'hep.hdr', format: 'rgba16float', size: 'render' });
     this.depth = kit.texture({ label: 'hep.depth', format: 'depth32float', size: 'render' });
     this.pick = kit.texture({ label: 'hep.pick', format: 'r32uint', size: 'render' });
+    this.optic = kit.texture({ label: 'hep.optic', format: 'rgba16float', size: 'render' });
+    this.opticQ = [0, 1].map((i) => kit.texture({ label: `hep.optic.q${i}`, format: 'rgba16float', size: 'render', scale: 0.25 }));
 
     const G = this.G = kit.uniforms(orgShader.structs.World, 'hep.world');
     const PL = this.PL = kit.uniforms(plateShader.structs.PlateU, 'hep.plate');
@@ -206,45 +223,67 @@ export class Hepatocyte {
 
     // ---- the frame. The cells first, then the wells over them: the chosen well's floor is laid over the cells while
     // its picture of them is still showing, and the meniscus is seen through
-    const scene = this.scene = kit.pass({
-      label: 'hep.scene',
-      color: [
-        { target: this.hdr, clear: hosted ? [0, 0, 0, 0] : [1, 1, 1, 1] },
-        { target: this.pick, clear: [0, 0, 0, 0] },
-      ],
-      depth: { target: this.depth, clear: 0 },
-    });
     const inField = () => this.fieldOn;
     const wells = { wells: wellBuf, P: PL };
-    if (!hosted) scene.fullscreen(stageShader, { label: 'air', fragment: 'fs_sky' });
-    scene.draw(plateShader, { label: 'plate.body', vertex: 'vs_body', fragment: 'fs_body', count: 36, cull: 'none', enabled: () => this.bodyOn, bind: wells });
-    scene.draw(stageShader, { label: 'floor', vertex: 'vs_floor', fragment: 'fs_floor', count: 6, cull: 'none', enabled: inField, bind: { cells: cellBuf } });
-    scene.draw(stageShader, {
-      label: 'canals', vertex: 'vs_canal', fragment: 'fs_canal', cull: 'none', enabled: inField,
-      bind: { cverts: canalMesh.vertices, cells: cellBuf },
-      indices: { buffer: canalMesh.indices, format: 'uint32' },
-      count: () => canalMesh.count,
-    });
-    scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, bind: { orgs: nucBuf, cells: cellBuf } });
-    scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, bind: { orgs: orgBuf, cells: cellBuf } });
-    scene.draw(fieldShader, {
-      label: 'cells.skirt', constants: { SKIRT: 1 }, cull: 'none', enabled: inField,
-      bind: { verts: mesh.vertices, cells: cellBuf },
-      indices: { buffer: mesh.indices, format: 'uint32' },
-      count: () => mesh.count,
-    });
-    scene.draw(fieldShader, {
-      label: 'cells.body', constants: { SKIRT: 0 }, cull: 'none', enabled: inField,
-      blend: ['premultiplied', 'opaque'], writeMask: [0xf, 0], depthWrite: true,
-      bind: { verts: mesh.vertices, cells: cellBuf },
-      indices: { buffer: mesh.indices, format: 'uint32' },
-      count: () => mesh.count,
-    });
-    scene.draw(plateShader, { label: 'plate.wells', vertex: 'vs_well', fragment: 'fs_well', count: 28 * 15, instances: 96, cull: 'none', blend: ['premultiplied', 'opaque'], bind: wells });
+    // Two passes over the same draws: one with the optics target the instrument reads, one without it, for when no
+    // instrument is showing (the target's writes and its store are a frame's worth of bandwidth for nothing then)
+    const sceneFor = (optics: boolean) => {
+      const scene = kit.pass({
+        label: optics ? 'hep.scene' : 'hep.scene.plain',
+        color: [
+          { target: this.hdr, clear: hosted ? [0, 0, 0, 0] : [1, 1, 1, 1] },
+          { target: this.pick, clear: [0, 0, 0, 0] },
+          ...(optics ? [{ target: this.optic, clear: [0, 0, 0, 0] as [number, number, number, number] }] : []),
+        ],
+        depth: { target: this.depth, clear: 0 },
+      });
+      // (behind everything, hosted or not: the room and its bench, or down in a well the medium)
+      scene.fullscreen(stageShader, { label: 'room', fragment: 'fs_sky', bind: wells });
+      scene.draw(plateShader, { label: 'plate.body', vertex: 'vs_body', fragment: 'fs_body', count: 36, cull: 'none', enabled: () => this.bodyOn, bind: wells });
+      scene.draw(stageShader, { label: 'floor', vertex: 'vs_floor', fragment: 'fs_floor', count: 6, cull: 'none', enabled: inField, bind: { cells: cellBuf } });
+      scene.draw(stageShader, {
+        label: 'canals', vertex: 'vs_canal', fragment: 'fs_canal', cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM],
+        bind: { cverts: canalMesh.vertices, cells: cellBuf },
+        indices: { buffer: canalMesh.indices, format: 'uint32' },
+        count: () => canalMesh.count,
+      });
+      // (the optics: the roofs' by the brightest, the nuclei's and the canals' added: OPTIC_SUM)
+      scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM], bind: { orgs: nucBuf, cells: cellBuf } });
+      scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0], bind: { orgs: orgBuf, cells: cellBuf } });
+      scene.draw(fieldShader, {
+        label: 'cells.skirt', constants: { SKIRT: 1 }, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0],
+        bind: { verts: mesh.vertices, cells: cellBuf },
+        indices: { buffer: mesh.indices, format: 'uint32' },
+        count: () => mesh.count,
+      });
+      scene.draw(fieldShader, {
+        label: 'cells.body', constants: { SKIRT: 0 }, cull: 'none', enabled: inField,
+        blend: ['premultiplied', 'opaque', OPTIC_SUM], writeMask: [0xf, 0, 0xf], depthWrite: true,
+        bind: { verts: mesh.vertices, cells: cellBuf },
+        indices: { buffer: mesh.indices, format: 'uint32' },
+        count: () => mesh.count,
+      });
+      scene.draw(plateShader, { label: 'plate.wells', vertex: 'vs_well', fragment: 'fs_well', count: 28 * 39, instances: 96, cull: 'none', blend: ['premultiplied', 'opaque', OPTIC_OVER], bind: wells });
+      return scene;
+    };
+    const scene = this.scene = sceneFor(true);
+    this.plainScene = sceneFor(false);
+
+    // ---- the instrument's blur: the optics at a quarter of the frame, then across and down (instrument.wgsl)
+    const [q0, q1] = this.opticQ;
+    const down = kit.pass({ label: 'optic.down', color: [{ target: q0, clear: [0, 0, 0, 0] }] });
+    down.fullscreen(instrumentShader, { fragment: 'fs_down', bind: { bsrc: this.optic } });
+    const across = kit.pass({ label: 'optic.across', color: [{ target: q1, clear: [0, 0, 0, 0] }] });
+    across.fullscreen(instrumentShader, { fragment: 'fs_blur', constants: { ACROSS: 1 }, bind: { bsrc: q0 } });
+    const downward = kit.pass({ label: 'optic.downward', color: [{ target: q0, clear: [0, 0, 0, 0] }] });
+    downward.fullscreen(instrumentShader, { fragment: 'fs_blur', constants: { ACROSS: 0 }, bind: { bsrc: q1 } });
+    this.opticPasses = [down, across, downward];
+    const optics = { opt: this.optic, optb: q0 };
 
     if (hosted) {
       this.own = [scene];
     } else {
+      // (the instrument's look is laid in by the film, post.wgsl)
       // its own bloom and film, to the screen
       const BU = this.BU;
       const bloomTex = this.bloomTex;
@@ -261,15 +300,17 @@ export class Hepatocyte {
       });
       const out = kit.pass({ label: 'out', color: [{ target: 'screen', clear: [1, 1, 1, 1] }] });
       out.fullscreen(postShader, {
-        bind: { hdr: this.hdr, bloom: bloomTex[0], PU: this.PU },
+        bind: { hdr: this.hdr, bloom: bloomTex[0], PU: this.PU, ...optics },
         constants: { HDR: kit.hdr.enabled ? 1 : 0, P3: kit.hdr.colorSpace === 'display-p3' ? 1 : 0 },
       });
       this.own = [scene, ...down, ...up, out];
     }
 
     // (the world's uniforms were made the kit's globals nowhere yet: the host's stay until use())
-    G.set({ exposure: 1.08, dim: 1, detail: 1, tint: [1, 1, 1], sun: [0.35, 0.86, 0.38], focus: [0, 0, 0, -1], fieldHalf: field.extent / 2 });
+    G.set({ exposure: 1.08, dim: 1, detail: 1, tint: [1, 1, 1], sun: [0.35, 0.86, 0.38], focus: [0, 0, 0, -1], fieldHalf: field.extent / 2, meniscus: MENISCUS_UM, optics: [0, 0, 3, 0] });
+    this.layerOptics = optics;
   }
+  private layerOptics: { opt: Texture; optb: Texture };
 
   // ------------------------------------------------------------------------------------------------ the host's side
 
@@ -365,6 +406,28 @@ export class Hepatocyte {
     // the plate's body is drawn unless it's lost in that haze from where the eye is
     this.bodyOn = !this.inMedium(eye) || this.fogK * (TOP_UM - alt) < 7;
 
+    // ---- the look (state.ts LOOKS): the instruments show the sheet of cells from just under the medium's surface down
+    // to a few cells across (over the plate it's as the eye sees it; inside a cell, where no light microscope reaches, the
+    // modelled view takes over), crossed on the eye's height over the floor so the zoom stays one continuous thing
+    const inBore = Math.hypot(eye[0], eye[2]) < (BORE / 2) * UM;
+    const under = inBore ? smooth(MENISCUS_UM + 20, MENISCUS_UM - 260, alt) : 0;
+    const stretch = under * smooth(MENISCUS_UM - 60, MENISCUS_UM - 650, alt) * smooth(30, 80, alt) * (store.inside === null ? 1 : 0);
+    const look = store.look;
+    const wantsInstrument = look === 'auto' || look === 'phase' || look === 'bright';
+    this.instrument = wantsInstrument ? stretch : 0;
+    const shown = this.instrument > 0.5 ? (look === 'bright' ? 'bright' : 'phase')
+      : look === 'fluor' ? 'fluor' : under > 0.5 || look === 'model' ? 'model' : 'auto';
+    if (store.shown.id !== shown) { store.shown = LOOKS.find((x) => x.id === shown)!; store.emit('shown'); }
+    // the instrument's blur: a micrometre and a half in the sample, or three pixels, whichever is wider (a lower power
+    // objective has a lower aperture: its halo is wider in the sample), from how far off the floor is along the view
+    const vo = cam.viewOverride;
+    const fy = vo ? -vo[6] : cam.forward[1];
+    const toFloor = alt / Math.max(0.25, -fy);
+    const umPerPx = (2 * toFloor * Math.tan(cam.fovY / 2)) / Math.max(1, this.kit.size.render[1]);
+    const blurPx = Math.max(3, 3.5 / Math.max(umPerPx, 1e-6));
+    // and the passage through the medium's surface: 1 at it, gone a few hundred micrometres either side
+    const cross = inBore ? Math.exp(-Math.abs(alt - MENISCUS_UM) / 160) : 0;
+
     // ---- the state of the well, into the shaders
     const a = store.axes();
     const stainOn = (k: string) => (store.stains.has(k as never) ? 1 : 0);
@@ -392,6 +455,8 @@ export class Hepatocyte {
       detail: 1,
       dim: 1,
       fieldHalf: field.extent / 2,
+      eyeAlt: alt, meniscus: MENISCUS_UM, under,
+      optics: [this.instrument, look === 'bright' ? 1 : 0, blurPx, cross],
     });
     // the plate, put where it is from the GPU's origin (doubles here, a small number there)
     const at = this.gpu(this.fromPlate([0, 0, 0]));
@@ -420,13 +485,13 @@ export class Hepatocyte {
   }
 
   /** this frame's GPU work: its scene, and on its own page its bloom and film to the screen too */
-  passes(): RunEntry[] { return this.own; }
+  passes(): RunEntry[] { return this.instrument > 0.001 ? [this.own[0], ...this.opticPasses, ...this.own.slice(1)] : [this.plainScene, ...this.own.slice(1)]; }
 
   /** the picture laid into a host's HDR (its film's units: this one's exposure applied), over what's there by `shows`.
    *  Hosted worlds only; run it after `passes()` */
   layer(target: Texture): RenderPass {
     const p = this.kit.pass({ label: 'hep.layer', color: [{ target, clear: false }] });
-    p.fullscreen(layerShader, { blend: 'premultiplied', bind: { src: this.hdr, L: this.LU } });
+    p.fullscreen(layerShader, { blend: 'premultiplied', bind: { src: this.hdr, L: this.LU, ...this.layerOptics } });
     return p;
   }
   private showing = 1;
@@ -435,7 +500,17 @@ export class Hepatocyte {
 
   /** the scene's light to the screen's (what the layer multiplies by), and the lift in colour its own film gives */
   get exposure() { return this.store.mode === 'fluor' ? 1.22 : 1.08; }
-  film() { return { exposure: this.exposure, saturation: this.store.mode === 'fluor' ? 1 : 1.3 }; }
+  film() { return { exposure: this.exposure, saturation: this.store.mode === 'fluor' ? 1 : 1.08 }; }
+
+  // ---------------------------------------------------------------------------------------------------- the looks
+
+  /** the looks the cells can be shown in (state.ts LOOKS), the one chosen, and choosing one ('auto': each stretch's own) */
+  get looks(): readonly LookInfo[] { return LOOKS; }
+  get look(): LookId { return this.store.look; }
+  setLook(id: LookId) { this.store.setLook(id); }
+  /** what the picture is showing right now: its look, and the words for a label on it (e.g. 'simulated phase
+   *  contrast'; '' over the plate, which is simply what's there) */
+  get lookNow(): LookInfo { return this.store.shown; }
 
   // --------------------------------------------------------------------------------------------- what's under a point
 

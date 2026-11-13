@@ -67,9 +67,10 @@ export interface World {
   detail: number;
   dim: number;
   fieldHalf: number;
-  spare0: number;
-  spare1: number;
-  spare2: number;
+  eyeAlt: number;
+  meniscus: number;
+  under: number;
+  optics: Vec4;
 }
 export interface CellG {
   c: Vec4;
@@ -90,5 +91,5 @@ export interface PostU {
   spare: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; FullscreenOut: FullscreenOut; PostU: PostU }, 'frame' | 'G' | 'PU' | 'cells' | 'hdr' | 'bloom' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; FullscreenOut: FullscreenOut; PostU: PostU }, 'frame' | 'G' | 'PU' | 'cells' | 'opt' | 'optb' | 'bsrc' | 'hdr' | 'bloom' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
