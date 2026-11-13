@@ -31,10 +31,13 @@ const make: Make = async (p, ctx) => {
         g.beginPath(); g.moveTo(x0 - 4, Y(10 ** e)); g.lineTo(x0, Y(10 ** e)); g.stroke();
         p.text(fmt(10 ** e), x0 - 8, Y(10 ** e) + 3, { align: 'right', size: 9.5, font: 'mono', color: INK.faint });
       }
+      // (each name at least a line below the one above it: an airliner and Everest are close)
+      let last = -Infinity;
       for (const [m, n] of MARKS) {
-        const y = Y(m);
-        g.strokeStyle = 'rgba(179,166,255,0.55)'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + 16, y); g.stroke();
-        p.text(`${n} · ${fmt(m)}`, x0 + 22, y + 3.5, { size: 10.5, color: INK.ink });
+        const y = Y(m), ty = Math.max(y + 3.5, last + 13);
+        last = ty;
+        g.strokeStyle = 'rgba(179,166,255,0.55)'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + 12, y); g.lineTo(x0 + 18, ty - 3.5); g.stroke();
+        p.text(`${n} · ${fmt(m)}`, x0 + 22, ty, { size: 10.5, color: INK.ink });
       }
       const h = height();
       shown = h ?? -1;
