@@ -31,7 +31,7 @@ const make: Make = async (p, ctx) => {
       const g = p.g, W = p.w, H = p.h;
       p.clear();
       // the Moon as it looks (waxing lit on the right, as from the north)
-      const r = Math.min(H * 0.36, W * 0.2), cx = W * 0.27, cy = H * 0.46, side = waxing ? 1 : -1;
+      const r = Math.min(H * 0.34, W * 0.18), cx = W * 0.25, cy = H * 0.46, side = waxing ? 1 : -1;
       const grad = g.createRadialGradient(cx - r * 0.2, cy - r * 0.25, r * 0.1, cx, cy, r);
       g.fillStyle = 'rgba(244,237,230,0.06)';
       g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
@@ -44,10 +44,10 @@ const make: Make = async (p, ctx) => {
       g.strokeStyle = INK.line; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
       p.text('as it looks', cx, cy + r + 18, { align: 'center', size: 10, color: INK.dim });
       // from above: the Earth, the Moon's orbit, the Sun's light from the left
-      const ox = W * 0.72, oy = cy, R = Math.min(H * 0.34, W * 0.19);
+      const ox = W * 0.76, oy = cy, R = Math.min(H * 0.3, W * 0.15);
       g.strokeStyle = INK.line; g.setLineDash([3, 4]); g.beginPath(); g.arc(ox, oy, R, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
-      for (let k = -1; k <= 1; k++) { g.strokeStyle = 'rgba(255,179,138,0.45)'; g.beginPath(); g.moveTo(ox - R - 46, oy + k * 16); g.lineTo(ox - R - 18, oy + k * 16); g.stroke(); }
-      p.text('sunlight', ox - R - 32, oy - 26, { align: 'center', size: 10, color: INK.accent });
+      for (let k = -1; k <= 1; k++) { g.strokeStyle = 'rgba(255,179,138,0.45)'; g.beginPath(); g.moveTo(ox - R - 30, oy + k * 14); g.lineTo(ox - R - 10, oy + k * 14); g.stroke(); }
+      p.text('sunlight', ox - R - 20, oy - 24, { align: 'center', size: 10, color: INK.accent });
       g.fillStyle = '#5b86d6'; g.beginPath(); g.arc(ox, oy, 6, 0, Math.PI * 2); g.fill();
       // (the Moon's angle round the Earth from the Sun's direction, counter-clockwise from above the north)
       const a = Math.PI + (waxing ? -E : E);

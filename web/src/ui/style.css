@@ -408,4 +408,10 @@ body.flying .marks, body.flying .instr { opacity: 0 !important; pointer-events: 
   .instr.on { transform: none; }
   .mark span { font-size: 12px; }
   .welcome { padding: 18px 8px; }
+  /* (an instrument up: it has the bottom to itself) */
+  .instr { background: rgba(14, 11, 18, 0.94); }
+  body.instrumenting .guide, body.instrumenting .topbar, body.instrumenting .dock { opacity: 0 !important; pointer-events: none !important; }
+  /* (the address on one line, its deepest steps kept: hud.ts; and the scale under a window's name when there is one) */
+  .crumbs { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; max-width: calc(100vw - 150px); }
+  body.windowed .scalebox { top: 96px; }
 }

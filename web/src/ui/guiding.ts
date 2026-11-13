@@ -43,16 +43,17 @@ export class Guiding {
   private readonly phone = matchMedia('(max-width: 760px)').matches;
 
   constructor(private app: App, ui: HTMLElement) {
+    // (the marks under the guide's panel)
+    this.marks = new Marks(ui);
     this.guide = new Guide(ui, this.phone);
     this.things = new Things(app.kit, app.cosmos);
-    this.marks = new Marks(ui);
     this.instruments = new Instruments(ui, {
       base: import.meta.env.BASE_URL, cosmos: app.cosmos, kit: app.kit,
       logS: () => (app.realm === 'cosmos' ? this.heightLog() : null),
     });
     const g = this.guide;
     g.onStep = (i) => this.step(i);
-    g.onLook = (look, k) => this.look(look, k);
+    g.onLook = (look, k) => void this.look(look, k);
     g.onAct = (a) => app.button(a);
     g.onInstrument = (c) => { if (c.instrument) { void this.instruments.show(c.instrument); app.sound('click'); } };
     g.onFlyCloser = () => { g.fold(true); app.flyCloser(); };
@@ -101,7 +102,7 @@ export class Guiding {
   }
 
   /** a look-for item: what it names lit (in the cell) or marked (above it) a few seconds */
-  look(look: Look, k: number) {
+  async look(look: Look, k: number) {
     const spots = look.spot ?? [];
     const chap = STORY[this.guide.chapter];
     this.unlight();
@@ -111,6 +112,9 @@ export class Guiding {
       this.spot.code = cell.spot(spots as Spot[]);
       this.spot.until = this.spot.code ? this.spot.clock + SPOT_S : 0;
     } else {
+      const ch = this.guide.chapter;
+      await this.things.prepare(spots as Thing[]);
+      if (this.guide.chapter !== ch) return;
       const found = (spots as Thing[]).map((t) => this.things.find(t)).filter((f): f is Found => !!f);
       if (!found.length) { this.guide.setMissing(k, 'Not drawn here yet.'); return; }
       if (!found.some((f) => this.things.mark(f))) this.guide.setMissing(k, 'Not in view from here: try its chapter\'s place.');

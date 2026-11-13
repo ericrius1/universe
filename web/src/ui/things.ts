@@ -70,15 +70,20 @@ export class Things {
   }
 
   private stars: Map<string, Vec3> | null = null;
+  private starsIn: Promise<void> | null = null;
+  /** what finding these needs, fetched (the named stars' list comes with their level's chunk, already here once it's
+   *  built) */
+  async prepare(ts: Thing[]) {
+    if (!ts.some((t) => 'star' in t) || !this.cosmos.has('local')) return;
+    // (levels/local.ts NAMED, read off the level that draws them: no copy of its list here)
+    await (this.starsIn ??= import('../cosmos/levels/local').then(({ NAMED, galDir }) => {
+      const m = new Map<string, Vec3>();
+      for (const [n, l, b, d] of NAMED) { const g = galDir(l, b); m.set(n, [g[0] * d, g[1] * d, g[2] * d]); }
+      this.stars = m;
+    }));
+  }
   private namedStar(want: string, shown: string): Found | null {
-    if (!this.stars) {
-      this.stars = new Map();
-      // (levels/local.ts NAMED, read off the level that draws them: no copy of its list here)
-      void import('../cosmos/levels/local').then(({ NAMED, galDir }) => {
-        for (const [n, l, b, d] of NAMED) { const g = galDir(l, b); this.stars!.set(n, [g[0] * d, g[1] * d, g[2] * d]); }
-      });
-    }
-    const at = this.stars.get(want);
+    const at = this.stars?.get(want);
     return at ? { frame: this.cosmos.ladder.local, at, name: shown } : null;
   }
 
@@ -179,7 +184,8 @@ export class Marks {
         it.path.setAttribute('d', m.path.map((p, k) => `${k ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(''));
         it.el.classList.add('mark-path');
       } else { it.path.setAttribute('d', ''); it.el.classList.remove('mark-path'); }
-      const r = m.path ? 0 : Math.max(11, m.r * 1.35 + 6);
+      // (a small thing's ring well clear of it, a big one's just outside its edge)
+      const r = m.path ? 0 : m.r > 30 ? m.r + 8 : Math.max(11, m.r * 1.35 + 6);
       it.el.style.transform = `translate(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px)`;
       it.el.style.setProperty('--r', `${r.toFixed(1)}px`);
     });

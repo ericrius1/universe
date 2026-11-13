@@ -75,8 +75,7 @@ const make: Make = async (p, ctx) => {
         p.text(`${fmtNum(d * MLY_PER_MPC)} Mly`, X(d), H - B + 13, { align: d === 0 ? 'left' : 'center', size: 9.5, font: 'mono', color: INK.faint });
         p.text(`${fmtNum(lookback((H0 * d) / C))} Myr ago`, X(d), H - B + 26, { align: d === 0 ? 'left' : 'center', size: 9.5, font: 'mono', color: INK.faint });
       }
-      // (the Virgo Cluster's crowd, the first peak, and the chosen one)
-      p.text('Virgo', X(16), H - B - (hist[Math.floor((16 / DMAX) * BINS)] / top) * (H - T - B) - 4, { align: 'center', size: 9.5, color: INK.dim });
+      // (the chosen one)
       g.strokeStyle = INK.accent; g.lineWidth = 1.5;
       g.beginPath(); g.moveTo(X(pick), T - 4); g.lineTo(X(pick), H - B); g.stroke();
       g.fillStyle = INK.accent; g.beginPath(); g.arc(X(pick), T - 4, 3.5, 0, Math.PI * 2); g.fill();

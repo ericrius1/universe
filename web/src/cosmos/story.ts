@@ -97,7 +97,7 @@ export const COSMOS_STORY: CosmosChapter[] = [
     ],
     know: 'The Sun goes round the centre at 230 kilometres a second, and still takes about 220 million years a lap. It has made about twenty.',
     how: 'The map is an artist\'s reconstruction (Robert Hurt, NASA/JPL-Caltech) from the Spitzer telescope\'s infrared counts of stars through the dust. The far side is the least certain.',
-    instrument: { id: 'rotation', label: 'Too fast to hold together', about: 'How fast stars orbit at each distance from the centre: what was measured, against what the stars and gas we can see would give. The gap is dark matter.', from: 'model: Eilers et al. 2019 (229 km/s at the Sun, falling 1.7 km/s per kiloparsec, measured from 5 to 25 kpc)' },
+    instrument: { id: 'rotation', label: 'Too fast to hold together', about: 'How fast stars orbit at each distance from the centre: what was measured, against what the stars and gas we can see would give. The gap is dark matter.', from: 'model: the measured curve is Eilers et al. 2019, ApJ 871, 120 (229 km/s at the Sun, falling 1.7 km/s per kiloparsec, from 5 to 25 kpc); the stars and gas alone are a model after Bland-Hawthorn & Gerhard 2016, ARA&A 54, 529' },
   },
   {
     place: 'u:neighbourhood', short: 'Neighbours', part: 'The stars next door', title: 'The Sun\'s neighbours', scale: '10 light-years', like: 'if the Sun were a football, the next star would be another football 6,500 kilometres away',

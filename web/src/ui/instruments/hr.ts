@@ -4,7 +4,8 @@
 // out. The Sun marked, the main sequence and the giants named, a few stars of the story found on it.
 import { INK, type Make } from './index';
 
-const NAMED: [number, string][] = [[32349, 'Sirius'], [27989, 'Betelgeuse'], [71683, 'Rigil Kentaurus'], [91262, 'Vega'], [69673, 'Arcturus'], [24436, 'Rigel'], [102098, 'Deneb'], [80763, 'Antares']];
+/** the stars named on it, and which side of their dot the name goes (x, y in px) */
+const NAMED: [number, string, number, number][] = [[32349, 'Sirius', -8, 4], [27989, 'Betelgeuse', -8, -6], [91262, 'Vega', 8, 10], [69673, 'Arcturus', 8, 12], [24436, 'Rigel', 8, 12], [102098, 'Deneb', 8, -4], [80763, 'Antares', 8, 4]];
 const BV0 = -0.4, BV1 = 2.1, M0 = -9, M1 = 16;
 
 const make: Make = async (p, ctx) => {
@@ -49,24 +50,24 @@ const make: Make = async (p, ctx) => {
         if (bv < BV0 || bv > BV1 || M < M0 || M > M1) continue;
         const t = Math.max(0, Math.min(1, (bv + 0.3) / 2));
         const r = Math.round(150 + 105 * Math.min(1, t * 1.6)), gg = Math.round(170 + 60 * (1 - Math.abs(t - 0.45) * 1.6)), b = Math.round(255 - 150 * t);
-        g.fillStyle = `rgba(${r},${gg},${b},0.32)`;
+        g.fillStyle = `rgba(${r},${gg},${b},0.16)`;
         g.fillRect(X(bv) - 0.6, Y(M) - 0.6, 1.2, 1.2);
       }
       g.globalCompositeOperation = 'source-over';
       // the regions, named
-      p.text('Main sequence', X(0.2), Y(4.2), { size: 11, color: INK.ink, weight: 600 });
-      p.text('where a star spends most of its life', X(0.2), Y(4.2) + 13, { size: 9.5, color: INK.dim });
-      p.text('Giants', X(1.3), Y(-2.2), { size: 11, color: INK.ink, weight: 600 });
-      p.text('Supergiants', X(0.75), Y(-7.6), { size: 11, color: INK.ink, weight: 600 });
+      p.text('Main sequence', X(-0.33), Y(7.2), { size: 11, color: INK.ink, weight: 600 });
+      p.text('where a star spends', X(-0.33), Y(7.2) + 13, { size: 9.5, color: INK.dim });
+      p.text('most of its life', X(-0.33), Y(7.2) + 25, { size: 9.5, color: INK.dim });
+      p.text('Giants', X(1.45), Y(3.2), { size: 11, color: INK.ink, weight: 600 });
+      p.text('Supergiants', X(0.55), Y(-7.6), { size: 11, color: INK.ink, weight: 600 });
       // the named stars, and the Sun
-      const dot = (bv: number, M: number, name: string, c = INK.accent) => {
+      const dot = (bv: number, M: number, name: string, dx: number, dy: number, c = INK.accent) => {
         g.strokeStyle = c; g.lineWidth = 1.2;
         g.beginPath(); g.arc(X(bv), Y(M), 4.5, 0, Math.PI * 2); g.stroke();
-        const right = X(bv) < W - 90;
-        p.text(name, X(bv) + (right ? 8 : -8), Y(M) + 3.5, { size: 10, color: c, align: right ? 'left' : 'right' });
+        p.text(name, X(bv) + dx, Y(M) + dy, { size: 10, color: c, align: dx > 0 ? 'left' : 'right', weight: 600 });
       };
-      for (const [h, n] of NAMED) { const s = named.get(h); if (s) dot(s[0], s[1], n, INK.dim); }
-      dot(0.65, 4.83, 'The Sun');
+      for (const [h, n, dx, dy] of NAMED) { const s = named.get(h); if (s) dot(s[0], s[1], n, dx, dy, INK.ink); }
+      dot(0.65, 4.83, 'The Sun', 8, 14);
     },
   };
 };

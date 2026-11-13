@@ -179,6 +179,7 @@ export class Hud {
       this.windowEl.append(name, this.widen);
       this.windowEl.style.display = '';
     } else this.windowEl.style.display = 'none';
+    document.body.classList.toggle('windowed', !!w);
     this.setRange(w ? w.top : Infinity, w ? w.bottom : -Infinity);
   }
   /** the ladder's rungs within a stretch (log10 nm; one rung past each end kept, so the dot's always between two) */
@@ -206,8 +207,8 @@ export class Hud {
   }
 
   update(s: HudState) {
-    // (on a phone the address keeps its last three steps, so it stays one line)
-    const crumbs = s.crumbs.length > 3 && innerWidth <= 760 ? ['…', ...s.crumbs.slice(-3)] : s.crumbs;
+    // (on a phone the address keeps its last two steps, so it stays one line)
+    const crumbs = s.crumbs.length > 2 && innerWidth <= 760 ? ['…', ...s.crumbs.slice(-2)] : s.crumbs;
     this.set('crumbs', this.crumbs, crumbs.map((c, i) => `<span${i === crumbs.length - 1 ? ' class="here"' : ''}>${c}</span>`).join('<i>›</i>'), 'html');
     // ladder: from the observable universe to a nanometre; the dot sits at log10 of the field of view
     const t = Math.max(0, Math.min(1, (this.top - Math.log10(Math.max(s.fov, 1e-3))) / (this.top - this.bottom)));

@@ -24,12 +24,16 @@ const make: Make = async (p, ctx) => {
   g0.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
   const px = g0.getImageData(0, 0, sw, sh);
   const ss = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  // (the view's warm and cool, c_web.wgsl's, darkest at the mean so the patches read)
+  const colour = (v: number) => {
+    const k = ss(-0.4, 0.4, v), b = 0.18 + 0.82 * Math.min(1, Math.abs(v) * 2.2);
+    return [0.12 + 0.88 * k, 0.35 + 0.07 * k, 1 - 0.88 * k].map((x) => Math.round(255 * Math.pow(Math.min(1, x * b), 1 / 2.2)));
+  };
   let lo = Infinity, hi = -Infinity;
   for (let i = 0; i < px.data.length; i += 4) {
     const T = ((px.data[i] - 127.5) / 127.5) * 500;
     lo = Math.min(lo, T); hi = Math.max(hi, T);
-    const v = T / 500, k = ss(-0.3, 0.3, v), b = Math.min(1, 0.35 + 1.3 * Math.abs(v));
-    const col = [0.12 + (1 - 0.12) * k, 0.35 + (0.42 - 0.35) * k, 1 + (0.12 - 1) * k].map((x) => Math.round(255 * Math.pow(Math.min(1, x * b * 1.25), 1 / 1.6)));
+    const col = colour(T / 500);
     px.data[i] = col[0]; px.data[i + 1] = col[1]; px.data[i + 2] = col[2]; px.data[i + 3] = 255;
   }
   g0.putImageData(px, 0, 0);
@@ -44,7 +48,9 @@ const make: Make = async (p, ctx) => {
       g.drawImage(c, 0, 0, mw, mh);
       // the full Moon to scale
       const mx = mw * 0.78, my = mh * 0.3;
-      g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineWidth = 1.5;
+      g.strokeStyle = 'rgba(0,0,0,0.6)'; g.lineWidth = 3.5;
+      g.beginPath(); g.arc(mx, my, (MOON / 2) * k, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 1.6;
       g.beginPath(); g.arc(mx, my, (MOON / 2) * k, 0, Math.PI * 2); g.stroke();
       p.text('the full Moon', mx, my + (MOON / 2) * k + 13, { align: 'center', size: 10, color: INK.ink, weight: 600 });
       // a degree
@@ -55,8 +61,7 @@ const make: Make = async (p, ctx) => {
       // the colour scale
       const y = mh + 10, x0 = 34, x1 = W - 34;
       for (let i = 0; i <= 100; i++) {
-        const v = (i / 100) * 2 - 1, kk = ss(-0.3, 0.3, v), b = Math.min(1, 0.35 + 1.3 * Math.abs(v));
-        const col = [0.12 + 0.88 * kk, 0.35 + 0.07 * kk, 1 - 0.88 * kk].map((x) => Math.round(255 * Math.pow(Math.min(1, x * b * 1.25), 1 / 1.6)));
+        const col = colour((i / 100) * 2 - 1);
         g.fillStyle = `rgb(${col.join(',')})`;
         g.fillRect(x0 + ((x1 - x0) * i) / 101, y, (x1 - x0) / 100 + 1, 8);
       }

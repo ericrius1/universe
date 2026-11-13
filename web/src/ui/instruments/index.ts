@@ -116,7 +116,7 @@ export class Instruments {
     this.close(false);
     const seq = ++this.seq;
     this.open = inst.id;
-    const src = inst.from.startsWith('model:') ? `A model: ${inst.from.slice(6).trim()}` : `From ${inst.from.startsWith('the ') ? inst.from : `data/${inst.from}`}`;
+    const src = inst.from.startsWith('model:') ? `${inst.from.slice(6).trim().replace(/^./, (c) => c.toUpperCase())}.` : `From ${inst.from.startsWith('the ') ? inst.from : `data/${inst.from}`}`;
     this.el.innerHTML = `
       <button class="in-x" aria-label="Close the instrument">×</button>
       <div class="in-head"><div class="in-k">Instrument</div><h3>${inst.label}</h3></div>
