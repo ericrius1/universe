@@ -1,7 +1,7 @@
 // The lab round the plate (lab/lab.ts): the bench it stands on and the room past it, drawn behind the well's own
 // picture (Hepatocyte's, laid over this) wherever that has nothing. One ray per pixel against the bench's top, in the
 // plate's millimetres (x along its columns, z down its rows, y up from the middle of its top face, the bench 11.2 mm
-// below that). Black epoxy resin, matte with a broad sheen of the ceiling's panels in it (it meets air: the one place a
+// below that). Grey phenolic resin, matte with a broad sheen of the ceiling's panels in it (it meets air: the one place a
 // highlight belongs), the plate's soft shadow on it under the room's overhead light, and the room going dim past it.
 #include "weft/fullscreen"
 
@@ -40,7 +40,7 @@ fn room(rd: vec3f) -> vec3f {
   if (rd.y < -1e-4 && dy < 0.0) {
     let t = dy / rd.y;
     let p = B.eye + rd * t;
-    // the resin: near black, a faint fleck and a slow mottle in it
+    // the resin: a dark grey, a faint fleck and a slow mottle in it
     let fleck = vnoise(p.xz * 1.7) * 0.6 + vnoise(p.xz * 0.11) * 0.4;
     var alb = vec3f(0.040, 0.042, 0.046) * (0.85 + 0.3 * fleck);
     // the light: the room's overhead panels, most of it straight down, shadowed under and round the plate
