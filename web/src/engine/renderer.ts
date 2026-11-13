@@ -71,7 +71,7 @@ export class Renderer {
     this.ids = k.texture({ label: 'ids', format: 'r32uint', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.depth = k.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     // (occlusion, the haze's light, the crowd's occlusion and shadow: post.wgsl fs_ao)
-    this.ao = k.texture({ label: 'ao', format: 'rgba16float', size: 'render', scale: 0.5 });
+    this.ao = k.texture({ label: 'ao', format: 'rgba8unorm', size: 'render', scale: 0.5 });
     this.lit = k.texture({ label: 'lit', format: 'rgba16float', size: 'render' });
     // (the glass at half the render's size, against the scene's depth at that size: post.wgsl glassOver lays it back
     // over the full size by depth. A film's, which has time for it, at the full size)
@@ -157,9 +157,9 @@ export class Renderer {
   /** this frame's GPU work, for a host to run with its own (the film after it, in one submission) */
   work(): RunEntry[] {
     const G = this.globals;
-    // (the crowd rests past ~20 µm: field.ts)
+    // (the crowd's shadow only where its molecules are more than specks: gone by 8 µm)
     const S = G.get('scale') as number;
-    this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (20000 - S) / 8000)) : 0);
+    this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (8000 - S) / 4000)) : 0);
     if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
     const shut = (G.get('shellSolid') as number) >= 0.999 && !this.eyeInNucleus();
     this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, shut: shut ? 1 : 0 });

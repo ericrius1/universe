@@ -163,9 +163,10 @@ fn beadHit(in: VOut) -> BeadHit {
   let bb = length(oc - rd * dot(oc, rd));
   let chord = sqrt(max(1.0 - bb * bb / (in.radius * in.radius), 0.0));
   if ((flags & F_VESICLE) == 0u) {
-    let k = mix(0.55, 1.3, chord);
-    s.albedo = pow(max(s.albedo, vec3f(1e-4)), vec3f(k)) * mix(1.12, 0.92, chord);
-    s.sss = pow(max(s.sss, vec3f(1e-4)), vec3f(k));
+    // (a^0.5 at the very edge to about a^1.3 through the middle, without a pow: a square root and a product)
+    let a = max(s.albedo, vec3f(0.0));
+    s.albedo = mix(sqrt(a) * 1.05, a * (0.7 + 0.3 * a) * 0.95, chord);
+    s.sss = mix(sqrt(max(s.sss, vec3f(0.0))), s.sss * (0.7 + 0.3 * s.sss), chord);
   }
   var c = bioLightAt(p, n, v, s) + glow;
   c = mix(c, in.color * 0.15 + glow * 2.0, G.fluo * 0.85);
