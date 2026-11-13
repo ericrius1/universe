@@ -34,7 +34,7 @@ export function drawPoints(kit: Kit, R: CosmosRenderer, lv: Level, set: PointSet
   if (set.live) set.flush();
   const n = set.count;
   R.scene.draw(pointShader, {
-    label, vertex: 'vs', fragment: 'fs', bind: { L: lv.L, pts, meterTex: R.meter }, count: 6,
+    label, vertex: 'vs', fragment: 'fs', bind: { L: lv.L, pts }, count: 6,
     instances: set.live ? () => set.count : n, blend: 'premultiplied', cull: 'none', enabled: on,
   });
   return pts;

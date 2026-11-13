@@ -76,5 +76,5 @@ export interface VOut {
   reach: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Pt: Pt; VOut: VOut }, 'frame' | 'L' | 'pts' | 'meterTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Pt: Pt; VOut: VOut }, 'frame' | 'L' | 'pts' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

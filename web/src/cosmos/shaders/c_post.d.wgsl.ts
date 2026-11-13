@@ -61,5 +61,5 @@ export interface MeterU {
   b: Vec4;
 }
 
-declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Cell3: Cell3; FilmU: FilmU; Lvl: Lvl; MeterU: MeterU }, 'frame' | 'F' | 'B' | 'M' | 'srcTex' | 'bloomTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Cell3: Cell3; FilmU: FilmU; Lvl: Lvl; MeterU: MeterU }, 'frame' | 'F' | 'B' | 'M' | 'srcTex' | 'bloomTex' | 'meterTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

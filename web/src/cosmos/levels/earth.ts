@@ -165,7 +165,7 @@ export class Earth {
     this.E.set({
       gx: [...ax([1, 0, 0]), 0], gy: [...ax([0, 1, 0]), 0], gz: [...ax([0, 0, 1]), 0],
       spot: [g[0] - o[0], g[1] - o[1], g[2] - o[2], m ? m.far.half / 1000 : 60], hr: [m?.far.min ?? 0, m?.far.max ?? 1, own ? 1 : 0, ePx >= 0.75 ? 1 : 0],
-      mx: [...mx, this.moonIn ? 1 : 0], mz: [...mz, shine],
+      mx: [...mx, this.moonIn ? 1 : 0], mz: [...mz, shine * 2 ** this.R.lift],
     });
   }
 }

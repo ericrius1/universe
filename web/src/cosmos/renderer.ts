@@ -26,18 +26,20 @@ const HISTORY = 12;
 export type Band = [number, number, number, number];
 const smooth = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
 
-/** the camera's exposure over the zoom: keyframes of log10 m, the stops the stars are exposed at there (L.exposure,
- *  for every level; 0 is as each level's gains were set), and how much say the meter has there (0: none — the galaxy
- *  and the web as graded; 1: in the solar system and at the Earth, where a lit body can fill the frame). Eased between
- *  them over the zoom, smoothly */
+/** the camera's exposure over the zoom: keyframes of log10 m, the stops the stars are exposed at there over the rest
+ *  (L.exposure, for every level; 0 is as each level's gains were set), and how much say the meter has there — the
+ *  camera's exposure for the whole frame (c_post.wgsl fs_meter): 0, none, where the galaxy and the web are as graded and
+ *  where a host's frame is laid in (the gardens, the cell); 1 among the planets and at the Earth, where a sunlit body
+ *  can fill the frame or a dark one fill its middle. Eased between them over the zoom, smoothly */
 export const EXPOSURE_KEYS: [number, number, number][] = [
   [21.0, 0, 0],      // the Milky Way and above
   [19.6, 0, 0],      // the Sun's neighbourhood, from outside
-  [17.7, 0, 0.3],    // the neighbours
+  [17.7, 0, 0],      // the neighbours
   [14.5, 0, 1],      // the solar system
   [9.5, 0, 1],       // the Earth and the Moon
-  [7.35, -3, 1],     // the Earth: its day side's in the frame
-  [5.5, 0, 1],       // coming down: the sky over the ground
+  [7.35, -3, 1],     // the Earth: its day side's in the frame (the stars below what it alone would take off)
+  [5.6, 0, 1],       // coming down: the sky over the ground
+  [4.6, 0, 0],       // the ground: a host's frame, graded its own way
 ];
 /** the keyframes at a zoom: [stops, the meter's say] */
 export function exposureAt(logS: number): [number, number] {
@@ -50,9 +52,13 @@ export function exposureAt(logS: number): [number, number] {
   const z = K[K.length - 1];
   return [z[1], z[2]];
 }
-/** the meter (c_post.wgsl fs_meter): the log-average a dark sky stays under, the stops per unit over it, the most it
- *  takes off, the light its log is over, and how fast it eases (s) */
-const METER = { dark: 0.8, gain: 3.5, most: 9, floor: 0.01, ease: 0.45 };
+/** the meter (c_post.wgsl fs_meter): the key a lit body's light is held to and the most it comes down (stops); the
+ *  light a pixel needs to count as lit (more than any sky's) and the share of the frame (weighted) at which a lit body
+ *  counts in full; the middle's light under which it's a dark body, and the most it goes up for one (earthshine is
+ *  5e-5 of sunlight: a level lifts its own faint light the rest of the way, `lift`); how fast it eases (s) */
+const METER = { key: 0.045, most: 8, lit: 0.04, full: 0.2, dark: 0.004, upMost: 1, ease: 0.45 };
+/** the most a night side in focus is lifted by beyond the frame's own exposure (stops: lift) */
+const LIFT_MOST = 10;
 
 export const bandWeight = (l: number, [a, b, c, d]: Band) => (l > b ? 1 - smooth((l - b) / (a - b)) : 1) * (l < c ? 1 - smooth((c - l) / (c - d)) : 1);
 
@@ -79,10 +85,14 @@ export interface Level {
 export class CosmosRenderer {
   readonly hdr: Texture;
   readonly bloom: Texture;
-  /** the meter: one texel, r the stops the stars' exposure is eased by (c_post.wgsl fs_meter; c_points.wgsl reads it),
-   *  g the frame's log-average it was worked from */
+  /** the meter: one texel, r the camera's exposure (stops) for the whole frame (c_post.wgsl fs_meter, its fs_final
+   *  applies it), g the frame's log-average it was worked from */
   readonly meter: Texture;
   private readonly M: UniformBuffer<any>;
+  /** the stops a body's faint light on its night side (earthshine on the Moon) is lifted by over the frame's exposure,
+   *  while the body in focus shows the camera that side: a camera exposed for it would show it, and the sky's picture
+   *  behind (not calibrated to the Moon's light, and never meant to be) would wash out if the whole frame took it */
+  lift = 0;
   /** the camera's exposure from the zoom's keyframes this frame (stops: exposureAt), before the meter's */
   exposure = 0;
   /** the meter's frames the same however they're reached (no easing in time: a film's or a dome's), else eased */
@@ -179,9 +189,9 @@ export class CosmosRenderer {
     meter.fullscreen(post, { label: 'cosmos.meter', fragment: 'fs_meter', blend: 'alpha', bind: { M: this.M, srcTex: this.bloom.mip(BLOOM_MIPS - 1) } });
     items.push(meter);
     const fin = k.pass({ label: 'cosmos.final', color: [{ target: !dome || dome.out === 'screen' ? 'screen' : dome.out.mip(0), clear: [0, 0, 0, 1] }], enabled: () => !this.over });
-    this.finDraws.push(fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } }) as unknown as Draw);
+    this.finDraws.push(fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0), meterTex: this.meter } }) as unknown as Draw);
     const finOver = k.pass({ label: 'cosmos.final.over', color: [{ target: 'screen', clear: false }], enabled: () => this.over });
-    this.finDraws.push(finOver.fullscreen(post, { label: 'cosmos.final.over', fragment: 'fs_final', blend: 'alpha', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } }) as unknown as Draw);
+    this.finDraws.push(finOver.fullscreen(post, { label: 'cosmos.final.over', fragment: 'fs_final', blend: 'alpha', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0), meterTex: this.meter } }) as unknown as Draw);
     this.items = [...items, fin, finOver];
   }
 
@@ -275,7 +285,9 @@ export class CosmosRenderer {
     const dt = this.lastTime < 0 ? 0 : Math.max(0, time - this.lastTime);
     this.lastTime = time;
     const rate = this.steady || dt === 0 ? 1 : 1 - Math.exp(-dt / METER.ease);
-    this.M.set({ a: [rate, say, METER.dark, METER.gain], b: [METER.most, METER.floor, 0, 0] });
+    const night = this.nightSide(c) * say;
+    this.lift = LIFT_MOST * night;
+    this.M.set({ a: [rate, say, METER.key, METER.most], b: [METER.lit, METER.full, METER.dark, METER.upMost * night] });
     const exposure = Math.pow(2, stops);
     for (const lv of this.levels) {
       lv.weight = bandWeight(logS, lv.band);
@@ -296,6 +308,20 @@ export class CosmosRenderer {
         up: lv.up, time: time % TIME_WRAP, exposure, pxAngle, view, march,
       });
     }
+  }
+
+  /** how far the body in focus shows the camera its night side (0..1: 0 lit or none in focus, 1 seen from behind it):
+   *  only then may the meter take the exposure up for a dark middle, never for an empty patch of sky */
+  private nightSide(c: CosmosControls): number {
+    if (!c.focused || !c.locate) return 0;
+    const body: Vec3 = [0, 0, 0], sun: Vec3 = [0, 0, 0];
+    if (c.locate(c.focused, body) === null || c.locate('sun', sun) === null) return 0;
+    vec3.subtract(sun, sun, body);
+    const n = vec3.length(sun);
+    if (n <= 0) return 0;
+    // (the camera looks at the body along fwd: toward the camera is −fwd)
+    const cos = -vec3.dot(c.forward, sun) / n;
+    return smooth((-0.3 - cos) / 0.4);
   }
 
   /** the target's size (px) */

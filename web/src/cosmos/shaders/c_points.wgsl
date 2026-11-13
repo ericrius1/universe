@@ -1,17 +1,16 @@
 // Points of light: galaxies in the cosmic web, the Milky Way's stars, the Sun's neighbours, the asteroids. Each is a
-// screen-facing quad. A star is a flux: its luminosity over its distance squared, times the level's gain and the
-// camera's exposure (L.exposure, the zoom's keyframe, and the meter's stops, renderer.ts), through the one
-// point-spread function every star shares — a tight Moffat core and a faint r⁻² aureole, in pixels. A bright star looks
-// bigger because more of its wings clear the floor, not because its quad is scaled: the quad is only made big enough to
-// hold what clears it. A galaxy is an extended glow once it's wider than a pixel, a faint smudge before.
+// screen-facing quad. A star is a flux: its luminosity over its distance squared, times the level's gain and the stars'
+// exposure here (L.exposure, the zoom's keyframe; the camera's own, the meter's, is applied to the whole frame by the
+// film: renderer.ts), through the one point-spread function every star shares — a tight Moffat core and a faint r⁻²
+// aureole, in pixels. A bright star looks bigger because more of its wings clear the floor, not because its quad is
+// scaled: the quad is only made big enough to hold what clears it. A galaxy is an extended glow once it's wider than a
+// pixel, a faint smudge before.
 // L.a: brightness gain, mode (0 star, 1 extended), the nearest it may come to the eye (its units), a size gain.
 #include "cosmos.wgsl"
 #include "weft/fullscreen"
 
 struct Pt { pos: vec3f, size: f32, color: vec3f, lum: f32 }
 @group(2) @binding(1) var<storage, read> pts: array<Pt>;
-// the meter (renderer.ts): r the stops the exposure is eased by this frame (0, or below when something bright fills it)
-@group(2) @binding(2) var meterTex: texture_2d<f32>;
 
 // the point-spread function (pixels): the Moffat core's width and power, the aureole's knee and share of the light,
 // and the floor below which nothing is drawn (subtracted, so a star's edge comes down to it smoothly)
@@ -36,8 +35,8 @@ fn psfReach(f: f32) -> f32 {
   let wing = AUR_R * sqrt(max(f * AUR / FLOOR - 1.0, 0.0));
   return max(core, wing);
 }
-/** the camera's exposure this frame: the zoom's keyframe and the meter's stops */
-fn camExposure() -> f32 { return L.exposure * exp2(textureLoad(meterTex, vec2i(0, 0), 0).r); }
+/** the stars' exposure here over the rest's: the zoom's keyframe (the camera's own, the meter's, is the film's) */
+fn camExposure() -> f32 { return L.exposure; }
 
 struct VOut {
   @builtin(position) pos: vec4f,

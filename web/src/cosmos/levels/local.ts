@@ -76,7 +76,7 @@ export class Local {
     // the figures' lines (two ends a line, filled once the catalogue's in)
     this.segBuf = kit.storage({ label: 'local.figures', size: 1600 * 32, stride: 32 });
     R.scene.draw(figShader, {
-      label: 'local.figures', vertex: 'vs', fragment: 'fs', bind: { L: this.fig.L, segs: this.segBuf, meterTex: R.meter }, count: 6,
+      label: 'local.figures', vertex: 'vs', fragment: 'fs', bind: { L: this.fig.L, segs: this.segBuf }, count: 6,
       instances: () => this.segs * 6, blend: 'premultiplied', cull: 'none',
       enabled: () => this.segs > 0 && this.fig.on() && this.sky > 0.01 && this.figures > 0.002,
     });

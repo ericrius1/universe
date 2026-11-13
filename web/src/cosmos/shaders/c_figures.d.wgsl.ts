@@ -24,6 +24,11 @@ export interface Frame {
   aspect: number;
   mouse: Vec4;
   user: Vec4;
+  viewProjRel: Mat4;
+  invViewProjRel: Mat4;
+  prevViewProjRel: Mat4;
+  camLo: Vec3;
+  _relPad: number;
 }
 export interface Cell3 {
   d1: number;
@@ -63,5 +68,5 @@ export interface VOut {
   light: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; Seg: Seg; VOut: VOut }, 'frame' | 'L' | 'segs' | 'meterTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; Seg: Seg; VOut: VOut }, 'frame' | 'L' | 'segs' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -55,18 +55,25 @@ fn karis(c: vec3f) -> f32 { return 1.0 / (1.0 + dot(c, vec3f(0.2126, 0.7152, 0.0
   return vec4f(o / 16.0 * B.weight, 1.0);
 }
 
-// the meter (renderer.ts): the frame's log-average light, weighted to the middle (where the zoom's target is, and the
-// body it's about), from the bloom's smallest level; the stops it takes off the stars when something bright fills the
-// frame, eased in time by the share `rate` this frame keeps (the blend: 1 on a film or a dome, so their frames are the
-// same however they're reached). M.a: x rate, y the meter's say (the zoom's keyframe), z the log-average a dark sky
-// stays under, w stops per unit over it; M.b: x the most it takes off, y the light the log is taken over (its floor)
+// the meter (renderer.ts): the camera's exposure, from the frame's light (the scene's, before the exposure: no loop)
+// in the bloom's smallest level. What it meters is what's lit: the log-average of the pixels brighter than the sky
+// ever is, weighted to the middle (where the zoom's target is, and the body it's about), and how much of the frame they
+// cover. When a sunlit body covers a good part of it the exposure comes down to hold that body's light to a key, so it
+// keeps its colour (and the stars go out with it, as they would); a bright speck covers too little to count. When
+// something dark covers the middle (the Moon's night side) it comes up, for earthshine. Eased in time by the share
+// `rate` this frame keeps (the blend: 1 on a film or a dome, so their frames are the same however they're reached).
+// M.a: x rate, y the meter's say (the zoom's keyframe), z the key a lit body's light is held to, w the most it comes
+// down (stops); M.b: x the light a pixel needs to count as lit, y the share of the frame (weighted) where it counts in
+// full, z the middle's light under which it's dark, w the most it goes up (stops: renderer.ts gives it only while the
+// body in focus shows the camera its night side, never for an empty patch of sky)
 struct MeterU { a: vec4f, b: vec4f }
 @group(2) @binding(4) var<uniform> M: MeterU;
+@group(2) @binding(5) var meterTex: texture_2d<f32>;
 
 @fragment fn fs_meter(in: FullscreenOut) -> @location(0) vec4f {
   let n = vec2i(textureDimensions(srcTex));
   let m = min(n, vec2i(64));
-  var sum = 0.0; var wsum = 0.0;
+  var lit = 0.0; var litW = 0.0; var wsum = 0.0; var mid = 0.0; var midW = 0.0;
   for (var y = 0; y < m.y; y++) {
     for (var x = 0; x < m.x; x++) {
       let p = (vec2f(f32(x), f32(y)) + 0.5) / vec2f(m);
@@ -75,14 +82,21 @@ struct MeterU { a: vec4f, b: vec4f }
       let yc = dot(c, vec3f(0.2126, 0.7152, 0.0722));
       let l = yc / max(1.0 - yc * 0.25, 0.02);
       let q = (p - 0.5) * vec2f(f32(n.x) / f32(n.y), 1.0);
-      let w = exp(-dot(q, q) / (2.0 * 0.3 * 0.3));
-      sum += w * log2(1.0 + l / M.b.y);
+      let r2 = dot(q, q);
+      let w = exp(-r2 / (2.0 * 0.3 * 0.3));
       wsum += w;
+      if (l > M.b.x) { lit += w * log2(l); litW += w; }
+      let wm = exp(-r2 / (2.0 * 0.1 * 0.1));
+      mid += wm * l; midW += wm;
     }
   }
-  let avg = sum / max(wsum, 1e-6);
-  let stops = -clamp((avg - M.a.z) * M.a.w, 0.0, M.b.x) * M.a.y;
-  return vec4f(stops, avg, 0.0, M.a.x);
+  let cover = litW / max(wsum, 1e-6);
+  let key = exp2(lit / max(litW, 1e-6));
+  let down = clamp(log2(key / M.a.z), 0.0, M.a.w) * smoothstep(0.02, M.b.y, cover);
+  let dark = mid / max(midW, 1e-6);
+  let up = M.b.w * (1.0 - smoothstep(0.0, M.b.z, dark));
+  let stops = (up - down) * M.a.y;
+  return vec4f(stops, cover, dark, M.a.x);
 }
 
 // the upscaler's sharpening, here rather than in a pass of its own at the canvas's size (main.ts: Taau's sharpen off):
@@ -110,7 +124,10 @@ fn sharpened(px: vec2i) -> vec3f {
   if (F.out.z > 0.5 && length(in.uv - 0.5) > 0.5) { return vec4f(0.0, 0.0, 0.0, F.out.x); }
   var c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;
   if (F.out.z < 0.5 && any(vec2f(textureDimensions(srcTex)) > frame.res + 0.5)) { c = sharpened(vec2i(in.pos.xy)); }
-  let b = textureSampleLevel(bloomTex, samp_linear, in.uv, 0.0).rgb;
+  var b = textureSampleLevel(bloomTex, samp_linear, in.uv, 0.0).rgb;
+  // (the camera's exposure: the meter's stops)
+  let e = exp2(textureLoad(meterTex, vec2i(0, 0), 0).r);
+  c *= e; b *= e;
   let px = vec2u(in.pos.xy);
   let d = filmFinish(F, filmCurve(F, c, b), in.uv, in.pos.xy, frame.aspect, hash3u(vec3u(px, 7u)).x, hash3u(vec3u(px, frame.frame)).x);
   return vec4f(d, F.out.x);

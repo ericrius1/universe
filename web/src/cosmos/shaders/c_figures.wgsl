@@ -2,13 +2,12 @@
 // (parsecs, the galaxy's axes), not on a sphere — so they're true from the Sun and come apart as the view leaves it.
 // Each line is drawn in pieces (FIG_PIECES, so a dome's fisheye bends it as it bends the sky), a little short of the
 // stars at its ends, as a screen-facing strip a pixel or so wide with soft edges, its light added. It goes out with
-// the stars when the meter takes their exposure down (renderer.ts).
+// the stars when the exposure comes down (renderer.ts).
 // L.a: x the lines' light, y the gap at each star (px), z their width (px).
 #include "cosmos.wgsl"
 
 struct Seg { a: vec4f, b: vec4f }
 @group(2) @binding(1) var<storage, read> segs: array<Seg>;
-@group(2) @binding(2) var meterTex: texture_2d<f32>;
 
 const FIG_PIECES = 6u;
 const FIG_COLOR = vec3f(0.42, 0.55, 0.85);
@@ -54,7 +53,7 @@ fn toPx(rel: vec3f) -> vec3f {
   let d = p1.xy - p0.xy;
   let len = length(d);
   if (len < 1e-3) { return out; }
-  let light = L.a.x * L.weight * L.exposure * exp2(textureLoad(meterTex, vec2i(0, 0), 0).r);
+  let light = L.a.x * L.weight * L.exposure;
   if (light < 1e-5) { return out; }
   let dir = d / len;
   let n = vec2f(-dir.y, dir.x);
