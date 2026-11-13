@@ -89,6 +89,13 @@ async function boot() {
       // never on a dome)
       (app.gardens = new Gardens(kit, cosmos, BASE)).start();
       await new Promise<void>((r) => { const t = setInterval(() => { if (app.gardens!.ready) { clearInterval(t); r(); } }, 50); });
+    } else if (id === 'well') {
+      // the well of liver cells, the second way down from the Earth: its code (lab/, and Hepatocyte's own, src/well) a
+      // chunk of its own; a phone's settings on a phone
+      const { buildWell } = await import('./lab/lab');
+      app.attachWell(buildWell(kit, cosmos, { phone: mobile }));
+      const ready = await compiled();
+      console.log(`well: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
     } else {
       await cosmos.build([id as CosmosRealm]);
       if (id === 'beyond') jewel();

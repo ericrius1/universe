@@ -164,10 +164,55 @@ const SEG = 28u;
   return o;
 }
 
+/** the chosen well's floor as the real cells look from a few millimetres up (field.wgsl), painted: the same cells at
+ *  their own size with their rims and their nuclei glowing through, the feeders' lawn round the hepatocytes' islands in
+ *  the co-culture, the pillows laid over the collagen as they are — so the cells that take over from the picture are
+ *  the colour it was. `q` is the point from the well's middle (µm), `g` the same in cells and `fw` its change across a
+ *  pixel (worked out before any branch: where a cell is under a few pixels, its average) */
+fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> vec3f {
+  let gi = floor(g);
+  var f1 = 9.0; var f2 = 9.0; var id = gi;
+  for (var yy = -1; yy <= 1; yy++) {
+    for (var xx = -1; xx <= 1; xx++) {
+      let o2 = gi + vec2f(f32(xx), f32(yy));
+      // (jittered a third of a cell either way, as world/field.ts lays the sites)
+      let pt = o2 + 0.5 + (vec2f(hash21(o2), hash21(o2 + 19.1)) - 0.5) * 0.66;
+      let d = length(pt - g);
+      if (d < f1) { f2 = f1; f1 = d; id = o2; } else if (d < f2) { f2 = d; }
+    }
+  }
+  // the islands: a field over about three cells, hepatocytes in them, feeders between (the co-culture's only)
+  let isl = noise3(vec3f(id / 3.1, 1.7)) * 0.65 + noise3(vec3f(id / 1.6, 4.2)) * 0.35;
+  let hep = G.feeders < 0.5 || (isl - 0.34) * 2.6 > 0.08;
+  let up = vec3f(0.0, 1.0, 0.0);
+  let t = sat((f2 - f1) / 0.55);
+  let rim = pow(1.0 - t, 5.0);
+  var base = select(C_FEEDER, C_CYTO, hep);
+  base = mix(base, select(C_FEEDER * 1.35, C_CYTO_HI, hep), t * 0.32);
+  base = mix(base, C_RIM, rim * select(0.45, 0.85, hep));
+  base = mix(base, C_DEAD, (1.0 - live) * 0.6);
+  var cell = lit(base, up, wp, 0.35, 0.03 + rim * 1.7);
+  // (a nucleus glowing through the pillow)
+  cell = mix(cell, lit(C_NUC, up, wp, 0.2, 0.3), (1.0 - smoothstep(0.16, 0.24, f1)) * select(0.25, 0.45, hep));
+  let floorLit = lit(C_FLOOR, up, wp, 0.0, 0.02);
+  let sharp = mix(floorLit, cell, 0.74);
+  // (the average of all that, for a cell under a few pixels: no shimmer)
+  let hepShare = select(1.0, 0.72, G.feeders > 0.5);
+  var mb = mix(C_FEEDER * 1.1, mix(C_CYTO, C_CYTO_HI, 0.16), hepShare);
+  mb = mix(mb, C_RIM, 0.1);
+  mb = mix(mb, C_DEAD, (1.0 - live) * 0.6);
+  let mean = mix(floorLit, mix(lit(mb, up, wp, 0.35, 0.12), lit(C_NUC, up, wp, 0.2, 0.3), 0.05), 0.74);
+  return mix(sharp, mean, smoothstep(0.25, 0.6, fw));
+}
+
 @fragment fn fs_well(i: VOut) -> FOut {
   var o: FOut;
   let w = wells[i.id];
   let c = wellCentre(i.id);
+  // (the painted field's cells and their size on the screen, here where every fragment still runs)
+  let fq = (i.mp.xz - c) * P.unit;
+  let fg = fq / max(G.cellSize, 1.0);
+  let ffw = length(fwidth(fg));
   let n = unit(i.n);
   let V = unit(frame.camPos - i.wp);
   let fres = pow(1.0 - sat(dot(n, V)), 2.4);
@@ -202,6 +247,11 @@ const SEG = 28u;
     col = cc * (0.52 + 0.72 * cellTex) * (0.42 + 0.78 * live);
     col += C_RIM * (1.0 - cellTex) * 0.3 * live;
     col *= 1.0 - smoothstep(0.84, 1.0, d) * 0.45;
+    // (the chosen well's, close enough to see its cells: the field's own look, which the real cells keep to)
+    if (i32(i.id) == i32(P.chosen)) {
+      let near = 1.0 - smoothstep(6000.0, 30000.0, distance(frame.camPos, i.wp));
+      if (near > 0.0) { col = mix(col, paintedField(fq, fg, ffw, i.wp, live), near); }
+    }
     col += col * hot * 0.75;
     if (i32(i.id) == i32(P.chosen)) {
       // over the field of real cells the picture of them gives way as you come down to them; past the field's edge it

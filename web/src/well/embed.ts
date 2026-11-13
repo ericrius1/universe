@@ -358,6 +358,10 @@ export class Hepatocyte {
     this.fogK = store.inside !== null ? 0.021
       : alt <= 150 ? 0.004
       : 0.004 * Math.pow(150 / alt, 1.3) * (1 - smooth(5000, 9000, alt));
+    // (but never so thick that the cells under the eye are lost in it: from a few hundred micrometres up the haze along
+    // the way down to them came to a white-out, nothing on the floor of the well to be seen. Down among the cells as
+    // it was)
+    if (store.inside === null) this.fogK = Math.min(this.fogK, this.fogK + (0.3 / Math.max(far, 1) - this.fogK) * smooth(150, 320, alt));
     // the plate's body is drawn unless it's lost in that haze from where the eye is
     this.bodyOn = !this.inMedium(eye) || this.fogK * (TOP_UM - alt) < 7;
 
