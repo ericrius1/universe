@@ -3,7 +3,8 @@
 // atomically) with the holder's process id in it, and a queue of tickets beside it so whoever asked first goes first
 // (without it a tool that lets go and asks again straight away can keep everyone else out for an hour). A holder that
 // has died is let go at once; one that hangs, after 25 minutes: so give every wait in a tool a timeout of its own, and
-// hold the lock for one run, not a session.
+// hold the lock for one run, not a session. Taking the lock closes any page a stopped run left drawing in the kept
+// Chrome.
 //
 //   import { lock, unlock } from './gpulock.mjs';
 //   await lock('mine'); try { … } finally { unlock(); }
@@ -27,6 +28,21 @@ function first() {
   return true;
 }
 
+/** whoever has the lock is the only one drawing: any page still open in the kept Chrome (CDP, port 9740) was left by
+ *  a run that was stopped before it could close it, and would go on drawing under every run after. Closed here, as the
+ *  lock's taken (so open your pages after taking it, never before) */
+async function sweep() {
+  const at = `http://127.0.0.1:${process.env.CDP ?? 9740}`;
+  try {
+    const list = await (await fetch(`${at}/json/list`, { signal: AbortSignal.timeout(3000) })).json();
+    for (const t of list) {
+      if (t.type !== 'page' || t.url.startsWith('about:blank')) continue;
+      console.error(`gpu: closing a page left open (${t.url.slice(0, 80)})`);
+      await fetch(`${at}/json/close/${t.id}`, { signal: AbortSignal.timeout(3000) }).catch(() => {});
+    }
+  } catch { /* no kept Chrome: nothing to sweep */ }
+}
+
 /** wait for the GPU, in turn */
 export async function lock(who = 'gpu') {
   mkdirSync(QUEUE, { recursive: true });
@@ -39,6 +55,7 @@ export async function lock(who = 'gpu') {
           mkdirSync(LOCK);
           writeFileSync(join(LOCK, 'pid'), String(process.pid));
           held = true;
+          await sweep();
           // (a run that outstays any run's length has hung: it lets go and stops, rather than be called stale)
           setTimeout(() => { console.error(`${who}: held the GPU for ${HOLD / 60e3} minutes: letting go`); unlock(); process.exit(2); }, HOLD).unref();
           return;
