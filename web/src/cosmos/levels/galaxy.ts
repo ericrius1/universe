@@ -1,7 +1,7 @@
 // The Milky Way (kiloparsecs): its glow and dust as a volume (shaders/c_galaxy.wgsl), and its stars as points drawn from
 // the same disc, arms, bar and bulge, with the globular clusters in the halo. Seen whole it's a barred spiral; from the
 // Sun's place 8.2 kpc out it's the band across the sky behind every level below: the real one, NASA's Deep Star Maps
-// (data/sky/milkyway.webp), loaded the first time the galaxy shows; the drawn band stands in till it's in.
+// (havens/sky/milkyway.webp, the one file the gardens' sky reads too), loaded the first time the galaxy shows; the drawn band stands in till it's in.
 import { loadImageTexture, solidTexture, type Kit, type Texture, type Draw } from '@ericrius1/weft';
 import galShader from '../shaders/c_galaxy.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
@@ -100,7 +100,7 @@ export class Galaxy {
 
   private loadPicture() {
     this.picture = 'asked';
-    const url = new URL('data/sky/milkyway.webp', document.baseURI).href;
+    const url = new URL('havens/sky/milkyway.webp', document.baseURI).href;
     loadImageTexture(this.kit, url, { mips: true, label: 'galaxy.sky', max: this.small ? 2048 : undefined }).then((t: Texture) => {
       this.draw.set('milkyTex', t);
       this.picture = 'in';

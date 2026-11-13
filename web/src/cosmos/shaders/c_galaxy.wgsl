@@ -8,7 +8,7 @@
 #include "noisetex.wgsl"
 #include "weft/fullscreen"
 
-// the sky (levels/galaxy.ts, data/sky/milkyway.webp): celestial J2000 plate carrée, right ascension 0 at the centre
+// the sky (levels/galaxy.ts, havens/sky/milkyway.webp): celestial J2000 plate carrée, right ascension 0 at the centre
 // increasing to the left, declination +90° at the top, each channel stored as its cube root
 @group(2) @binding(3) var milkyTex: texture_2d<f32>;
 
