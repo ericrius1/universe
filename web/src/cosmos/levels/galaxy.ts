@@ -43,6 +43,10 @@ export class Galaxy {
   glow = 0.5;
   dust = 2.5;
   diffuse = 1.5;
+  /** the march's steps from outside the disc and inside it, and a bias on the map's level (for timing it) */
+  stepsOut = 18;
+  stepsIn = 32;
+  lodBias = 0;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
     this.kit = kit;
@@ -108,8 +112,8 @@ export class Galaxy {
     // (dimmer as the eye nears the plane: edge on, the whole disc's light adds up along every ray, more than the dust
     // takes back, and the exposure's the one the galaxy seen whole has)
     const near = 0.15 + 0.85 * Math.max(0, Math.min(1, (Math.log10(Sk) - 0.5) / 0.9));
-    const steps = Math.max(8, Math.round((32 - 14 * out) * (1 - inside)));
-    this.lv.L.set({ weight: this.lv.weight, a: [this.glow * near, this.dust, steps, inside], b: [this.diffuse, 0, 0, 0], d: [this.mapIn, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
+    const steps = Math.max(8, Math.round((this.stepsIn - (this.stepsIn - this.stepsOut) * out) * (1 - inside)));
+    this.lv.L.set({ weight: this.lv.weight, a: [this.glow * near, this.dust, steps, inside], b: [this.diffuse, this.lodBias, 0, 0], d: [this.mapIn, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
     // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
     if (this.picture === 'in') this.stars.weight *= 1 - inside;
     this.stars.weight *= this.mapIn;

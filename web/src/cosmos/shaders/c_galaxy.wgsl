@@ -130,7 +130,7 @@ fn band(rd: vec3f) -> vec3f {
       else { let k = (u - fa) / max(1.0 - fa, 1e-6); t = tm + (t1 - tm) * k * k; }
       let dt = t - tPrev;
       tPrev = t;
-      let g = galaxy(ro + rd * t, log2(max(t * foot, 1.0)));
+      let g = galaxy(ro + rd * t, log2(max(t * foot, 1.0)) + L.b.y);
       let tau = g.dust * L.a.y * dt;
       col += T * g.glow * L.a.x * dt * exp(-tau * 0.5);
       T *= exp(-tau);

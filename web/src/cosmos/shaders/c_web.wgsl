@@ -49,11 +49,12 @@ fn noiseSky(n: vec3f) -> f32 {
 }
 // the false colour: cold deep blue, through teal and a dim slate at the mean, to amber and a pale warm gold
 fn cmbColor(v: f32) -> vec3f {
+  // (a chain of mixes, not an indexed table: a table indexed per pixel goes through memory on some GPUs)
   let x = clamp(v * 0.5 + 0.5, 0.0, 1.0) * 4.0;
-  let i = min(u32(x), 3u);
-  let f = x - f32(i);
-  let c = array<vec3f, 5>(vec3f(0.06, 0.08, 0.42), vec3f(0.1, 0.42, 0.72), vec3f(0.3, 0.32, 0.4), vec3f(0.95, 0.58, 0.2), vec3f(1.0, 0.9, 0.62));
-  return mix(c[i], c[i + 1u], f);
+  var c = mix(vec3f(0.06, 0.08, 0.42), vec3f(0.1, 0.42, 0.72), clamp(x, 0.0, 1.0));
+  c = mix(c, vec3f(0.3, 0.32, 0.4), clamp(x - 1.0, 0.0, 1.0));
+  c = mix(c, vec3f(0.95, 0.58, 0.2), clamp(x - 2.0, 0.0, 1.0));
+  return mix(c, vec3f(1.0, 0.9, 0.62), clamp(x - 3.0, 0.0, 1.0));
 }
 
 @fragment fn fs_cmb(in: FullscreenOut) -> @location(0) vec4f {
@@ -129,9 +130,9 @@ fn toEq(p: vec3f) -> vec3f { return vec3f(dot(D.ex.xyz, p) + D.ex.w, dot(D.ey.xy
 // the web's colour by how dense (0 a faint thread, 1 a cluster's heart): cool blue, violet, amber, a hot pale gold
 fn webRamp(s: f32) -> vec3f {
   let x = clamp(s, 0.0, 1.0) * 3.0;
-  let i = min(u32(x), 2u);
-  let c = array<vec3f, 4>(vec3f(0.38, 0.52, 1.0), vec3f(0.64, 0.5, 0.95), vec3f(1.2, 0.7, 0.36), vec3f(1.6, 1.2, 0.68));
-  return mix(c[i], c[i + 1u], x - f32(i));
+  var c = mix(vec3f(0.38, 0.52, 1.0), vec3f(0.64, 0.5, 0.95), clamp(x, 0.0, 1.0));
+  c = mix(c, vec3f(1.2, 0.7, 0.36), clamp(x - 1.0, 0.0, 1.0));
+  return mix(c, vec3f(1.6, 1.2, 0.68), clamp(x - 2.0, 0.0, 1.0));
 }
 
 @fragment fn fs_vol(in: FullscreenOut) -> @location(0) vec4f {
