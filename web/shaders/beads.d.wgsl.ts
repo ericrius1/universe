@@ -79,6 +79,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  pad1: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -109,6 +117,12 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 export interface MolType {
   lodStart: Vec3;
@@ -149,5 +163,5 @@ export interface BeadHit {
   depth: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; MolType: MolType; Inst: Inst; VOut: VOut; GOut: GOut; BeadHit: BeadHit }, 'frame' | 'G' | 'organelles' | 'types' | 'insts' | 'lists' | 'beads' | 'beadInfo' | 'beadDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; MolType: MolType; Inst: Inst; VOut: VOut; GOut: GOut; BeadHit: BeadHit }, 'frame' | 'G' | 'V' | 'organelles' | 'types' | 'insts' | 'lists' | 'beads' | 'beadInfo' | 'volTex' | 'beadDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

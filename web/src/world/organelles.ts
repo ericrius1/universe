@@ -81,14 +81,33 @@ export class Organelles {
       seenFrame = kit.frameIndex;
       for (let i = 0; i < spans.length; i++) seen[i] = kit.camera.sees(rel(spans[i].o.center, c), spans[i].o.bound) ? 1 : 0;
     };
-    const ranged = (lo: number, hi: number) => {
+    // (the cut faces' draws: only the organelles in view the wedge's faces cross — organelle.wgsl reachesCut — so the
+    // meshes of the many it takes away whole, or never reaches, aren't drawn twice more for nothing)
+    const cutSeen = new Uint8Array(spans.length);
+    let cutFrame = -1;
+    const lookCut = () => {
+      look();
+      if (cutFrame === kit.frameIndex) return;
+      cutFrame = kit.frameIndex;
+      const cc = g.get('cutCenter') as ArrayLike<number>, n1 = g.get('cutN1') as ArrayLike<number>, n2 = g.get('cutN2') as ArrayLike<number>;
+      const R = g.get('cutRadius') as number;
+      for (let i = 0; i < spans.length; i++) {
+        const o = spans[i].o;
+        if (!seen[i] || o.kind === Kind.Neighbor || o.kind === Kind.NeighborNucleus) { cutSeen[i] = 0; continue; }
+        rel(o.center, c);
+        const qx = c[0] - cc[0], qy = c[1] - cc[1], qz = c[2] - cc[2];
+        const m = Math.min(qx * n1[0] + qy * n1[1] + qz * n1[2], qx * n2[0] + qy * n2[1] + qz * n2[2]);
+        cutSeen[i] = Math.hypot(qx, qy, qz) - o.bound <= R && m > -o.bound && m < o.bound ? 1 : 0;
+      }
+    };
+    const ranged = (lo: number, hi: number, cut = false) => {
       const a = spans.findIndex((x) => x.first >= lo), b = spans.findIndex((x) => x.first >= hi);
       const i0 = a < 0 ? spans.length : a, i1 = b < 0 ? spans.length : b;
       return (pe: GPURenderPassEncoder) => {
-        look();
+        const vis = cut ? (lookCut(), cutSeen) : (look(), seen);
         let start = -1, end = -1;
         for (let i = i0; i < i1; i++) {
-          if (!seen[i]) continue;
+          if (!vis[i]) continue;
           const x = spans[i];
           if (x.first === end) { end += x.count; continue; }
           if (end > start) pe.drawIndexed(end - start, 1, start, 0, 0);
@@ -112,9 +131,11 @@ export class Organelles {
     solid('membranes.inner', 'vs_inner', 'fs_inner', 0, shellCut, 'front', solidOn, solidAll);
     solid('membranes.inner.cuttable', 'vs_inner', 'fs_inner', shellCut, shells, 'front', solidOn, whole);
     // (the cut faces: only what the wedge can reach)
-    const capShells = ranged(shellCut, shells), capSolids = ranged(solidCut, all);
-    s.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind, indices: ib, cull: 'front', enabled: cutOn, encode: (pe) => { capShells(pe); capSolids(pe); } });
-    s.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind, indices: ib, cull: 'back', enabled: cutOn, encode: capShells });
+    const capShells = ranged(shellCut, shells, true), capSolids = ranged(solidCut, all, true);
+    // (after the scene, against its depth: they write their own, renderer.ts late)
+    const capBind = { verts, noiseTex, occDepth: r.sceneDepth };
+    r.late.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind: capBind, indices: ib, cull: 'front', enabled: cutOn, encode: (pe) => { capShells(pe); capSolids(pe); } });
+    r.late.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind: capBind, indices: ib, cull: 'back', enabled: cutOn, encode: capShells });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keep: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
     r.glass.draw(organelleShader, { label: 'membranes.glass', vertex: 'vs_outer', fragment: 'fs_glass', bind, indices: ib, cull: 'none', blend: [add, keep], depthWrite: false, enabled: glassOn, encode: ranged(0, shells) });

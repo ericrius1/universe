@@ -79,6 +79,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  pad1: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -109,6 +117,12 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 export interface FullscreenOut {
   pos: Vec4;
@@ -122,5 +136,5 @@ export interface Jewel {
   flags: Vec4;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; FullscreenOut: FullscreenOut; Jewel: Jewel }, 'frame' | 'G' | 'J' | 'organelles' | 'litTex' | 'depthTex' | 'worldTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; FullscreenOut: FullscreenOut; Jewel: Jewel }, 'frame' | 'G' | 'V' | 'J' | 'organelles' | 'volTex' | 'litTex' | 'depthTex' | 'worldTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

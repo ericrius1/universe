@@ -79,6 +79,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  pad1: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -109,6 +117,12 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 export interface TCell {
   at: Vec3;
@@ -130,5 +144,5 @@ export interface Post {
   pad2: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'P' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'glassDepthTex' | 'thinAccumTex' | 'thinRevealTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'V' | 'P' | 'organelles' | 'volTex' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'glassDepthTex' | 'thinAccumTex' | 'thinRevealTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

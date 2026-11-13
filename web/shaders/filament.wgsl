@@ -6,6 +6,9 @@
 #include "world.wgsl"
 
 @group(2) @binding(0) var<storage, read> segs: array<Seg>;
+// the scene's depth before the tubes (renderer.ts late): world.wgsl hiddenAt — tested by the nearest any of the tube
+// can be (VOut.front), so what hides that hides all of it
+@group(2) @binding(1) var occDepth: texture_depth_2d;
 fn segAt(i: u32) -> Seg { var s = segs[i]; s.a -= G.origin; s.b -= G.origin; return s; }
 
 struct VOut {
@@ -14,6 +17,7 @@ struct VOut {
   @location(1) @interpolate(flat) seg: u32,
   @location(2) across: f32,
   @location(3) cover: f32,
+  @location(4) @interpolate(flat) front: f32,    // the depth of the nearest any of it can be (reversed Z: the largest)
 }
 struct GOutD { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32, @builtin(frag_depth) depth: f32 }
 struct OitOut { @location(0) accum: vec4f, @location(1) reveal: vec4f }
@@ -50,6 +54,9 @@ fn quad(vi: u32, s: Seg, thin: bool) -> VOut {
   let p = mix(s.a - along * rr, s.b + along * rr, corner.x) + side * corner.y * rr * 1.15 + toEye * rr;
   out.world = p;
   out.across = corner.y;
+  // (along the view's axis the nearest of it is its nearer end's, less the radius)
+  let zf = min(dot(s.a - frame.camPos, frame.camFwd), dot(s.b - frame.camPos, frame.camFwd)) - rr;
+  out.front = select(1.0, frame.near / zf, zf > frame.near);
   out.pos = frame.viewProj * vec4f(p, 1.0);
   if (isCut(mid)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   // (none right in front of the lens: the clear round the camera, as the molecules have — a tube flying through it
@@ -239,7 +246,7 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
   if (t > 1e29) { discard; }
   let p = ro + rd * t;
   let v = -rd;
-  var c = bioLight(n, v, sf);
+  var c = bioLightAt(p, n, v, sf);
   c = mix(c, dye * (0.4 + 0.6 * pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.2)), G.fluo);
   var out: GOutD;
   out.color = vec4f(c, 1.0);
@@ -251,6 +258,7 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
 }
 
 @fragment fn fs_tube(in: VOut) -> GOutD {
+  if (hiddenAt(occDepth, in.pos, in.front)) { discard; }
   let s = segAt(in.seg);
   let ro = frame.camPos;
   let rd = normalize(in.world - ro);
@@ -273,8 +281,8 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
   if (s.kind == 0u) { ridge = sin(ang * 13.0) * (1.0 - smoothstep(0.6, 2.5, fp)); }
   else if (s.kind == 4u) { ridge = sin(along * 0.0935 * 6.2831853) * 0.6 * (1.0 - smoothstep(8.0, 30.0, fp)); }   // 67 nm D-banding
   var sf: Surf;
-  sf.albedo = l.albedo * (0.92 + 0.08 * ridge); sf.sss = l.sss; sf.rough = 0.4; sf.wrap = 0.5; sf.trans = 0.5; sf.rim = 0.7;
-  var c = bioLight(n, v, sf);
+  sf.albedo = vary(l.albedo, s.fil) * (0.92 + 0.08 * ridge); sf.sss = l.sss; sf.rough = 0.4; sf.wrap = 0.5; sf.trans = 0.5; sf.rim = 0.7;
+  var c = bioLightAt(p, n, v, sf);
   c = mix(c, l.dye * (0.4 + 0.6 * pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 1.2)), G.fluo);
   var out: GOutD;
   out.color = vec4f(c, 1.0);

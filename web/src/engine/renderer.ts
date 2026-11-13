@@ -7,7 +7,9 @@ import worldShader from '../../shaders/world.wgsl';
 import post from '../../shaders/post.wgsl';
 import jewelShader from '../../shaders/jewel.wgsl';
 import jewelLay from '../../shaders/jewel_lay.wgsl';
+import motes from '../../shaders/motes.wgsl';
 import type { Globals } from '../../shaders/world.wgsl';
+import { CrowdVolume } from './volume';
 
 export class Renderer {
   readonly hdr: Texture;
@@ -19,6 +21,10 @@ export class Renderer {
   readonly globals: UniformBuffer<Globals>;
   readonly post: UniformBuffer<any>;
   readonly scene: RenderPass;
+  /** what writes its own depth (traced tubes, cut faces), after the scene: the GPU can't hide those before shading
+   *  them, so each fragment asks a copy of the scene's depth first (`sceneDepth`; world.wgsl hiddenAt) */
+  readonly late: RenderPass;
+  readonly sceneDepth: Texture;
   /** see-through layers (membranes from afar): weighted blended transparency over the scene's depth */
   readonly glass: RenderPass;
   readonly accum: Texture;
@@ -42,11 +48,21 @@ export class Renderer {
   jewelOn = false;
   private items: RunEntry[];
 
-  constructor(readonly kit: Kit, organelles: StorageBuffer) {
+  /** how the cell is drawn: 'light' (lit, the default) or 'illustrative' (flat colour, occlusion, ink and fog, after
+   *  Goodsell: world.wgsl illustrated, post.wgsl inked); a number works too (0, 1). ?look=illustrative to try it */
+  look: 'light' | 'illustrative' | number = (new URLSearchParams(location.search).get('look') as 'illustrative') ?? 'light';
+  /** parts of the light that can be left out (for timing them: tools/bench.mjs PARTS, or by hand) */
+  parts = { crowd: true, crowdShade: true, motes: true };
+  /** the crowd's density round the focus, for its occlusion and shadow (engine/volume.ts) */
+  readonly crowd: CrowdVolume;
+
+  constructor(readonly kit: Kit, organelles: StorageBuffer, quality = 1) {
     const k = kit;
     this.globals = k.uniforms(worldShader.structs.Globals, 'globals');
     k.setGlobals(this.globals);
-    k.shareGroup(1, worldShader, { organelles }, 'world');
+    // (64³ cells on a computer, 32³ on a phone)
+    this.crowd = new CrowdVolume(k, quality >= 1 ? 64 : 32, k.uniforms(worldShader.structs.Vol, 'crowd.place'));
+    k.shareGroup(1, worldShader, { organelles, volTex: this.crowd.tex, V: this.crowd.V }, 'world');
     this.post = k.uniforms(post.structs.Post, 'post').set({ aoRadius: 0.12, aoStrength: 1.1, dofMax: 8, dofRange: 0.7, lay: 1 });
     k.overlay.tweak(this.post, 'post');
 
@@ -55,7 +71,8 @@ export class Renderer {
     this.nrm = k.texture({ label: 'normals', format: 'rg16float', size: 'render' });
     this.ids = k.texture({ label: 'ids', format: 'r32uint', size: 'render', usage: ['render', 'sample', 'copy-src'] });
     this.depth = k.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
-    this.ao = k.texture({ label: 'ao', format: 'r16float', size: 'render', scale: 0.5 });
+    // (occlusion, the haze's light, the crowd's occlusion and shadow: post.wgsl fs_ao)
+    this.ao = k.texture({ label: 'ao', format: 'rgba16float', size: 'render', scale: 0.5 });
     this.lit = k.texture({ label: 'lit', format: 'rgba16float', size: 'render' });
     // (the glass at half the render's size, against the scene's depth at that size: post.wgsl glassOver lays it back
     // over the full size by depth. A film's, which has time for it, at the full size)
@@ -74,6 +91,16 @@ export class Renderer {
       label: 'scene',
       color: [{ target: this.hdr, clear: [0, 0, 0, 1] }, { target: this.nrm, clear: [0, 0, 0, 0] }, { target: this.ids, clear: [0, 0, 0, 0] }],
       depth: { target: this.depth, clear: 0 },
+    });
+
+    this.sceneDepth = k.texture({ label: 'scene.depth', format: 'depth32float', size: 'render', usage: ['sample', 'copy-dst'] });
+    const lateOn = () => this.late.draws.length > 0;
+    const keep = k.raw((enc) => { if (lateOn()) enc.copyTextureToTexture({ texture: this.depth.gpu }, { texture: this.sceneDepth.gpu }, [this.depth.width, this.depth.height, 1]); }, 'scene.depth');
+    this.late = k.pass({
+      label: 'scene.late',
+      color: [{ target: this.hdr, clear: false }, { target: this.nrm, clear: false }, { target: this.ids, clear: false }],
+      depth: { target: this.depth, clear: false },
+      enabled: lateOn,
     });
 
     // the molecules' beads lit: after the scene has every bead's depth (field.ts draws them there depth-only, first),
@@ -97,6 +124,10 @@ export class Renderer {
       color: [{ target: this.accumThin, clear: [0, 0, 0, 0] }, { target: this.revealThin, clear: [1, 1, 1, 1] }],
       depth: { target: this.depth, readOnly: true },
     });
+    // specks adrift in the water, soft and out of focus (motes.wgsl): two sizes of 9³ tiles of 4
+    const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
+    const keepB: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
+    this.thin.draw(motes, { label: 'motes', vertex: 'vs', fragment: 'fs', count: 2 * 9 * 9 * 9 * 4 * 6, cull: 'none', blend: [add, keepB], depthWrite: false, enabled: () => this.parts.motes });
     const aoPass = k.pass({ label: 'ao', color: [{ target: this.ao, clear: [1, 1, 1, 1] }] });
     aoPass.fullscreen(post, { label: 'ao', fragment: 'fs_ao', bind: { P, depthTex: this.depth, nrmTex: this.nrm } });
     const comp = k.pass({ label: 'composite', color: [{ target: this.lit, clear: [0, 0, 0, 1] }] });
@@ -107,8 +138,8 @@ export class Renderer {
     const dof = k.pass({ label: 'dof', color: [{ target: this.dofOut, clear: [0, 0, 0, 1] }], enabled: dofOn });
     dof.fullscreen(post, { label: 'dof', fragment: 'fs_dof', bind: { P, srcTex: this.dofHalf } });
 
-    this.items = [this.scene, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
-    this.afterComp = 7;
+    this.items = [this.scene, keep, this.late, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
+    this.afterComp = 9;
   }
   private afterComp: number;
 
@@ -135,6 +166,14 @@ export class Renderer {
   }
 
   /** this frame's GPU work, for a host to run with its own (the film after it, in one submission) */
-  work(): RunEntry[] { return [...this.first(), ...this.before, ...this.items]; }
+  work(): RunEntry[] {
+    const G = this.globals;
+    // (the crowd rests past ~20 µm: field.ts)
+    const S = G.get('scale') as number;
+    this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (20000 - S) / 8000)) : 0);
+    if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
+    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0 });
+    return [...this.first(), ...this.before, ...this.crowd.work(), ...this.items];
+  }
   frame() { this.kit.run(this.work()); }
 }

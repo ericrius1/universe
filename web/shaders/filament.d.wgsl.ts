@@ -79,6 +79,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  pad1: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -109,6 +117,12 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 export interface VOut {
   pos: Vec4;
@@ -116,6 +130,7 @@ export interface VOut {
   seg: number;
   across: number;
   cover: number;
+  front: number;
 }
 export interface GOutD {
   color: Vec4;
@@ -133,5 +148,5 @@ export interface Look {
   dye: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; VOut: VOut; GOutD: GOutD; OitOut: OitOut; Look: Look }, 'frame' | 'G' | 'organelles' | 'segs' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; VOut: VOut; GOutD: GOutD; OitOut: OitOut; Look: Look }, 'frame' | 'G' | 'V' | 'organelles' | 'segs' | 'volTex' | 'occDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

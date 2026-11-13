@@ -22,14 +22,6 @@ struct GOut { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) i
 // (the depth the scene ended with, the beads' own among it: the lit draw shades only the bead that set it)
 @group(2) @binding(13) var beadDepth: texture_depth_2d;
 
-fn hueShift(c: vec3f, h: f32, l: f32) -> vec3f {
-  // a small turn about the grey axis, and a lightness nudge
-  let k = vec3f(0.57735);
-  let ca = cos(h); let sa = sin(h);
-  let r = c * ca + cross(k, c) * sa + k * dot(k, c) * (1.0 - ca);
-  return max(r * (1.0 + l), vec3f(0.0));
-}
-
 fn beadColor(T: MolType, inst: Inst, info: u32) -> vec3f {
   // a ball takes its colour from the instance (sRGB, packed in tint)
   if ((T.flags & F_TINT) != 0u) { return srgb(unpack4x8unorm(inst.tint).rgb); }
@@ -95,7 +87,8 @@ fn bead(vi: u32, ii: u32, lit: bool) -> VOut {
   out.center = c;
   out.radius = r;
   if (lit) {
-    out.color = beadColor(T, inst, info);
+    // (each copy of a molecule a little different from the next: world.wgsl vary)
+    out.color = vary(beadColor(T, inst, info), inst.id * 7u + inst.mtype);
     out.info4 = vec4u(inst.mtype, T.flags, inst.id, info);
   }
   out.pos = frame.viewProj * vec4f(p, 1.0);
@@ -160,10 +153,21 @@ fn beadHit(in: VOut) -> BeadHit {
       n = normalize(mix(n, normalize(n * 0.55 + tg), (1.0 - bump) * vis));
       s.albedo *= mix(1.0, mix(0.55, 1.0, bump), vis);
     }
-    s.rough = 0.3; s.rim = 0.9; s.trans = 0.6;
+    s.rough = 0.4; s.rim = 0.6; s.trans = 0.6;
   }
   if ((flags & F_GLOW) != 0u) { glow = in.color * 1.6; }
-  var c = bioLight(n, v, s) + glow;
+  // the path through the bead along this ray, exactly: a sphere's chord 2√(r² − b²) at impact parameter b, as a share
+  // of its widest (n·v for a sphere). Absorbed along it per colour channel, so a thin edge is light and pale, the thick
+  // middle deep: protein seen through, not painted on (a vesicle, a shell of membrane, is seen at its edge instead)
+  let oc = in.center - frame.camPos;
+  let bb = length(oc - rd * dot(oc, rd));
+  let chord = sqrt(max(1.0 - bb * bb / (in.radius * in.radius), 0.0));
+  if ((flags & F_VESICLE) == 0u) {
+    let k = mix(0.55, 1.3, chord);
+    s.albedo = pow(max(s.albedo, vec3f(1e-4)), vec3f(k)) * mix(1.12, 0.92, chord);
+    s.sss = pow(max(s.sss, vec3f(1e-4)), vec3f(k));
+  }
+  var c = bioLightAt(p, n, v, s) + glow;
   c = mix(c, in.color * 0.15 + glow * 2.0, G.fluo * 0.85);
   var out: GOut;
   out.color = vec4f(c, 1.0);
