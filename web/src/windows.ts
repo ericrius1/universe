@@ -6,7 +6,12 @@
 // behind it.
 
 /** a realm: one part of the zoom, built only if the window needs it (main.ts's realms) */
-export type RealmId = 'beyond' | 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground' | 'gardens' | 'cell';
+export type RealmId = 'beyond' | 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground' | 'gardens' | 'cell' | 'well';
+/** the two ways down from the Earth: the main line's, to Seven Havens and on into the cell, and the well's, through
+ *  San Francisco's fog to a plate of liver cells on a lab bench (lab/way.ts) */
+export type Way = 'havens' | 'well';
+/** the realms below the fork that are on one way only (the rest are on both) */
+export const WAY_OF: Partial<Record<RealmId, Way>> = { ground: 'havens', gardens: 'havens', cell: 'havens', well: 'well' };
 
 /** where each realm shows on the zoom (log10 m): from `top` down to `bottom`, where its weight is above nothing. From the
  *  levels' own bands (cosmos/levels/*: their Band's a and d, the widest of a level's parts), the gardens' (gardens.ts
@@ -28,7 +33,11 @@ export const REALM_BANDS: Record<RealmId, [number, number]> = {
   // (Seven Havens' gardens: gardens.ts BAND)
   gardens: [4.4, -3.8],
   cell: [-3.8, -Infinity],
+  // (the well: from where the fog starts closing over San Francisco down among one liver cell's organelles: lab/way.ts)
+  well: [4.75, -6.3],
 };
+/** below this, on the well's way, the fog covers the frame (lab/way.ts FOG_CLOSE): nothing behind it is seen */
+export const FOG_COVER = 4.05;
 /** where the cell takes the camera (cosmos/controls.ts min) */
 export const CELL_TOP = -3.8;
 /** below this, the gardens cover the frame (gardens.ts BAND's b): nothing behind them is seen */
@@ -45,6 +54,8 @@ export interface ZoomWindow {
   start: number;
   /** in the cell, the place it starts at */
   place?: string;
+  /** the one way down it's on, if it's on one (below the fork: windows.ts Way); none, both */
+  way?: Way;
 }
 
 export const WINDOWS: ZoomWindow[] = [
@@ -56,8 +67,10 @@ export const WINDOWS: ZoomWindow[] = [
   { id: 'solar', name: 'The solar system', line: 'From the Oort cloud to the Earth and the Moon, every planet where it is today.', top: 17.2, bottom: 7.0, start: 13.0 },
   { id: 'earth', name: 'The Earth', line: 'Home, the Moon where it is tonight, down to a few kilometres up.', top: 9.9, bottom: 4.9, start: 7.35 },
   // (from where the gardens fill the frame down to her eye, short of the cornea's cells)
-  { id: 'havens', name: 'Seven Havens', line: 'A walled city in a red canyon, and someone lying in its flowers.', top: GARDENS_COVER, bottom: -2.2, start: 3.5 },
-  { id: 'cell', name: 'The cell', line: 'A human cell from the outside in, down to its molecules.', top: CELL_TOP, bottom: null, start: CELL_TOP, place: 'tissue' },
+  { id: 'havens', name: 'Seven Havens', line: 'A walled city in a red canyon, and someone lying in its flowers.', top: GARDENS_COVER, bottom: -2.2, start: 3.5, way: 'havens' },
+  { id: 'cell', name: 'The cell', line: 'A human cell from the outside in, down to its molecules.', top: CELL_TOP, bottom: null, start: CELL_TOP, place: 'tissue', way: 'havens' },
+  // (from a couple of metres over the bench, where the fog has gone, down among the organelles of one cell)
+  { id: 'hepatocyte', name: 'A well of liver cells', line: 'Human liver cells growing in a plate on a lab bench, from a metre up to inside one.', top: 0.3, bottom: -6.3, start: -0.2, way: 'well' },
 ];
 export const UNIVERSE = WINDOWS[0];
 
