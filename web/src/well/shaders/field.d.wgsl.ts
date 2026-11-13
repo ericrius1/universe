@@ -62,9 +62,10 @@ export interface World {
   detail: number;
   dim: number;
   fieldHalf: number;
-  spare0: number;
-  spare1: number;
-  spare2: number;
+  eyeAlt: number;
+  meniscus: number;
+  under: number;
+  optics: Vec4;
 }
 export interface CellG {
   c: Vec4;
@@ -92,6 +93,7 @@ export interface VOut {
 export interface FOut {
   color: Vec4;
   pick: number;
+  optic: Vec4;
 }
 
 declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; MeshVertex: MeshVertex; VOut: VOut; FOut: FOut }, 'frame' | 'G' | 'cells' | 'verts' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;

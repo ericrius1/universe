@@ -62,9 +62,10 @@ export interface World {
   detail: number;
   dim: number;
   fieldHalf: number;
-  spare0: number;
-  spare1: number;
-  spare2: number;
+  eyeAlt: number;
+  meniscus: number;
+  under: number;
+  optics: Vec4;
 }
 export interface CellG {
   c: Vec4;
@@ -106,6 +107,15 @@ export interface FOut {
   color: Vec4;
   pick: number;
 }
+export interface Painted {
+  col: Vec3;
+  optic: Vec3;
+}
+export interface WOut {
+  color: Vec4;
+  pick: number;
+  optic: Vec4;
+}
 
-declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; Well: Well; PlateU: PlateU; VOut: VOut; FOut: FOut }, 'frame' | 'G' | 'P' | 'cells' | 'wells' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; Well: Well; PlateU: PlateU; VOut: VOut; FOut: FOut; Painted: Painted; WOut: WOut }, 'frame' | 'G' | 'P' | 'cells' | 'wells' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

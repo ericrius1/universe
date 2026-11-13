@@ -119,7 +119,8 @@ struct VOut {
   return o;
 }
 
-struct Hit { t: f32, n: vec3f, local: vec3f, ok: bool }
+/** where a ray meets a shape, and the length of its path through it (its chord) */
+struct Hit { t: f32, n: vec3f, local: vec3f, ok: bool, chord: f32 }
 
 fn hitSphere(ro: vec3f, rd: vec3f, c: vec3f, r: f32) -> Hit {
   var h: Hit; h.ok = false;
@@ -130,7 +131,7 @@ fn hitSphere(ro: vec3f, rd: vec3f, c: vec3f, r: f32) -> Hit {
   if (disc < 0.0) { return h; }
   let t = -b - sqrt(disc);
   if (t < 0.0) { return h; }
-  h.t = t; h.local = ro + rd * t - c; h.n = h.local / max(r, 1e-6); h.ok = true;
+  h.t = t; h.local = ro + rd * t - c; h.n = h.local / max(r, 1e-6); h.ok = true; h.chord = 2.0 * sqrt(disc);
   return h;
 }
 
@@ -143,7 +144,7 @@ fn hitCapsule(ro: vec3f, rd: vec3f, c: vec3f, ax: vec3f, len: f32, r: f32) -> Hi
   let oPerp = o - ax * od;
   let rPerp = rd - ax * rdd;
   let a = dot(rPerp, rPerp);
-  var best = 1e30; var n = vec3f(0.0);
+  var best = 1e30; var n = vec3f(0.0); var chord = 0.0;
   if (a > 1e-9) {
     let b = dot(oPerp, rPerp);
     let cq = dot(oPerp, oPerp) - r * r;
@@ -151,17 +152,19 @@ fn hitCapsule(ro: vec3f, rd: vec3f, c: vec3f, ax: vec3f, len: f32, r: f32) -> Hi
     if (disc >= 0.0) {
       let t = (-b - sqrt(disc)) / a;
       let y = od + rdd * t;
-      if (t > 0.0 && abs(y) <= len) { best = t; n = unit(oPerp + rPerp * t); }
+      if (t > 0.0 && abs(y) <= len) { best = t; n = unit(oPerp + rPerp * t); chord = 2.0 * sqrt(disc) / a; }
     }
   }
   for (var k = 0; k < 2; k++) {
     let sgn = select(-1.0, 1.0, k == 1);
     let cc = c + ax * (len * sgn);
     let hs = hitSphere(ro, rd, cc, r);
-    if (hs.ok && hs.t < best) { best = hs.t; n = hs.n; }
+    if (hs.ok && hs.t < best) { best = hs.t; n = hs.n; chord = hs.chord; }
   }
   if (best > 1e29) { return h; }
   h.t = best; h.n = n; h.local = ro + rd * best - c; h.ok = true;
+  // (along the body's length the cylinder's chord runs on past where it ends: no longer than the capsule)
+  h.chord = min(chord, 2.0 * (len + r));
   return h;
 }
 
@@ -189,12 +192,16 @@ fn hitSheet(ro: vec3f, rd: vec3f, c: vec3f, ax: vec3f, len: f32, r: f32) -> Hit 
   h.n = unit(u * nl.x + ax * nl.y + v * nl.z);
   h.local = ro + rd * t - c;
   h.ok = true;
+  h.chord = 2.0 * sqrt(disc) / A;
   return h;
 }
 
 struct FOut {
   @location(0) color: vec4f,
   @location(1) pick: u32,
+  // what the instrument reads (instrument.wgsl): a nucleus's and a nucleolus's optical path over the cytoplasm they
+  // stand in for, and their haematoxylin (the nuclei's draw only)
+  @location(2) optic: vec4f,
   @builtin(frag_depth) depth: f32,
 }
 
@@ -230,7 +237,7 @@ struct FOut {
       let along = dot(h.local, s.ax);
       let rib = 0.5 + 0.5 * sin(along * 26.0 + s.seed);
       let crista = rib * (1.0 - sat(G.swell * fate)) * (1.0 - depol * 0.55);
-      base *= 0.78 + 0.5 * crista;
+      base *= 0.86 + 0.22 * crista;
       emis = (1.0 - depol) * 0.24;
       chan = vec3f(1.0, 0.54, 0.24) * (1.0 - depol) * (0.5 + 0.8 * crista) * G.stain.y;
       chan += vec3f(1.0, 0.88, 0.3) * sat(G.ros * fate) * 0.8 * G.stain2.y;
@@ -288,13 +295,36 @@ struct FOut {
     default: {}
   }
 
-  var col = lit(base, h.n, wp, gloss, emis);
+  // the modelled view: the light that comes through the body along its exact chord (thin edges pale, thick middles
+  // deep), the light itself what's left of it under the crowd over this point of the cell (its depth under the roof)
+  let cl = cells[s.cell];
+  let tr = max(0.0, 1.0 - distance(wp.xz, cl.c.xz) / max(cl.c.w, 1.0));
+  let roof = cl.c.y * (0.13 + 0.87 * pow(sin(tr * 1.5708), 0.68));
+  let light = vec3f(0.24, 0.22, 0.21) * crowdLight(roof - wp.y);
+  var col = through(base, h.chord, max(s.r * 1.6, 0.15), h.n, light) + base * emis * 0.12;
+  col = mix(col, base * (0.25 + emis * 2.4), G.mode);
+  // and as much of it there as the path through it holds: a thin edge or a thin sheet faint, a thick middle whole
+  alpha *= mix(0.3 + 0.7 * (1.0 - exp(-h.chord / max(0.35 * s.r, 0.04))), 1.0, G.mode);
   // injury bleeds a desaturated red through everything in the cell
   col = mix(col, mix(col, C_HARM, 0.55), sat((G.leak + G.karyolysis * 0.6) * fate) * 0.75);
   col = air(col, wp);
   // in the fluorescence register a thing is only its dye
   col = mix(col, chan * 1.15, G.mode);
-  out.color = vec4f(safe(col * G.dim), alpha * i.vis);
+  // (premultiplied)
+  let a = alpha * i.vis;
+  out.color = vec4f(safe(col * G.dim) * a, a);
   out.pick = ((s.kind + 1u) << 20u) | (s.cell & 0xfffffu);
+  // (a nucleolus is inside its nucleus, so behind it in depth: its path is found here, where nucleiOnly put it)
+  var opt = vec2f(0.0);
+  if (s.kind == K_NUC) {
+    let a = cl.k.z * 6.283;
+    let nc = s.c + vec3f(cos(a) * s.r * 0.3, s.r * 0.12, sin(a) * s.r * 0.3);
+    let oc = ro - nc;
+    let b = dot(oc, rd);
+    let nl = 2.0 * sqrt(max(b * b - (dot(oc, oc) - pow(s.r * 0.27, 2.0)), 0.0));
+    opt = vec2f(-0.008 * h.chord + 0.05 * nl, 0.12 * h.chord + 0.2 * nl);
+  }
+  // (the haematoxylin with the rest, by the brightest; the path in alpha, added: instrument.wgsl)
+  out.optic = vec4f(0.0, opt.y, 0.0, opt.x) * i.vis;
   return out;
 }

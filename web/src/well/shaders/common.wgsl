@@ -21,7 +21,13 @@ struct World {
   tint: vec3f, feeders: f32,
   cellSize: f32, canalPhase: f32, detail: f32, dim: f32,
   // half the width of the square field of cells about the chosen well's centre (µm): the collagen under them
-  fieldHalf: f32, spare0: f32, spare1: f32, spare2: f32,
+  fieldHalf: f32,
+  // the eye's height over the well's floor and the meniscus's (µm), and 1 once the eye is down in the medium
+  eyeAlt: f32, meniscus: f32, under: f32,
+  // the instrument (instrument.wgsl): how much of the picture is the simulated instrument's (0 the modelled view), which
+  // (0 phase contrast, 1 brightfield), the blur its optics put in (σ, render pixels), and how near the eye is to
+  // passing through the medium's surface (1 at it)
+  optics: vec4f,
 }
 @group(0) @binding(1) var<uniform> G: World;
 
@@ -70,55 +76,141 @@ fn fbm3(p: vec3f) -> f32 {
 
 // ---------------------------------------------------------------------------------------- the palette
 
-const C_CYTO = vec3f(0.723, 0.171, 0.051);   // #dd7340
-const C_CYTO_HI = vec3f(0.888, 0.386, 0.181);   // #f2a776
-const C_RIM = vec3f(1.000, 0.871, 0.392);   // #fff0a8
-const C_NUC = vec3f(0.202, 0.122, 0.644);   // #7c62d2
-const C_NUCLEOLUS = vec3f(0.102, 0.050, 0.456);   // #5a3fb4
-const C_MITO = vec3f(0.807, 0.093, 0.023);   // #e8562a
-const C_MITO_OFF = vec3f(0.342, 0.275, 0.262);   // #9e8f8c
-const C_ER = vec3f(0.863, 0.323, 0.091);   // #ef9a55
-const C_GOLGI = vec3f(0.723, 0.159, 0.371);   // #dd6fa4
-const C_LYSO = vec3f(0.366, 0.114, 0.658);   // #a35fd4
-const C_LAMELLAR = vec3f(0.571, 0.456, 0.855);   // #c7b4ee
-const C_PEROX = vec3f(0.050, 0.479, 0.309);   // #3fb897
-const C_LIPID = vec3f(0.922, 0.624, 0.045);   // #f6cf3c
-const C_GLYC = vec3f(0.716, 0.371, 0.162);   // #dca470
-const C_BILE = vec3f(0.014, 0.694, 0.254);   // #1fd98a
-const C_BILE_OFF = vec3f(0.479, 0.323, 0.023);   // #b89a2a
-const C_FEEDER = vec3f(0.114, 0.216, 0.624);   // #5f80cf
-const C_FLOOR = vec3f(0.776, 0.716, 0.658);   // #e4dcd4
-const C_HARM = vec3f(0.539, 0.023, 0.016);   // #c22a22
-const C_DEAD = vec3f(0.270, 0.242, 0.296);   // #8e8794
-const C_DNA = vec3f(0.016, 0.687, 0.624);   // #22d8cf
+// Held back: each colour's chroma is about half the old register's (the cells were the colours of a poster on white),
+// since below 200 nm a colour is a choice and on a dark ground a little of it carries far. Linear RGB.
+const C_CYTO = vec3f(0.560, 0.250, 0.130);
+const C_CYTO_HI = vec3f(0.660, 0.380, 0.240);
+const C_RIM = vec3f(0.700, 0.620, 0.400);
+const C_NUC = vec3f(0.250, 0.200, 0.420);
+const C_NUCLEOLUS = vec3f(0.150, 0.100, 0.300);
+const C_MITO = vec3f(0.600, 0.200, 0.100);
+const C_MITO_OFF = vec3f(0.330, 0.290, 0.280);
+const C_ER = vec3f(0.620, 0.360, 0.200);
+const C_GOLGI = vec3f(0.540, 0.250, 0.380);
+const C_LYSO = vec3f(0.360, 0.220, 0.500);
+const C_LAMELLAR = vec3f(0.520, 0.470, 0.680);
+const C_PEROX = vec3f(0.190, 0.420, 0.330);
+const C_LIPID = vec3f(0.720, 0.580, 0.250);
+const C_GLYC = vec3f(0.560, 0.390, 0.260);
+const C_BILE = vec3f(0.120, 0.560, 0.330);
+const C_BILE_OFF = vec3f(0.420, 0.340, 0.130);
+const C_FEEDER = vec3f(0.230, 0.290, 0.460);
+const C_FLOOR = vec3f(0.300, 0.280, 0.260);
+const C_HARM = vec3f(0.460, 0.110, 0.090);
+const C_DEAD = vec3f(0.300, 0.285, 0.310);
+const C_DNA = vec3f(0.120, 0.560, 0.520);
 
-/** the air: near-white in the bright register, nothing at all in fluorescence */
-fn airColor() -> vec3f {
-  let warm = vec3f(1.02, 0.985, 0.955);
-  return mix(warm, vec3f(0.004, 0.006, 0.014), G.mode);
+/** the medium round the cells in the modelled view: never white and never black, a dim warm grey with the culture
+ *  medium's pink held far back in it, lighter toward the light over the well, darker toward the floor and inside a cell
+ *  (the cytosol's, warmer), and uneven — a slow drift of thicker and thinner haze rather than one flat colour.
+ *  Nothing at all in fluorescence */
+fn mediumColor(wp: vec3f, rd: vec3f) -> vec3f {
+  let up = sat(rd.y * 0.5 + 0.5);
+  var c = mix(vec3f(0.030, 0.024, 0.027), vec3f(0.085, 0.072, 0.078), up);
+  // (inside a cell: the cytosol's own haze, warmer and denser)
+  c = mix(c, vec3f(0.062, 0.042, 0.032) * (0.7 + 0.6 * up), sat(G.focus.w));
+  let drift = noise3(wp * 0.012 + vec3f(0.0, frame.time * 0.03, 0.0));
+  c *= 0.78 + 0.44 * drift;
+  return mix(c, vec3f(0.004, 0.005, 0.010), G.mode);
 }
+
+/** (the old name, kept for what still asks for it: the haze's colour seen straight ahead) */
+fn airColor() -> vec3f { return mediumColor(frame.camPos, frame.camFwd); }
 
 fn air(c: vec3f, wp: vec3f) -> vec3f {
   let d = distance(wp, frame.camPos);
   let f = 1.0 - exp(-d * G.fogK);
-  return mix(c, airColor(), f * (1.0 - G.mode * 0.88));
+  if (f < 0.002) { return c; }
+  let rd = (wp - frame.camPos) / max(d, 1e-4);
+  return mix(c, mediumColor(wp, rd), f * (1.0 - G.mode * 0.88));
 }
 
-/** soft lighting: a key from above, a wide wrap as if the light came through the thing itself, a rim at the edge */
+/** how much of the light from above is left at a point in a cell, having come down through the crowd over it (a cell's
+ *  contents are dense enough that the floor of a cell is in its own shade): from its depth under the cell's roof,
+ *  per channel (the crowd takes the blue first) */
+fn crowdLight(depth: f32) -> vec3f {
+  return exp(-vec3f(0.045, 0.060, 0.080) * max(depth, 0.0));
+}
+
+/** a body seen by the light that comes through it (the modelled view's one shading): what's left of the light after
+ *  the path through it, absorbed per channel so that `base` is its colour where it is `thick` micrometres thick — thin
+ *  edges pale and light, thick middles deep — shaded a little by its form toward the light, never a white highlight.
+ *  Under water a protein or a lipid reflects a fifth of a percent: there's nothing to glint */
+fn through(base: vec3f, chord: f32, thick: f32, n: vec3f, light: vec3f) -> vec3f {
+  let sigma = -log(clamp(base, vec3f(0.02), vec3f(1.0))) / max(thick, 0.05);
+  let T = exp(-sigma * max(chord, 0.0));
+  let L = unit(G.sun);
+  let wrap = sat((dot(n, L) + 0.8) / 1.8);
+  return light * T * (0.42 + 0.58 * wrap);
+}
+
+/** the modelled view's soft lighting, for things with no path through them worth the name (a surface): a key from
+ *  above wrapped round as if it came through the thing, a sky from over the well, a rim in the thing's own colour.
+ *  No white specular: `gloss` is a soft sheen in its own colour, at most. Fluorescence: only the dye */
 fn lit(base: vec3f, n: vec3f, wp: vec3f, gloss: f32, emis: f32) -> vec3f {
   let L = unit(G.sun);
   let V = unit(frame.camPos - wp);
   let ndl = dot(n, L);
   let wrap = sat((ndl + 0.72) / 1.72);
   let fres = pow(1.0 - sat(dot(n, V)), 2.6);
-  var c = base * (0.24 + 0.74 * wrap);
-  c += base * fres * 0.42;
-  let h = unit(L + V);
-  c += vec3f(1.0) * pow(max(dot(n, h), 0.0), 48.0) * 0.14 * gloss;
+  var c = base * (0.10 + 0.62 * wrap + 0.16 * sat(n.y * 0.5 + 0.5));
+  c += base * fres * 0.18;
+  c += base * pow(1.0 - sat(dot(n, V)), 1.4) * 0.08 * gloss;
   c += base * emis;
   // in the fluorescence register nothing is lit — a thing is only as bright as the dye in it
   return mix(c, base * (0.25 + emis * 2.4), G.mode);
 }
+
+// ---------------------------------------------------------------------------------------- the lab
+
+// The room round the plate, in the plate's millimetres (x along its columns, z down its rows, y up from the middle of
+// its top face, the bench 11.2 mm under that): a dim lab, one soft light overhead (a frosted panel a metre over the
+// bench, along G.sun), a black resin bench. Shared by the room behind everything (stage.wgsl) and the plate's clear
+// plastic and liquid (plate.wgsl), which show it through themselves and in themselves.
+const BENCH_Y = -11.2;
+const PANEL_H = 1050.0;
+/** the panel's light (HDR), its half size (mm) */
+const PANEL_L = vec3f(15.0, 14.6, 13.8);
+const PANEL_HALF = vec2f(450.0, 260.0);
+/** where it is: nearly overhead, a little off toward the room (its light on the cells is G.sun's, from the same side) */
+const PANEL_DIR = vec3f(0.12, 1.0, 0.16);
+/** the room's own light, everywhere */
+const ROOM_AMB = vec3f(0.020, 0.021, 0.024);
+
+fn panelCentre() -> vec3f { let s = unit(PANEL_DIR); return s * (PANEL_H / s.y) + vec3f(0.0, BENCH_Y, 0.0); }
+
+/** the panel's light off a glossy surface whose reflected ray is R: a broad lobe round its mirror image, for a surface
+ *  not quite a mirror (moulded plastic, a trembling liquid) — its edges and curves catch the light from more angles */
+fn panelGloss(p: vec3f, R: vec3f, sharp: f32) -> vec3f {
+  return PANEL_L * 0.08 * pow(max(dot(R, unit(panelCentre() - p)), 0.0), sharp);
+}
+
+/** the room seen along a direction from a point: the panel (soft-edged, a frosted diffuser), dim walls and ceiling;
+ *  `soft` blurs it, for a satin surface that gives it back */
+fn roomSeen(p: vec3f, rd: vec3f, soft: f32) -> vec3f {
+  let pc = panelCentre();
+  var c = mix(vec3f(0.006, 0.006, 0.007), vec3f(0.022, 0.022, 0.025), smoothstep(-0.3, 0.7, rd.y));
+  if (rd.y > 1e-3) {
+    let t = (pc.y - p.y) / rd.y;
+    let q = (p + rd * t - pc).xz;
+    let e = max(abs(q.x) / PANEL_HALF.x, abs(q.y) / PANEL_HALF.y);
+    c += PANEL_L * (1.0 - smoothstep(0.82 - 0.4 * soft, 1.05 + 1.6 * soft, e)) * (1.0 - 0.6 * soft);
+    // (the ceiling round it, lit by it a little)
+    c += vec3f(0.05, 0.05, 0.055) * exp(-length(q) / 900.0) * smoothstep(1.0, 1.4, e);
+  }
+  return c;
+}
+
+/** the light falling on a point of the bench (or anything on it) from the panel: a pool under it, falling off */
+fn panelLight(p: vec3f) -> vec3f {
+  let pc = panelCentre();
+  let d = pc - p;
+  let h = max(d.y, 1.0);
+  let k = h * h / dot(d, d);
+  return PANEL_L * 0.075 * k * k + ROOM_AMB;
+}
+
+fn sdRect(p: vec2f, h: vec2f) -> f32 { let d = abs(p) - h; return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0); }
 
 // ---------------------------------------------------------------------------------------- per cell
 

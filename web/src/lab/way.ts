@@ -28,9 +28,11 @@ export function fogAt(l: number) {
 /** how far the view looks down at a zoom (rad, the camera's pitch with nothing of the visitor's in it): steeply into the
  *  bore from over the bench, flattening over the sheet of cells, nearly level inside one (Hepatocyte's host.ts), and how
  *  far the visitor can tilt it from that: a little down the bore, where the plastic's in the way, more out in the open */
+// (over the sheet of cells, where the picture is a microscope's, the view stays looking nearly straight down at it as a
+// microscope does, and tilts up into the oblique only as the modelled view takes over, a few cells across)
 const PITCH: [number, number, number][] = [
-  [1, -0.85, 0.65], [0, -0.85, 0.65], [-1.1, -1.25, 0.3], [-1.3, -1.32, 0.1], [-2.6, -1.32, 0.1], [-3.3, -0.75, 0.45],
-  [-4.0, -0.6, 0.5], [-4.7, -0.4, 0.6], [-6.3, -0.25, 0.6],
+  [1, -0.85, 0.65], [0, -0.85, 0.65], [-1.1, -1.25, 0.3], [-1.3, -1.32, 0.1], [-2.6, -1.38, 0.1], [-3.6, -1.3, 0.2],
+  [-4.2, -0.7, 0.45], [-4.7, -0.42, 0.6], [-6.3, -0.25, 0.6],
 ];
 function along(l: number, k: 1 | 2) {
   if (l >= PITCH[0][0]) return PITCH[0][k];

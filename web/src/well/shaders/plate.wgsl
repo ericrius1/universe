@@ -4,35 +4,15 @@
 // against. The plate is laid out in millimetres, the scale you stand back from, and put into the world's micrometres
 // as it's drawn: the world's origin is wherever it's floating (the chosen well's floor, or the camera when the field is
 // out of sight), so `shift` is where the plate's own origin is from there, worked out on the processor in doubles.
-#include "./common"
-
-struct Well {
-  // viability 0..1, the compound's hue, the dose as a fraction of the series' top, 1 if it is the well you are over
-  v: vec4f,
-  // the dominant lesion's colour
-  col: vec4f,
-}
-@group(1) @binding(3) var<storage, read> wells: array<Well>;
-
-struct PlateU {
-  rows: f32, cols: f32, pitch: f32, bore: f32,
-  depth: f32, fill: f32, hover: f32, chosen: f32,
-  originX: f32, originZ: f32, lift: f32, spare: f32,
-  // the plate's origin in the world's floating frame (µm), and micrometres to the millimetre
-  shift: vec3f, unit: f32,
-  // the chosen well's floor over the field of cells: how much of the plate's picture of it is still laid over the real
-  // cells (1 far off, 0 close in), and half the field's width (µm)
-  // and how soft the field's edge is (0 down among the cells: a square, as the field is; 1 from a few millimetres off:
-  // a wide round fade, so the field reads as a patch of the sheet rather than a tile laid on it)
-  veil: f32, fieldHalf: f32, soft: f32, spare2: f32,
-}
-@group(1) @binding(4) var<uniform> P: PlateU;
-
-fn wellCentre(i: u32) -> vec2f {
-  let r = f32(i / u32(P.cols));
-  let c = f32(i % u32(P.cols));
-  return vec2f(P.originX + c * P.pitch, P.originZ + r * P.pitch);
-}
+//
+// It's drawn as it photographs: clear polystyrene on a black bench under one soft light (lab.wgsl). The plastic shows
+// the bench through itself and the light in itself, its rounded edges and the lips of its bores catching the panel
+// overhead (plastic meeting air: the one place a highlight belongs); each well a few millimetres of pink medium that
+// colours what's seen through it, its surface curving up the wall and giving back the light. The cells on a well's
+// floor can't be seen by eye at all: what's on the floor seen from over the plate is the medium's colour and the bench
+// under the clear bottom. Down in the medium the chosen well's floor is the painted field of cells (and the optics'
+// picture of it, instrument.wgsl), giving way to the real ones as they come.
+#include "./lab"
 
 fn hueColor(h: f32) -> vec3f {
   let a = h * 6.2831853;
@@ -51,9 +31,6 @@ struct VOut {
   @location(4) mp: vec3f,
 }
 
-/** the plate's millimetres into the world's frame */
-fn toWorld(p: vec3f) -> vec3f { return p * P.unit + P.shift; }
-
 struct FOut { @location(0) color: vec4f, @location(1) pick: u32 }
 
 @vertex fn vs_body(@builtin(vertex_index) vi: u32) -> VOut {
@@ -65,7 +42,7 @@ struct FOut { @location(0) color: vec4f, @location(1) pick: u32 }
   if (ax == 0u) { n = vec3f(s, 0.0, 0.0); t = vec3f(0.0, 0.0, -s); b = vec3f(0.0, 1.0, 0.0); }
   else if (ax == 1u) { n = vec3f(0.0, s, 0.0); t = vec3f(1.0, 0.0, 0.0); b = vec3f(0.0, 0.0, -s); }
   else { n = vec3f(0.0, 0.0, s); t = vec3f(s, 0.0, 0.0); b = vec3f(0.0, 1.0, 0.0); }
-  let half = vec3f(63.9, P.depth * 0.5, 42.75);
+  let half = vec3f(PLATE_HALF.x, P.depth * 0.5, PLATE_HALF.y);
   let p = vec3f(0.0, -P.depth * 0.5, 0.0) + (n + t * q.x + b * q.y) * half;
   var o: VOut;
   o.mp = p; o.wp = toWorld(p); o.n = n; o.uv = q; o.id = 0u;
@@ -73,29 +50,47 @@ struct FOut { @location(0) color: vec4f, @location(1) pick: u32 }
   return o;
 }
 
+/** Fresnel for a surface in air (or water) from the cosine to the eye */
+fn schlick(f0: f32, c: f32) -> f32 { return f0 + (1.0 - f0) * pow(1.0 - sat(c), 5.0); }
+
 @fragment fn fs_body(i: VOut) -> FOut {
   var o: FOut;
-  let n = unit(i.n);
+  let mp = i.mp;
+  let R = P.bore * 0.5;
+  let top = i.n.y > 0.5;
   // the ninety-six bores are holes in the top face, not paint on it
-  if (n.y > 0.5) {
-    let g = vec2f((i.mp.x - P.originX) / P.pitch, (i.mp.z - P.originZ) / P.pitch);
-    let near = clamp(round(g), vec2f(0.0), vec2f(P.cols - 1.0, P.rows - 1.0));
-    let d = distance(i.mp.xz, vec2f(P.originX + near.x * P.pitch, P.originZ + near.y * P.pitch));
-    if (d < P.bore * 0.5) { discard; }
+  var dw = 99.0;
+  var wc = vec2f(0.0);
+  if (top) {
+    wc = nearestWell(mp.xz);
+    dw = distance(mp.xz, wc);
+    if (dw < R) { discard; }
   }
-  let V = unit(frame.camPos - i.wp);
-  let fres = pow(1.0 - sat(dot(n, V)), 3.0);
-  var col = vec3f(0.56, 0.56, 0.60) * (0.46 + 0.6 * sat(dot(n, unit(G.sun))));
-  if (n.y < 0.5) { col *= 0.72; }
-  col += vec3f(1.0) * fres * 0.55;
-  // a dark lip where the top face meets a bore
-  if (n.y > 0.5) {
-    let g2 = vec2f((i.mp.x - P.originX) / P.pitch, (i.mp.z - P.originZ) / P.pitch);
-    let near2 = clamp(round(g2), vec2f(0.0), vec2f(P.cols - 1.0, P.rows - 1.0));
-    let d2 = distance(i.mp.xz, vec2f(P.originX + near2.x * P.pitch, P.originZ + near2.y * P.pitch));
-    col *= 0.45 + 0.55 * smoothstep(P.bore * 0.5, P.bore * 0.72, d2);
+  let rd = unit(i.wp - frame.camPos);
+  // the moulding's edges are rounded (a millimetre): the normal of a rounded box, which bends over that last
+  // millimetre, so the edges and corners catch the panel and the faces between them don't
+  let half = vec3f(PLATE_HALF.x, P.depth * 0.5, PLATE_HALF.y);
+  let q = mp - vec3f(0.0, -P.depth * 0.5, 0.0);
+  var n = unit(q - clamp(q, -(half - 1.0), half - 1.0));
+  // and so are the bores' lips, half a millimetre over into the hole
+  if (top) {
+    let lip = 1.0 - smoothstep(R, R + 0.55, dw);
+    n = unit(mix(n, vec3f((wc - mp.xz).x, 0.0, (wc - mp.xz).y) / max(dw, 1e-3), lip * 0.75));
   }
-  // (down in the medium the plastic goes into the same haze as the cells; up in the air, G.fogK is 0)
+  let c = dot(n, -rd);
+  let F = schlick(0.052, c);
+  let refl = roomSeen(mp, reflect(rd, n), 0.12) + panelGloss(mp, reflect(rd, n), 60.0);
+  // what's seen through it: the bench under the plate (in the plate's own light), from the top through two faces of
+  // clear plastic and the moulding's web; from a side, the inside of the moulding and the wells' pink beyond it
+  var behind: vec3f;
+  if (top) {
+    let pb = mp + rd * ((BENCH_Y - mp.y) / min(rd.y, -0.05));
+    behind = benchColor(pb, rd) * 0.62;
+  } else {
+    behind = labSeen(mp, rd) * 0.35 + panelLight(mp) * 0.012 * vec3f(1.0, 0.45, 0.55);
+  }
+  // (polystyrene isn't milky, but a moulding scatters a little of the light in it)
+  var col = refl * F + behind * (1.0 - F) + panelLight(mp) * 0.0035;
   col = air(col, i.wp);
   o.color = vec4f(safe(col * G.dim), 1.0);
   o.pick = (19u << 20u);
@@ -105,71 +100,83 @@ struct FOut { @location(0) color: vec4f, @location(1) pick: u32 }
 // --------------------------------------------------------------------------------------------- the wells
 
 const SEG = 28u;
+/** how high it climbs the wall (mm) over how wide a band */
+const CLIMB = 0.75;
+const CLIMB_W = 0.55;
+
+/** the meniscus's height over its middle at a distance r (mm) from the well's axis, and its slope */
+fn menH(r: f32) -> f32 { return CLIMB * exp(-(P.bore * 0.5 - r) / CLIMB_W); }
+fn menSlope(r: f32) -> f32 { return menH(r) / CLIMB_W; }
 
 @vertex fn vs_well(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut {
-  let w = wells[ii];
   let c = wellCentre(ii);
   let R = P.bore * 0.5;
   let top = 0.0;
   let bottom = -P.depth * 0.80;
+  let liquid = bottom + (top - bottom) * P.fill;
   var p = vec3f(0.0);
   var n = vec3f(0.0, 1.0, 0.0);
   var uv = vec2f(0.0);
 
   let wallVerts = SEG * 6u;
   let discVerts = SEG * 3u;
+  let quad = array<vec2f, 6>(vec2f(0,0), vec2f(1,0), vec2f(0,1), vec2f(0,1), vec2f(1,0), vec2f(1,1));
   if (vi < wallVerts) {
     // the bore's wall
     let k = vi / 6u;
-    let j = vi % 6u;
-    let a0 = f32(k) / f32(SEG) * 6.2831853;
-    let a1 = f32(k + 1u) / f32(SEG) * 6.2831853;
-    let pick = array<vec2f, 6>(vec2f(0,0), vec2f(1,0), vec2f(0,1), vec2f(0,1), vec2f(1,0), vec2f(1,1))[j];
-    let a = mix(a0, a1, pick.x);
+    let pick = quad[vi % 6u];
+    let a = mix(f32(k), f32(k + 1u), pick.x) / f32(SEG) * 6.2831853;
     let y = mix(bottom, top, pick.y);
     p = vec3f(c.x + cos(a) * R, y, c.y + sin(a) * R);
     n = vec3f(-cos(a), 0.0, -sin(a));
     uv = vec2f(pick.x, pick.y);
   } else if (vi < wallVerts + discVerts) {
-    // the floor of the well, where the cells are
+    // the floor of the well, where the cells are (all the way to the wall: no gap at its foot to see through)
     let k = (vi - wallVerts) / 3u;
     let j = (vi - wallVerts) % 3u;
     let a0 = f32(k) / f32(SEG) * 6.2831853;
     let a1 = f32(k + 1u) / f32(SEG) * 6.2831853;
-    let r = R * 0.985;
-    if (j == 0u) { p = vec3f(c.x, bottom, c.y); uv = vec2f(0.0, 0.0); }
-    else if (j == 1u) { p = vec3f(c.x + cos(a0) * r, bottom, c.y + sin(a0) * r); uv = vec2f(1.0, 0.0); }
-    else { p = vec3f(c.x + cos(a1) * r, bottom, c.y + sin(a1) * r); uv = vec2f(1.0, 0.0); }
+    if (j == 0u) { p = vec3f(c.x, bottom, c.y); }
+    else if (j == 1u) { p = vec3f(c.x + cos(a0) * R, bottom, c.y + sin(a0) * R); }
+    else { p = vec3f(c.x + cos(a1) * R, bottom, c.y + sin(a1) * R); }
+    uv = vec2f(0.0, 0.0);
     n = vec3f(0.0, 1.0, 0.0);
   } else {
-    // the meniscus: the top of the medium, a little below the rim
-    let k = (vi - wallVerts - discVerts) / 3u;
-    let j = (vi - wallVerts - discVerts) % 3u;
-    let a0 = f32(k) / f32(SEG) * 6.2831853;
-    let a1 = f32(k + 1u) / f32(SEG) * 6.2831853;
-    let r = R * 0.99;
-    let y = bottom + (top - bottom) * P.fill;
-    if (j == 0u) { p = vec3f(c.x, y + 0.14, c.y); uv = vec2f(0.0, 1.0); }
-    else if (j == 1u) { p = vec3f(c.x + cos(a0) * r, y, c.y + sin(a0) * r); uv = vec2f(1.0, 1.0); }
-    else { p = vec3f(c.x + cos(a1) * r, y, c.y + sin(a1) * r); uv = vec2f(1.0, 1.0); }
+    // the meniscus: the top of the medium, curving up the wall, in rings (a fan in the middle, quads out to the wall)
+    let m = vi - wallVerts - discVerts;
+    let k = (m / 30u) % SEG;
+    let j = m % 30u;
+    // (its rings, as fractions of the bore's radius)
+    var rings = array<f32, 6>(0.0, 0.45, 0.7, 0.85, 0.94, 1.0);
+    var ring = 0u; var pick = vec2f(0.0);
+    if (j < 3u) { pick = array<vec2f, 3>(vec2f(0.0, 0.0), vec2f(0.0, 1.0), vec2f(1.0, 1.0))[j]; }
+    else { ring = 1u + (j - 3u) / 6u; pick = quad[(j - 3u) % 6u]; }
+    let rr = select(rings[ring] + (rings[min(ring + 1u, 5u)] - rings[ring]) * pick.y, rings[1] * pick.y, ring == 0u) * R * 0.999;
+    let a = mix(f32(k), f32(k + 1u), pick.x) / f32(SEG) * 6.2831853;
+    p = vec3f(c.x + cos(a) * rr, liquid + menH(rr), c.y + sin(a) * rr);
+    uv = vec2f(0.0, 1.0);
     n = vec3f(0.0, 1.0, 0.0);
   }
 
   // the chosen well's floor stands a little proud of the field's collagen under it, and while its picture is still laid
   // over the cells, above them too (a few tens of micrometres: nothing, from where that can be seen)
-  if (i32(ii) == i32(P.chosen) && n.y > 0.5 && vi >= wallVerts && vi < wallVerts + discVerts) { p.y += P.lift / P.unit; }
+  if (i32(ii) == i32(P.chosen) && vi >= wallVerts && vi < wallVerts + discVerts) { p.y += P.lift / P.unit; }
   var o: VOut;
   o.mp = p; o.wp = toWorld(p); o.n = n; o.uv = uv; o.id = ii;
   o.pos = frame.viewProj * vec4f(o.wp, 1.0);
   return o;
 }
 
+/** the painted field's look and its optics: the colour of the modelled view, and what the instrument reads (optical
+ *  path through it, haematoxylin, PAS: instrument.wgsl) */
+struct Painted { col: vec3f, optic: vec3f }
+
 /** the chosen well's floor as the real cells look from a few millimetres up (field.wgsl), painted: the same cells at
- *  their own size with their rims and their nuclei glowing through, the feeders' lawn round the hepatocytes' islands in
- *  the co-culture, the pillows laid over the collagen as they are — so the cells that take over from the picture are
- *  the colour it was. `q` is the point from the well's middle (µm), `g` the same in cells and `fw` its change across a
- *  pixel (worked out before any branch: where a cell is under a few pixels, its average) */
-fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> vec3f {
+ *  their own size, the feeders' lawn round the hepatocytes' islands in the co-culture, the pillows laid over the
+ *  collagen as they are — so the cells that take over from the picture are the colour it was, and read the same in the
+ *  instrument. `q` is the point from the well's middle (µm), `g` the same in cells and `fw` its change across a pixel
+ *  (worked out before any branch: where a cell is under a few pixels, its average) */
+fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> Painted {
   let gi = floor(g);
   var f1 = 9.0; var f2 = 9.0; var id = gi;
   for (var yy = -1; yy <= 1; yy++) {
@@ -185,92 +192,148 @@ fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> vec3f {
   let isl = noise3(vec3f(id / 3.1, 1.7)) * 0.65 + noise3(vec3f(id / 1.6, 4.2)) * 0.35;
   let hep = G.feeders < 0.5 || (isl - 0.34) * 2.6 > 0.08;
   let up = vec3f(0.0, 1.0, 0.0);
-  let t = sat((f2 - f1) / 0.55);
-  let rim = pow(1.0 - t, 5.0);
+  let cs = max(G.cellSize, 1.0);
+  // the pillow's height: none in the groove (the micrometre either side of the border), rising to its apex
+  let border = (f2 - f1) * cs * 0.5;
+  let t = sat((border - 1.0) / (0.45 * cs));
+  let hmax = select(0.45 * cs * 0.17, 0.45 * cs * 0.86 / max(G.spread, 0.5), hep) * mix(0.3, 1.0, live);
+  let h = select(0.0, hmax * (0.13 + 0.87 * pow(sin(t * 1.5708), 0.68)), border > 1.0);
+  // a nucleus in the middle (a nucleolus in it)
+  let nr = 0.17 * cs;
+  let fr = f1 * cs;
+  let chordN = 2.0 * sqrt(max(nr * nr - fr * fr, 0.0)) * select(0.0, 1.0, hep);
+  let nl = distance(g, id + 0.5 + vec2f(0.05, -0.04)) * cs;
+  let chordNl = 2.0 * sqrt(max(1.1 - nl * nl, 0.0)) * select(0.0, 1.0, hep);
+  let glyc = 1.0 - sat(G.atpLoss * 1.3 + G.swell * 0.7);
+  var opt = vec3f(0.035 * h - 0.008 * chordN + 0.05 * chordNl, 0.12 * chordN + 0.2 * chordNl, select(0.012, 0.06 * glyc, hep) * h);
+  // the modelled view's colour: the light through the pillow on the dim collagen
   var base = select(C_FEEDER, C_CYTO, hep);
-  base = mix(base, select(C_FEEDER * 1.35, C_CYTO_HI, hep), t * 0.32);
-  base = mix(base, C_RIM, rim * select(0.45, 0.85, hep));
   base = mix(base, C_DEAD, (1.0 - live) * 0.6);
-  var cell = lit(base, up, wp, 0.35, 0.03 + rim * 1.7);
-  // (a nucleus glowing through the pillow)
-  cell = mix(cell, lit(C_NUC, up, wp, 0.2, 0.3), (1.0 - smoothstep(0.16, 0.24, f1)) * select(0.25, 0.45, hep));
-  let floorLit = lit(C_FLOOR, up, wp, 0.0, 0.02);
-  let sharp = mix(floorLit, cell, 0.74);
+  let floorLit = C_FLOOR * 0.1;
+  let slant = 1.0 / max(abs(unit(frame.camPos - wp).y), 0.35);
+  var cell = through(base, h * slant, 8.0, up, vec3f(0.34, 0.31, 0.29));
+  cell = mix(cell, through(C_NUC, chordN, 6.0, up, vec3f(0.26, 0.24, 0.24)), sat(chordN / 3.0) * 0.6);
+  let sharp = mix(floorLit, cell, select(0.0, 0.85, h > 0.0));
   // (the average of all that, for a cell under a few pixels: no shimmer)
   let hepShare = select(1.0, 0.72, G.feeders > 0.5);
-  var mb = mix(C_FEEDER * 1.1, mix(C_CYTO, C_CYTO_HI, 0.16), hepShare);
-  mb = mix(mb, C_RIM, 0.1);
-  mb = mix(mb, C_DEAD, (1.0 - live) * 0.6);
-  let mean = mix(floorLit, mix(lit(mb, up, wp, 0.35, 0.12), lit(C_NUC, up, wp, 0.2, 0.3), 0.05), 0.74);
-  return mix(sharp, mean, smoothstep(0.25, 0.6, fw));
+  let mb = mix(C_FEEDER, C_CYTO, hepShare);
+  let mean = mix(floorLit, through(mix(mb, C_DEAD, (1.0 - live) * 0.6), 6.0, 8.0, up, vec3f(0.30, 0.27, 0.25)), 0.8);
+  let meanOpt = vec3f(0.035 * 0.6 * hmax, 0.12 * nr * 0.2, select(0.012, 0.06 * glyc, hep) * hmax * 0.6);
+  let k = smoothstep(0.25, 0.6, fw);
+  var o: Painted;
+  o.col = mix(sharp, mean, k);
+  // in fluorescence: the nuclei's Hoechst, a mitochondrial dye's glow through the cytoplasm, the canalicular dye in
+  // the grooves (field.wgsl, organelles.wgsl, stage.wgsl, as the real cells show them)
+  let fl = vec3f(0.22, 0.38, 1.0) * G.stain.x * sat(2.0 * sqrt(max(nr * nr - fr * fr, 0.0)) / 2.0) * select(0.45, 0.8, hep)
+    + vec3f(1.0, 0.54, 0.24) * G.stain.y * (1.0 - G.depol) * sat(h / max(hmax, 0.1)) * 0.12 * select(0.0, 1.0, hep)
+    + vec3f(0.3, 1.0, 0.76) * G.stain2.x * select(0.0, 0.25, border < 1.0 && hep);
+  o.col = mix(o.col, mix(fl, vec3f(0.04, 0.07, 0.18) * G.stain.x + vec3f(0.06, 0.03, 0.01) * G.stain.y, k), G.mode);
+  o.optic = mix(opt, meanOpt, k);
+  return o;
 }
 
-@fragment fn fs_well(i: VOut) -> FOut {
-  var o: FOut;
+struct WOut { @location(0) color: vec4f, @location(1) pick: u32, @location(2) optic: vec4f }
+
+/** what's left of the light along a path through the medium, from where it is to the eye (or to its surface, the eye
+ *  being over it), and the medium's own glow on that path */
+fn mediumPath(mp: vec3f, rd: vec3f, surface: f32) -> f32 {
+  let e = toPlate(frame.camPos);
+  if (e.y < surface) { return distance(e, mp); }
+  return max(surface - mp.y, 0.0) / max(-rd.y, 0.08);
+}
+
+@fragment fn fs_well(i: VOut) -> WOut {
+  var o: WOut;
   let w = wells[i.id];
   let c = wellCentre(i.id);
+  let R = P.bore * 0.5;
   // (the painted field's cells and their size on the screen, here where every fragment still runs)
   let fq = (i.mp.xz - c) * P.unit;
   let fg = fq / max(G.cellSize, 1.0);
   let ffw = length(fwidth(fg));
-  let n = unit(i.n);
-  let V = unit(frame.camPos - i.wp);
-  let fres = pow(1.0 - sat(dot(n, V)), 2.4);
+  let rd = unit(i.wp - frame.camPos);
   let hot = w.v.w;
+  let liquid = -P.depth * 0.80 * (1.0 - P.fill);
+  let r = distance(i.mp.xz, c);
+  let surface = liquid + menH(min(r, R));
+  let chosen = i32(i.id) == i32(P.chosen);
+  let E = panelLight(i.mp);
 
   var col: vec3f;
   var alpha = 1.0;
-  if (i.uv.y > 0.99 && n.y > 0.5) {
-    // the medium's surface: a film of liquid with the well's colour under it
-    col = mix(vec3f(0.92, 0.94, 0.98), w.col.rgb, 0.45) * 0.42 + vec3f(1.0) * fres * 0.8;
-    alpha = 0.14 + 0.5 * fres;
-  } else if (n.y > 0.5) {
-    // the monolayer, seen from above: the cells as a texture, their colour the state of the well
-    let q = (i.mp.xz - c) / (P.bore * 0.5);
-    let d = length(q);
-    var cellTex = 0.0;
-    // a quick Voronoi so the floor of the well reads as cells rather than paint
-    let g = (i.mp.xz - c) * 9.0;
-    let gi = floor(g);
-    var best = 9.0;
-    for (var yy = -1; yy <= 1; yy++) {
-      for (var xx = -1; xx <= 1; xx++) {
-        let o2 = vec2f(f32(xx), f32(yy));
-        let pt = gi + o2 + vec2f(hash21(gi + o2), hash21(gi + o2 + 19.1));
-        best = min(best, length(pt - g));
-      }
+  var optic = vec4f(0.0);
+  if (i.uv.y > 0.99 && i.n.y > 0.5) {
+    // the medium's surface, curving up the wall: it gives back the room (the panel, a bright crescent where it climbs
+    // the wall), a few percent face on, nearly all of it at a grazing angle; under it, what's seen through it is
+    // dimmed by as much. A tremor in it (the bench is never quite still), seen only close to
+    let rv = (i.mp.xz - c) / max(r, 1e-4);
+    var n = unit(vec3f(-rv.x * menSlope(r), 1.0, -rv.y * menSlope(r)));
+    let near = 1.0 - smoothstep(0.5, 6.0, distance(toPlate(frame.camPos), i.mp));
+    let tw = vec2f(noise3(vec3f(i.mp.xz * 0.9, frame.time * 0.35)), noise3(vec3f(i.mp.xz * 0.9 + 7.3, frame.time * 0.35))) - 0.5;
+    n = unit(n + vec3f(tw.x, 0.0, tw.y) * 0.035 * near);
+    let cs = dot(n, -rd);
+    if (cs > 0.0) {
+      let F = schlick(0.02, cs);
+      col = (roomSeen(i.mp, reflect(rd, n), 0.35) + panelGloss(i.mp, reflect(rd, n), 40.0)) * F;
+      alpha = F;
+    } else {
+      // from under it: the room through Snell's window, the medium's pink by total internal reflection outside it
+      let ci = -cs;
+      let tir = 1.0 - 1.77 * (1.0 - ci * ci) < 0.0;
+      col = select(roomSeen(i.mp, refract(rd, -n, 1.33), 0.0) * 0.9, MEDIUM_GLOW * E * 0.04, tir);
+      alpha = select(0.9, 0.85, tir);
     }
-    cellTex = smoothstep(0.08, 0.42, best);
+    col *= alpha;
+    o.color = vec4f(safe(col * G.dim), alpha);
+    o.pick = (18u << 20u) | (i.id & 0xfffffu);
+    o.optic = vec4f(0.0);
+    return o;
+  } else if (i.n.y > 0.5) {
+    // the floor: clear plastic, the cells on it as good as invisible by eye; the bench under it in the light that came
+    // down through the medium (lab.wgsl throughPlate), a faint haze where the sheet scatters, the medium's own glow
+    let pb = vec3f(i.mp.x, BENCH_Y, i.mp.z);
+    var flo = benchColor(pb, rd) * 0.8;
     let live = w.v.x;
-    var cc = mix(w.col.rgb, hueColor(w.v.y) * 0.6 + C_CYTO * 0.6, 0.25);
-    cc = mix(C_DEAD * 0.7, cc, live * 0.75 + 0.25);
-    col = cc * (0.52 + 0.72 * cellTex) * (0.42 + 0.78 * live);
-    col += C_RIM * (1.0 - cellTex) * 0.3 * live;
-    col *= 1.0 - smoothstep(0.84, 1.0, d) * 0.45;
-    // (the chosen well's, close enough to see its cells: the field's own look, which the real cells keep to)
-    if (i32(i.id) == i32(P.chosen)) {
-      let near = 1.0 - smoothstep(6000.0, 30000.0, distance(frame.camPos, i.wp));
-      if (near > 0.0) { col = mix(col, paintedField(fq, fg, ffw, i.wp, live), near); }
-    }
-    col += col * hot * 0.75;
-    if (i32(i.id) == i32(P.chosen)) {
-      // over the field of real cells the picture of them gives way as you come down to them; past the field's edge it
-      // goes on being the floor of the well
-      let f = abs(i.mp.xz - c) * P.unit;
-      let band = mix(14.0, P.fieldHalf * 0.5, P.soft);
-      let edge = smoothstep(P.fieldHalf - band, P.fieldHalf, mix(max(f.x, f.y), length(f), P.soft));
-      alpha = mix(P.veil, 1.0, edge);
-      if (alpha < 0.002) { discard; }
+    // (the sheet of cells scatters a little: a living sheet more than a well of dead ones, in the readout's colour)
+    flo += E * 0.006 * mix(vec3f(0.9, 0.85, 0.8), w.col.rgb, 0.25) * (0.4 + 0.6 * live);
+    col = flo;
+    if (chosen) {
+      // down in the medium the chosen well's floor is the painted field of cells (the modelled view), and what the
+      // instrument reads of it
+      let pf = paintedField(fq, fg, ffw, i.wp, live);
+      col = mix(col, pf.col, G.under);
+      optic = vec4f(pf.optic, 0.0);
     }
   } else {
-    // the bore
-    col = vec3f(0.70, 0.70, 0.75) * (0.16 + 0.62 * i.uv.y) + vec3f(1.0) * fres * 0.28;
-    col += w.col.rgb * (1.0 - i.uv.y) * 0.5 * w.v.x;
-    col = mix(col, col * 1.35 + w.col.rgb * 0.4, hot);
+    // the bore: clear plastic, giving back the panel at a grazing angle, its neighbours' pink and the dark through it,
+    // darker deeper down
+    let n = unit(i.n);
+    let F = schlick(0.052, dot(n, -rd));
+    let depthIn = sat(i.uv.y);
+    col = roomSeen(i.mp, reflect(rd, n), 0.15) * F + E * (0.006 + 0.018 * depthIn) * vec3f(0.85, 0.5, 0.58) * (1.0 - F);
+    // the hovered well's lip lit in the page's accent (and the chosen one's, faintly)
+    col += vec3f(0.35, 0.38, 0.95) * select(0.02, 0.25, hot > 0.9) * smoothstep(0.82, 1.0, i.uv.y);
   }
-  col = mix(col, col * vec3f(0.5, 0.75, 1.0) + vec3f(0.0, 0.05, 0.12), G.mode * 0.8);
+  // under the surface: the medium's colour along the way to the eye (or to its surface), and its glow
+  if (i.mp.y < surface + 1e-3) {
+    let path = mediumPath(i.mp, rd, surface);
+    let T = exp(-MEDIUM_SIGMA * path);
+    col = col * T + MEDIUM_GLOW * E * 0.010 * (1.0 - T) * mix(1.0, 0.0, G.under * select(0.0, 1.0, chosen));
+  }
+  col = mix(col, col * vec3f(0.5, 0.75, 1.0) + vec3f(0.0, 0.003, 0.008), G.mode * 0.8);
+  if (chosen && i.n.y > 0.5) {
+    // over the field of real cells the picture of them gives way as you come down to them; past the field's edge it
+    // goes on being the floor of the well
+    let f = abs(i.mp.xz - c) * P.unit;
+    let band = mix(14.0, P.fieldHalf * 0.5, P.soft);
+    let edge = smoothstep(P.fieldHalf - band, P.fieldHalf, mix(max(f.x, f.y), length(f), P.soft));
+    alpha = mix(max(P.veil, 1.0 - G.under), 1.0, edge);
+    if (alpha < 0.002) { discard; }
+  }
   col = air(col, i.wp);
   o.color = vec4f(safe(col * G.dim) * alpha, alpha);
   o.pick = (18u << 20u) | (i.id & 0xfffffu);
+  // (laid over the real cells' optics by alpha: the custom blend embed.ts gives it, the instrument's sum fading too)
+  o.optic = vec4f(optic.rgb * alpha, select(0.0, alpha, chosen && i.n.y > 0.5));
   return o;
 }

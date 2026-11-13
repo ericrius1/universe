@@ -1,21 +1,23 @@
-// The things that are not cells: the air you are flying through, the collagen the cells are standing on, and the
-// bile canaliculi running in the grooves between them.
-#include "./common"
+// The things that are not cells: the room round the plate (or, down in a well, the medium), the collagen the cells are
+// standing on, and the bile canaliculi running in the grooves between them.
+#include "./lab"
 #include "weft/fullscreen"
 #include "weft/mesh"
 
-// ------------------------------------------------------------------------------------------------- the air
+// ------------------------------------------------------------------------------------------------- the room
 
 struct SkyOut { @location(0) color: vec4f, @location(1) pick: u32 }
 
+/** behind everything: from the air, the lab (lab.wgsl: the black bench under its one light, the dim room); down in the
+ *  medium, the medium's own haze */
 @fragment fn fs_sky(i: FullscreenOut) -> SkyOut {
   var o: SkyOut;
-  let d = length(i.uv - vec2f(0.5, 0.46)) * 1.5;
-  var c = airColor();
-  // in the bright register the field falls off very slightly toward the corners, the way a lit sample does
-  c *= mix(1.03 - 0.1 * d * d, 1.0, G.mode);
-  c = mix(c, c + vec3f(0.012, 0.006, 0.0), smoothstep(0.2, 1.0, i.uv.y) * (1.0 - G.mode));
-  o.color = vec4f(c * G.dim, 1.0);
+  let rd = viewRay(i.uv);
+  let e = toPlate(frame.camPos);
+  var c = labSeen(e, rd);
+  c = mix(c, mediumColor(frame.camPos + rd * 400.0, rd), G.under);
+  c = mix(c, c * 0.25, G.mode);
+  o.color = vec4f(safe(c * G.dim), 1.0);
   o.pick = 0u;
   return o;
 }
@@ -51,7 +53,7 @@ struct FOut { @location(0) color: vec4f, @location(1) pick: u32 }
   }
   let grain = fbm3(vec3f(p * 0.22, 5.0));
   var base = C_FLOOR * (0.93 + 0.1 * fib + 0.07 * grain);
-  var col = lit(base, vec3f(0.0, 1.0, 0.0), i.wp, 0.0, 0.02);
+  var col = lit(base, vec3f(0.0, 1.0, 0.0), i.wp, 0.0, 0.0) * 0.32;
   col = air(col, i.wp);
   col = mix(col, vec3f(0.01, 0.012, 0.02), G.mode);
   o.color = vec4f(safe(col * G.dim), 1.0);
@@ -87,22 +89,28 @@ struct CanalOut {
   return o;
 }
 
-@fragment fn fs_canal(i: CanalOut) -> FOut {
-  var o: FOut;
+struct COut { @location(0) color: vec4f, @location(1) pick: u32, @location(2) optic: vec4f }
+
+@fragment fn fs_canal(i: CanalOut) -> COut {
+  var o: COut;
   let fate = cellFate(i.ci);
   let loss = sat(G.effluxLoss * fate);
   let n = unit(i.n);
   // the dye travelling down the lumen: what a canalicular efflux assay actually watches
   let flow = 0.5 + 0.5 * sin(i.uv.x * 7.0 - frame.time * 1.6 + f32(i.ci) * 0.7);
-  var base = mix(C_BILE, C_BILE_OFF, loss);
+  var base = mix(C_BILE, C_BILE_OFF, loss) * 0.4;
   base *= 0.7 + 0.75 * flow * (1.0 - loss * 0.8);
-  let emis = (1.3 - 1.1 * loss) * (0.6 + 0.7 * flow);
-  var col = lit(base, n, i.wp, 0.6, emis);
+  // (a glow held back: the dye's, not a lamp's)
+  let emis = (0.06 - 0.04 * loss) * (0.6 + 0.7 * flow);
+  var col = lit(base, n, i.wp, 0.0, emis);
   col = mix(col, C_HARM, sat(G.leak * fate) * 0.4);
   col = air(col, i.wp);
   let chan = vec3f(0.3, 1.0, 0.76) * G.stain2.x * (1.0 - loss) * (0.5 + 0.9 * flow) * 2.0;
   col = mix(col, chan, G.mode);
   o.color = vec4f(safe(col * G.dim), 1.0);
   o.pick = (13u << 20u) | (i.ci & 0xfffffu);
+  // in the optics a canaliculus is a lumen between two cells, less dense than they are: bright in phase contrast. Its
+  // whole width less the cytoplasm it stands in for (a micrometre or so, open; less, shut)
+  o.optic = vec4f(0.0, 0.0, 0.0, -0.09 * canalTone(i.ci));
   return o;
 }
