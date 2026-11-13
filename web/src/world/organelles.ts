@@ -132,10 +132,8 @@ export class Organelles {
     solid('membranes.inner.cuttable', 'vs_inner', 'fs_inner', shellCut, shells, 'front', solidOn, whole);
     // (the cut faces: only what the wedge can reach)
     const capShells = ranged(shellCut, shells, true), capSolids = ranged(solidCut, all, true);
-    // (after the scene, against its depth: they write their own, renderer.ts late)
-    const capBind = { verts, noiseTex, occDepth: r.sceneDepth };
-    r.late.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind: capBind, indices: ib, cull: 'front', enabled: cutOn, encode: (pe) => { capShells(pe); capSolids(pe); } });
-    r.late.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind: capBind, indices: ib, cull: 'back', enabled: cutOn, encode: capShells });
+    s.draw(organelleShader, { label: 'organelles.cut', vertex: 'vs_cap', fragment: 'fs_cap', bind, indices: ib, cull: 'front', enabled: cutOn, encode: (pe) => { capShells(pe); capSolids(pe); } });
+    s.draw(organelleShader, { label: 'organelles.cut.inner', vertex: 'vs_cap_inner', fragment: 'fs_cap', bind, indices: ib, cull: 'back', enabled: cutOn, encode: capShells });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keep: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
     r.glass.draw(organelleShader, { label: 'membranes.glass', vertex: 'vs_outer', fragment: 'fs_glass', bind, indices: ib, cull: 'none', blend: [add, keep], depthWrite: false, enabled: glassOn, encode: ranged(0, shells) });

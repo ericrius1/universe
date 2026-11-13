@@ -32,7 +32,8 @@ struct Organelle {
 @group(1) @binding(0) var<storage, read> organelles: array<Organelle>;
 // the crowd's density round the focus (src/engine/volume.ts, shaders/volume.wgsl): what share of each cell molecules
 // fill, with a short mip chain
-struct Vol { corner: vec3f, voxel: f32, n: f32, on: f32, look: f32, late: f32 }   // look: 0 light, 1 illustrative (renderer.ts)
+struct Vol { corner: vec3f, voxel: f32, n: f32, on: f32, look: f32, shut: f32 }   // look: 0 light, 1 illustrative (renderer.ts); shut: 1 while the eye is outside the
+                                    // nucleus and its envelope is solid (renderer.ts work): chromatin shows only through the cut
 @group(1) @binding(1) var volTex: texture_3d<f32>;
 @group(1) @binding(2) var<uniform> V: Vol;
 
@@ -196,13 +197,6 @@ fn randQuat(h: vec3f) -> vec4f {
   return vec4f(a * sin(u2), a * cos(u2), b * sin(u3), b * cos(u3));
 }
 
-// What writes its own depth (a traced tube, a cut face) can't be hidden by the GPU before it's shaded: those draw in
-// a pass of their own after the scene (renderer.ts late), against a copy of the scene's depth, and each fragment asks
-// it first — hidden by what's there already (reversed Z: nearer is larger), it goes before any of its work
-fn hiddenAt(occ: texture_depth_2d, pos: vec4f, depth: f32) -> bool {
-  return V.late > 0.5 && textureLoad(occ, vec2i(pos.xy), 0) > depth * 1.000002 + 1e-9;
-}
-
 // the haze between the eye and a point d nm away
 fn fogAmount(d: f32) -> f32 { return 1.0 - exp(-max(d, 0.0) / G.fogDist); }
 
@@ -243,6 +237,25 @@ fn nucMolecule(dist: f32) -> bool { return dist < G.lodReach.x; }
 fn bpMolecule(dist: f32) -> bool { return dist < G.lodReach.y; }
 // chromatin's reach round the focus (1 within it, fading to 0 at its edge): everywhere, but for a film's jewel, where the
 // strands round the bead the eye has just left are made out from it as the view widens (src/loop.ts)
+// whether chromatin at p can't be seen: the nucleus shut round it (V.shut) and the eye's line to it not passing through
+// the wedge the cut takes out (it might show through the opening: a little margin, r, round the line's end)
+fn chromatinShut(p: vec3f, r: f32) -> bool {
+  if (V.shut < 0.5) { return false; }
+  if (G.cut <= 0.0) { return true; }
+  let o = frame.camPos;
+  let L = length(p - o);
+  let d = (p - o) / L;
+  let q = o - G.cutCenter;
+  let a1 = dot(q, G.cutN1); let b1 = dot(d, G.cutN1);
+  let a2 = dot(q, G.cutN2); let b2 = dot(d, G.cutN2);
+  var t0 = 0.0; var t1 = L + r;
+  if (abs(b1) < 1e-8) { if (a1 <= 0.0) { return true; } } else { let t = -a1 / b1; if (b1 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
+  if (abs(b2) < 1e-8) { if (a2 <= 0.0) { return true; } } else { let t = -a2 / b2; if (b2 > 0.0) { t0 = max(t0, t); } else { t1 = min(t1, t); } }
+  if (t1 + r <= t0) { return true; }
+  // (and the passage within the cut's reach)
+  let m = o + d * clamp(dot(G.cutCenter - o, d), t0, t1);
+  return length(m - G.cutCenter) > G.cutRadius + r;
+}
 fn chromReach(p: vec3f) -> f32 { let R = G.lodReach.z; return 1.0 - smoothstep(0.7 * R, R, length(p - G.focus)); }
 
 // Light for living matter, under water. Protein and lipid against cytosol reflect about 0.2% face-on (in air, 4%), so
@@ -250,9 +263,9 @@ fn chromReach(p: vec3f) -> f32 { let R = G.lodReach.z; return 1.0 - smoothstep(0
 // and a little translucent: a warm key whose terminator bleeds into the material's deeper colour (wrapped, tinted by
 // `sss`, the colour light picks up inside it), light through thin edges from behind (transmission), ambient light
 // from the water round it by the normal (a hemisphere: the key's side cooler and brighter, the far side warm and
-// deep) in place of a constant fill, and the faintest dielectric lobe, rough and tinted by the material. `occl` is how
-// much of the ambient light the crowd round it takes (0 none), `shad` how much of the key it hides (0 none).
-struct Surf { albedo: vec3f, sss: vec3f, rough: f32, wrap: f32, trans: f32, rim: f32, occl: f32, shad: f32 }
+// deep) in place of a constant fill, and the faintest dielectric lobe, rough and tinted by the material. The crowd's
+// occlusion and shadow are laid on per pixel afterwards (crowdLight, post.wgsl).
+struct Surf { albedo: vec3f, sss: vec3f, rough: f32, wrap: f32, trans: f32, rim: f32 }
 
 // the crowd's density at p, the mean over cells 2^lod wide (none outside the grid, fading out over its last cells)
 fn crowdAt(p: vec3f, lod: f32) -> f32 {
@@ -273,8 +286,10 @@ fn crowdLight(p: vec3f, n: vec3f) -> Crowd {
   let l = normalize(G.keyDir);
   // (the normal leant a little toward the light: the sky's side counts for more)
   let a = normalize(n + l * 0.3);
-  let o = crowdAt(p + a * (1.5 * vx), 0.0) * 0.5 + crowdAt(p + a * (3.0 * vx), 1.0) * 0.8 + crowdAt(p + a * (6.0 * vx), 2.0) * 1.2;
-  c.occl = (1.0 - exp(-o * 2.2)) * V.on;
+  // (the last tap wide and far: deep in a crowd, where little of the water's light gets in from any side)
+  let o = crowdAt(p + a * (1.5 * vx), 0.0) * 0.5 + crowdAt(p + a * (3.0 * vx), 1.0) * 0.8 + crowdAt(p + a * (6.0 * vx), 2.0) * 1.2
+    + crowdAt(p + n * (2.0 * vx), 3.0) * 2.0;
+  c.occl = (1.0 - exp(-o * 2.0)) * V.on;
   let q = p + n * (0.75 * vx);
   let s = crowdAt(q + l * (2.0 * vx), 1.0) * 1.0 + crowdAt(q + l * (4.5 * vx), 2.0) * 1.6 + crowdAt(q + l * (9.0 * vx), 3.0) * 2.4;
   c.shad = (1.0 - exp(-s * 1.6)) * V.on * 0.85;
@@ -289,7 +304,8 @@ fn bioLightAt(p: vec3f, n: vec3f, v: vec3f, s: Surf) -> vec3f {
 }
 fn illustrated(s: Surf) -> vec3f {
   let c = held(s.albedo);
-  return max(mix(vec3f(luma(c)), c, 1.2), vec3f(0.0)) * 0.8 + 0.004;
+  // (flat and a little chalky, as watercolour on paper: the colour lifted toward white rather than lit)
+  return max(mix(vec3f(luma(c)), c, 1.15), vec3f(0.0)) * 0.66 + vec3f(0.045, 0.042, 0.038);
 }
 
 fn ggx(n: vec3f, h: vec3f, a: f32) -> f32 {
@@ -340,7 +356,7 @@ fn bioLight(n: vec3f, v: vec3f, s0: Surf) -> vec3f {
   let l = normalize(G.keyDir);
   let nl = dot(n, l);
   let nv = max(dot(n, v), 1e-3);
-  let key = KEY_C * (1.0 - s.shad);
+  let key = KEY_C;
   // wrapped diffuse, its terminator tinted by the scattered colour
   let wrapD = max((nl + s.wrap) / (1.0 + s.wrap), 0.0);
   let lam = max(nl, 0.0);
@@ -351,12 +367,12 @@ fn bioLight(n: vec3f, v: vec3f, s0: Surf) -> vec3f {
   let a = clamp(s.rough, 0.35, 0.6);
   let h = normalize(l + v);
   let F = 0.01 + 0.05 * pow(clamp(1.0 - dot(h, v), 0.0, 1.0), 5.0);
-  let spec = ggx(n, h, a * a) * lam * F * (1.0 - s.occl);
-  let amb = ambient(n) * (1.0 - s.occl);
+  let spec = ggx(n, h, a * a) * lam * F;
+  let amb = ambient(n);
   var c = diffuse * key + s.albedo * amb + s.sss * back * key * 0.8 + s.albedo * spec * key;
   // the edge where the eye grazes through more of it: its own deeper colour, faint
   let fr = pow(clamp(1.0 - nv, 0.0, 1.0), 4.0);
-  c += s.sss * fr * s.rim * 0.3 * (1.0 - 0.6 * s.occl);
+  c += s.sss * fr * s.rim * 0.3;
   return c;
 }
 

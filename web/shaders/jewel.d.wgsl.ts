@@ -90,7 +90,7 @@ export interface Vol {
   n: number;
   on: number;
   look: number;
-  late: number;
+  shut: number;
 }
 export interface Place {
   inside: number;
@@ -122,8 +122,6 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
-  occl: number;
-  shad: number;
 }
 export interface Crowd {
   occl: number;

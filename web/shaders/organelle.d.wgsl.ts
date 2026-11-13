@@ -90,7 +90,7 @@ export interface Vol {
   n: number;
   on: number;
   look: number;
-  late: number;
+  shut: number;
 }
 export interface Place {
   inside: number;
@@ -122,8 +122,6 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
-  occl: number;
-  shad: number;
 }
 export interface Crowd {
   occl: number;
@@ -160,12 +158,6 @@ export interface GOut {
   nrm: Vec4;
   id: number;
 }
-export interface GOutD {
-  color: Vec4;
-  nrm: Vec4;
-  id: number;
-  depth: number;
-}
 export interface OitOut {
   accum: Vec4;
   reveal: Vec4;
@@ -188,5 +180,5 @@ export interface CutHit {
   t: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; Material: Material; MeshV: MeshV; VOut: VOut; GOut: GOut; GOutD: GOutD; OitOut: OitOut; Lipid: Lipid; Detail: Detail; CutHit: CutHit }, 'frame' | 'G' | 'V' | 'organelles' | 'verts' | 'volTex' | 'noiseTex' | 'occDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; Material: Material; MeshV: MeshV; VOut: VOut; GOut: GOut; OitOut: OitOut; Lipid: Lipid; Detail: Detail; CutHit: CutHit }, 'frame' | 'G' | 'V' | 'organelles' | 'verts' | 'volTex' | 'noiseTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

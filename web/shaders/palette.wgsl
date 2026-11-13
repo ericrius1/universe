@@ -24,12 +24,12 @@ fn material(kind: u32, interior: bool) -> Material {
     case 8u: { m = mat(vec3f(0.70, 0.90, 0.40), vec3f(0.25, 0.55, 0.08), 0.3, 0.5, 0.8, 1.0, 0.6); }      // peroxisome
     case 9u: { m = mat(vec3f(0.45, 0.75, 1.0), vec3f(0.10, 0.35, 0.75), 0.3, 0.5, 0.8, 1.0, 0.55); }      // endosome
     case 10u: { m = mat(vec3f(1.0, 0.90, 0.70), vec3f(0.85, 0.55, 0.25), 0.25, 0.5, 0.9, 1.1, 0.45); }    // vesicle
-    case 11u: { m = mat(vec3f(1.0, 0.93, 0.74), vec3f(0.95, 0.70, 0.30), 0.12, 0.6, 1.0, 1.0, 1.0); }     // lipid droplet
+    case 11u: { m = mat(vec3f(0.90, 0.76, 0.48), vec3f(0.78, 0.50, 0.20), 0.4, 0.6, 1.0, 0.8, 1.0); }     // lipid droplet (neutral fat: a deep straw, not white)
     case 12u: { m = mat(vec3f(0.95, 0.74, 0.66), vec3f(0.88, 0.58, 0.50), 0.35, 0.7, 0.35, 1.2, 0.4); }   // a neighbouring cell
     case 13u: { m = mat(vec3f(0.45, 0.38, 0.85), vec3f(0.30, 0.15, 0.65), 0.4, 0.5, 0.6, 0.8, 0.85); }
     default: { m = mat(vec3f(0.6), vec3f(0.4), 0.5, 0.4, 0.3, 0.5, 1.0); }
   }
-  if (kind == 7u || kind == 11u) { m.glow = 0.05; }
+  if (kind == 7u) { m.glow = 0.05; }
   if (interior) {
     // the inside of a compartment: its wall seen from within, dimmer and deeper
     m.albedo = m.sss * 0.55;

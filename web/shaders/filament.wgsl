@@ -6,9 +6,6 @@
 #include "world.wgsl"
 
 @group(2) @binding(0) var<storage, read> segs: array<Seg>;
-// the scene's depth before the tubes (renderer.ts late): world.wgsl hiddenAt — tested by the nearest any of the tube
-// can be (VOut.front), so what hides that hides all of it
-@group(2) @binding(1) var occDepth: texture_depth_2d;
 fn segAt(i: u32) -> Seg { var s = segs[i]; s.a -= G.origin; s.b -= G.origin; return s; }
 
 struct VOut {
@@ -17,7 +14,6 @@ struct VOut {
   @location(1) @interpolate(flat) seg: u32,
   @location(2) across: f32,
   @location(3) cover: f32,
-  @location(4) @interpolate(flat) front: f32,    // the depth of the nearest any of it can be (reversed Z: the largest)
 }
 struct GOutD { @location(0) color: vec4f, @location(1) nrm: vec4f, @location(2) id: u32, @builtin(frag_depth) depth: f32 }
 struct OitOut { @location(0) accum: vec4f, @location(1) reveal: vec4f }
@@ -54,17 +50,14 @@ fn quad(vi: u32, s: Seg, thin: bool) -> VOut {
   let p = mix(s.a - along * rr, s.b + along * rr, corner.x) + side * corner.y * rr * 1.15 + toEye * rr;
   out.world = p;
   out.across = corner.y;
-  // (along the view's axis the nearest of it is its nearer end's, less the radius)
-  let zf = min(dot(s.a - frame.camPos, frame.camFwd), dot(s.b - frame.camPos, frame.camFwd)) - rr;
-  out.front = select(1.0, frame.near / zf, zf > frame.near);
   out.pos = frame.viewProj * vec4f(p, 1.0);
   if (isCut(mid)) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
   // (none right in front of the lens: the clear round the camera, as the molecules have — a tube flying through it
   // otherwise fills the frame for a frame)
   if (distEye < G.clearRadius * 0.5 && length(s.b - s.a) < G.clearRadius) { out.pos = vec4f(0.0, 0.0, -2.0, 1.0); }
-  // (chromatin whose nucleosomes and linkers are all molecules still, field.wgsl's, or that the haze has all but hidden:
-  // nothing here to draw)
-  if (s.kind == 3u && !thin && (bpMolecule(distEye + s.len + 20.0) || distEye - s.len - 20.0 > 4.0 * G.fogDist)) {
+  // (chromatin whose nucleosomes and linkers are all molecules still, field.wgsl's, that the haze has all but hidden, or
+  // shut in the nucleus out of sight: nothing here to draw)
+  if (s.kind == 3u && !thin && (bpMolecule(distEye + s.len + 20.0) || distEye - s.len - 20.0 > 4.0 * G.fogDist || chromatinShut(mid, s.len + r))) {
     out.pos = vec4f(0.0, 0.0, -2.0, 1.0);
   }
   return out;
@@ -258,7 +251,6 @@ fn fs_chromatin(s: Seg, ro: vec3f, rd: vec3f) -> GOutD {
 }
 
 @fragment fn fs_tube(in: VOut) -> GOutD {
-  if (hiddenAt(occDepth, in.pos, in.front)) { discard; }
   let s = segAt(in.seg);
   let ro = frame.camPos;
   let rd = normalize(in.world - ro);

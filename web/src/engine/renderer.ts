@@ -21,10 +21,6 @@ export class Renderer {
   readonly globals: UniformBuffer<Globals>;
   readonly post: UniformBuffer<any>;
   readonly scene: RenderPass;
-  /** what writes its own depth (traced tubes, cut faces), after the scene: the GPU can't hide those before shading
-   *  them, so each fragment asks a copy of the scene's depth first (`sceneDepth`; world.wgsl hiddenAt) */
-  readonly late: RenderPass;
-  readonly sceneDepth: Texture;
   /** see-through layers (membranes from afar): weighted blended transparency over the scene's depth */
   readonly glass: RenderPass;
   readonly accum: Texture;
@@ -53,6 +49,9 @@ export class Renderer {
   look: 'light' | 'illustrative' | number = (new URLSearchParams(location.search).get('look') as 'illustrative') ?? 'light';
   /** parts of the light that can be left out (for timing them: tools/bench.mjs PARTS, or by hand) */
   parts = { crowd: true, crowdShade: true, motes: true };
+  /** whether the eye is inside the nucleus (cell.ts sets it): chromatin outside the cut is out of sight from outside
+   *  while the envelope is solid (world.wgsl chromatinShut) */
+  eyeInNucleus: () => boolean = () => true;
   /** the crowd's density round the focus, for its occlusion and shadow (engine/volume.ts) */
   readonly crowd: CrowdVolume;
 
@@ -93,19 +92,6 @@ export class Renderer {
       depth: { target: this.depth, clear: 0 },
     });
 
-    this.sceneDepth = k.texture({ label: 'scene.depth', format: 'depth32float', size: 'render', usage: ['sample', 'copy-dst'] });
-    // (only with ?late for now: on this laptop the pass's own cost — the G-buffer stored and loaded again, the depth
-    // copied — came to about what its early test saved, so the tubes and cut faces draw in the scene as before)
-    const noLate = !new URLSearchParams(location.search).has('late');
-    const lateOn = () => !noLate && this.late.draws.length > 0;
-    const keep = k.raw((enc) => { if (lateOn()) enc.copyTextureToTexture({ texture: this.depth.gpu }, { texture: this.sceneDepth.gpu }, [this.depth.width, this.depth.height, 1]); }, 'scene.depth');
-    this.late = noLate ? this.scene : k.pass({
-      label: 'scene.late',
-      color: [{ target: this.hdr, clear: false }, { target: this.nrm, clear: false }, { target: this.ids, clear: false }],
-      depth: { target: this.depth, clear: false },
-      enabled: lateOn,
-    });
-
     // the molecules' beads lit: after the scene has every bead's depth (field.ts draws them there depth-only, first),
     // tested against it and not writing it, so a bead behind what's there is dropped before it's shaded
     this.beads = k.pass({
@@ -141,7 +127,7 @@ export class Renderer {
     const dof = k.pass({ label: 'dof', color: [{ target: this.dofOut, clear: [0, 0, 0, 1] }], enabled: dofOn });
     dof.fullscreen(post, { label: 'dof', fragment: 'fs_dof', bind: { P, srcTex: this.dofHalf } });
 
-    this.items = [this.scene, keep, ...(noLate ? [] : [this.late]), this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
+    this.items = [this.scene, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
     this.afterComp = this.items.indexOf(comp) + 1;
   }
   private afterComp: number;
@@ -164,7 +150,7 @@ export class Renderer {
    *  weighted by the post uniform's `lay` — under what's there as the two hand over — after this frame's own work */
   layInto(target: Texture): RenderPass {
     const p = this.kit.pass({ label: 'cell.lay', color: [{ target, clear: false }] });
-    p.fullscreen(post, { label: 'cell.lay', fragment: 'fs_lay', blend: 'premultiplied', bind: { P: this.post, srcTex: this.lit, dofTex: this.dofOut, depthTex: this.depth } });
+    p.fullscreen(post, { label: 'cell.lay', fragment: 'fs_lay', blend: 'premultiplied', bind: { P: this.post, srcTex: this.lit, dofTex: this.dofOut, depthTex: this.depth, idTex: this.ids } });
     return p;
   }
 
@@ -175,7 +161,8 @@ export class Renderer {
     const S = G.get('scale') as number;
     this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (20000 - S) / 8000)) : 0);
     if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
-    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, late: this.late === this.scene ? 0 : 1 });
+    const shut = (G.get('shellSolid') as number) >= 0.999 && !this.eyeInNucleus();
+    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, shut: shut ? 1 : 0 });
     return [...this.first(), ...this.before, ...this.crowd.work(), ...this.items];
   }
   frame() { this.kit.run(this.work()); }

@@ -10,6 +10,7 @@ import { Molecules } from './world/molecules';
 import { Field } from './world/field';
 import { Walkers } from './world/walkers';
 import { Renderer } from './engine/renderer';
+import { abs } from './engine/origin';
 import { Controls } from './engine/camera';
 import { buildPlaces, type Place } from './ui/places';
 import { cardFor, type Card } from './ui/info';
@@ -57,6 +58,8 @@ export async function buildCell(kit: Kit, canvas: HTMLCanvasElement, o: { base: 
   const field = new Field(kit, r, mols, filaments.set, quality);
   const walkers = new Walkers(world, filaments.set, field);
   const controls = new Controls(canvas);
+  // (where the eye is, for what the nucleus hides: its position absolute, the camera's relative to the origin)
+  r.eyeInNucleus = () => { const c = kit.camera.position; return where(world, abs(c as Vec3)).name === 'nucleus'; };
   return {
     world, r, controls, field, walkers, fil: filaments.set, mols, places: buildPlaces(world), wedge: WEDGE, games: GAMES,
     card: (id) => cardFor(id, (i) => world.organelles[i]?.kind ?? -1),
