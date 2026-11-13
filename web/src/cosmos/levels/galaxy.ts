@@ -29,7 +29,9 @@ export class Galaxy {
   private map: 'none' | 'asked' | 'in' = 'none';
   private mapIn = 0;
   private lastT = 0;
-  private draw!: Draw;
+  private readonly draws: Draw[] = [];
+  /** how far inside the disc the eye is (1: the band alone) */
+  private inside = 0;
   private readonly kit: Kit;
   /** a light device's (a phone's) picture: half the size, the mip it would sample anyway */
   private readonly small: boolean;
@@ -39,8 +41,8 @@ export class Galaxy {
    *  light (per unit of it): the map's lanes are only the darkest of it, and from inside the disc the rest is what
    *  keeps the far side from adding up to a white wall */
   glow = 0.5;
-  dust = 6.0;
-  diffuse = 1.0;
+  dust = 2.5;
+  diffuse = 1.5;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
     this.kit = kit;
@@ -49,12 +51,16 @@ export class Galaxy {
     this.lv = R.level('galaxy', ladder.galaxy, [23.6, 22.6, -99, -100]);
     // (the stars are a second view of the same frame, with their own gains)
     this.stars = R.level('galaxy.stars', ladder.galaxy, [23.0, 22.2, -99, -100]);
-    const on = () => this.lv.on() && this.sky > 0.01;
+    // (inside the disc, where all it draws is the sky's band, one tap a pixel: drawn straight into the scene, not through
+    // a volume's three passes; the march only from outside it)
+    const vis = () => this.lv.on() && this.sky > 0.01;
+    const on = () => vis() && this.inside < 0.999;
     const milkyTex = solidTexture(kit, [0, 0, 0, 1], 1, 'galaxy.sky.none');
     const faceTex = solidTexture(kit, [0, 0, 0, 0], 1, 'galaxy.map.none');
     R.volume('galaxy', on, (p) => {
-      this.draw = p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L, milkyTex, faceTex }, blend: 'premultiplied', enabled: on }) as unknown as Draw;
+      this.draws.push(p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L, milkyTex, faceTex }, blend: 'premultiplied', enabled: on }) as unknown as Draw);
     });
+    this.draws.push(R.scene.fullscreen(galShader, { label: 'galaxy.band', fragment: 'fs_band', bind: { L: this.lv.L, milkyTex, faceTex }, blend: 'premultiplied', enabled: () => vis() && this.inside >= 0.999 }) as unknown as Draw);
     // (every record drawn, the empty ones passed over in its vertex shader, until they're filled)
     this.pts.count = STARS;
     this.ptsBuf = drawPoints(kit, R, this.stars, this.pts, 'galaxy.stars', () => this.stars.on() && this.sky > 0.01 && this.map === 'in');
@@ -67,7 +73,7 @@ export class Galaxy {
       const t = this.kit.texture({ label: 'galaxy.map', format: 'rgba8unorm-srgb', size: [m.width, m.height], mips: 'full' });
       t.write(m.data);
       generateMips(this.kit, t);
-      this.draw.set('faceTex', t);
+      for (const d of this.draws) d.set('faceTex', t);
       if (m.stars) this.ptsBuf.write(m.stars);
       this.map = 'in';
     }, (e) => console.warn('galaxy: no face-on map', e));
@@ -77,7 +83,7 @@ export class Galaxy {
     this.picture = 'asked';
     const url = new URL('havens/sky/milkyway.webp', document.baseURI).href;
     loadImageTexture(this.kit, url, { mips: true, label: 'galaxy.sky', max: this.small ? 2048 : undefined }).then((t: Texture) => {
-      this.draw.set('milkyTex', t);
+      for (const d of this.draws) d.set('milkyTex', t);
       this.picture = 'in';
     }, (e) => console.warn('galaxy: no sky picture', e));
   }
@@ -88,7 +94,7 @@ export class Galaxy {
     this.lv.weight *= this.sky;
     this.stars.weight *= this.sky;
     // (inside the disc, the sky's band takes over from the march)
-    const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
+    const inside = this.inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
     if (this.picture === 'none' && this.lv.weight > 0) this.loadPicture();
     // (the map asked for a little before the galaxy shows, from the web's middle distance in)
     if (this.map === 'none' && Math.log10(S) < 24.4) this.loadMap();

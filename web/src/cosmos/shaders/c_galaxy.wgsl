@@ -85,6 +85,9 @@ fn band(rd: vec3f) -> vec3f {
   return milkyWay(rd);
 }
 
+// the band alone, from deep inside the disc (straight into the scene at full resolution: levels/galaxy.ts)
+@fragment fn fs_band(in: FullscreenOut) -> @location(0) vec4f { return vec4f(band(rayDir(in.uv)) * L.d.y * L.weight, 0.0); }
+
 @fragment fn fs(in: FullscreenOut) -> @location(0) vec4f {
   let rd = rayDir(in.uv);
   let ro = L.eye + L.origin;
