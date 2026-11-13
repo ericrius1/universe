@@ -11,6 +11,14 @@
 
 struct MeshV { px: f32, py: f32, pz: f32, nx: f32, ny: f32, nz: f32, org: u32, flags: u32 }
 @group(2) @binding(0) var<storage, read> verts: array<MeshV>;
+// the value noise's lattice, baked (src/world/organelles.ts noiseLattice): NOISE_N³ corners, the hash's own values,
+// tiling. A lookup at i + fade(f) has the hardware's trilinear filter do the quintic-faded interpolation vnoise does by
+// hand — one fetch for eight hashes
+@group(2) @binding(1) var noiseTex: texture_3d<f32>;
+const NOISE_N = 64.0;
+// whether a fragment may be cut away (the wedge) or dithered out (between glass and solid): a draw without either is
+// made with this off, so the GPU knows nothing of it is discarded and hides what's behind it before shading it
+override CLIP: bool = true;
 
 struct VOut {
   @builtin(position) pos: vec4f,
@@ -63,7 +71,7 @@ fn reachesCut(o: Organelle) -> bool {
   return out;
 }
 
-fn viewNormal(n: vec3f) -> vec4f { return vec4f(normalize((frame.view * vec4f(n, 0.0)).xyz), 1.0); }
+fn viewNormal(n: vec3f) -> vec4f { return octNormal(normalize((frame.view * vec4f(n, 0.0)).xyz)); }
 
 // nm per pixel at a world point
 fn footprint(p: vec3f) -> f32 { return length(p - frame.camPos) * G.pxAngle; }
@@ -75,6 +83,21 @@ fn bayer(px: vec2f) -> f32 {
   return (m[i.y * 4u + i.x] + 0.5) / 16.0;
 }
 
+// vnoise from the baked lattice (the corners wrap every NOISE_N: a different draw of the same noise), snoise's three
+// octaves of it, and world.wgsl's wrinkle made of those
+fn tvnoise(p: vec3f) -> f32 {
+  let i = floor(p);
+  let w = i - floor(i / NOISE_N) * NOISE_N;
+  return textureSampleLevel(noiseTex, samp_repeat, (w + fade3(p - i) + 0.5) / NOISE_N, 0.0).r;
+}
+fn tsnoise(p: vec3f) -> f32 { return tvnoise(p) * 0.6 + tvnoise(p * 2.11 + 3.1) * 0.3 + tvnoise(p * 4.37 + 7.7) * 0.1; }
+fn twrinkle(p: vec3f, n: vec3f, freq: f32, amp: f32) -> vec3f {
+  let q = p * freq;
+  let h0 = tsnoise(q);
+  let g = vec3f(tsnoise(q + vec3f(0.35, 0.0, 0.0)), tsnoise(q + vec3f(0.0, 0.35, 0.0)), tsnoise(q + vec3f(0.0, 0.0, 0.35))) - h0;
+  return normalize(n - (g / 0.35 - n * dot(g / 0.35, n)) * amp);
+}
+
 // the packed heads of a lipid bilayer's leaflet, resolved when a pixel is under ~half a nanometre: a bump normal and
 // a tint per lipid (phosphatidylcholine, -ethanolamine, -serine, sphingomyelin, cholesterol)
 struct Lipid { n: vec3f, tint: vec3f, ao: f32, vis: f32 }
@@ -83,7 +106,7 @@ fn lipids(p: vec3f, n: vec3f, fp: f32) -> Lipid {
   l.vis = 1.0 - smoothstep(0.12, 0.45, fp);
   if (l.vis <= 0.0) { return l; }
   let s = 0.72;
-  let c = cellular(p / s, 0.7);
+  let c = cellular8(p / s, 0.7);
   let d = (p / s - c.c);
   let t = d - n * dot(d, n);
   // each head a little sphere (radius 0.46 cells): its normal tilts out from its centre; past its rim, the crevice
@@ -114,10 +137,10 @@ fn detail(o: Organelle, p: vec3f, n0: vec3f) -> Detail {
   let facing = abs(dot(n0, normalize(frame.camPos - p)));
   let amp = 0.2 * smoothstep(0.05, 0.4, facing);
   let pa = absP(p);
-  let na = wrinkle(pa + o.seed, n0, fa, amp);
-  let nb = wrinkle(pa + o.seed * 1.7, n0, fa * 2.0, amp);
+  let na = twrinkle(pa + o.seed, n0, fa, amp);
+  let nb = twrinkle(pa + o.seed * 1.7, n0, fa * 2.0, amp);
   d.n = normalize(mix(na, nb, t));
-  let mott = mix(snoise(pa * (fa * 0.35) + o.seed), snoise(pa * (fa * 0.7) + o.seed), t);
+  let mott = mix(tsnoise(pa * (fa * 0.35) + o.seed), tsnoise(pa * (fa * 0.7) + o.seed), t);
   d.tint = vec3f(0.9 + 0.1 * mott);
   let lp = lipids(pa, d.n, fp);
   d.n = mix(d.n, lp.n, lp.vis);
@@ -138,10 +161,12 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
 }
 
 @fragment fn fs_outer(in: VOut) -> GOut {
-  if (cutHere(in)) { discard; }
   let o = orgAt(in.org);
-  // membranes are solid only up close (cross-fading by dither with the glass)
-  if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
+  if (CLIP) {
+    if (cutHere(in)) { discard; }
+    // membranes are solid only up close (cross-fading by dither with the glass)
+    if (isShellOrg(o) && bayer(in.pos.xy) > G.shellSolid) { discard; }
+  }
   var out: GOut;
   out.color = vec4f(shade(o, in.world, normalize(in.n), false), 1.0);
   out.nrm = viewNormal(in.n);
@@ -149,8 +174,10 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   return out;
 }
 @fragment fn fs_inner(in: VOut) -> GOut {
-  if (cutHere(in)) { discard; }
-  if (bayer(in.pos.xy) > G.shellSolid) { discard; }
+  if (CLIP) {
+    if (cutHere(in)) { discard; }
+    if (bayer(in.pos.xy) > G.shellSolid) { discard; }
+  }
   let o = orgAt(in.org);
   var out: GOut;
   out.color = vec4f(shade(o, in.world, -normalize(in.n), true), 1.0);
@@ -180,6 +207,11 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   // the film's own glow where it's seen edge-on (light scattered along it)
   c += m.sss * fres * 0.6;
   c = fluoro(c, o.kind, dt.n, v);
+  // (the spotlight, world.wgsl: a lit kind's film thickens and glows its own colour, the rest fades back)
+  if (G.spot > 0.001) {
+    if (spotlit(in.org + 1u)) { a = mix(a, max(a, 0.5), G.spot); c = c * (1.0 + 0.6 * G.spot) + m.albedo * (0.5 * G.spot); }
+    else { a *= 1.0 - 0.65 * G.spot; }
+  }
   let dist = length(p - frame.camPos);
   c = mix(c, G.fogColor, fogAmount(dist));
   // weighted blended OIT (McGuire & Bavoil 2013), distance measured in zooms so it behaves the same at every scale
@@ -215,8 +247,7 @@ fn cutFace(world: vec3f) -> CutHit {
   return h;
 }
 
-fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
-  let sd = sdOrganelle(o, p);
+fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
   let m = material(o.kind, true);
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
   // depth through the material, 0 at the outer face
@@ -251,15 +282,33 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
   let h = cutFace(in.world);
   if (!h.ok) { discard; }
   let o = orgAt(in.org);
-  let sd = sdOrganelle(o, h.p);
+  // (outside its bounding sphere it can't be in its material: no need to ask its surface)
+  if (length(h.p - o.center) > o.bound) { discard; }
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
+  // (nor, a blob or a capsule, where its surface's noise couldn't reach: the most its octaves add, 0.875 and 0.75 of its
+  // amplitude — most of a cut face is deep inside a shell or well outside it, and its surface's noise is the cost)
+  if (o.shape != S_DISC) {
+    var d = 0.0; var base = o.r; var most = 0.75 * abs(o.amp);
+    if (o.shape == S_BLOB) {
+      let q = h.p - o.a;
+      d = length(q);
+      base = ellipsoidRadius(q / max(d, 1e-3), o.b);
+      most = 0.875 * abs(o.amp);
+    } else {
+      let ab = o.b - o.a;
+      d = length(h.p - (o.a + ab * clamp(dot(h.p - o.a, ab) / dot(ab, ab), 0.0, 1.0)));
+    }
+    if (d - base - most > 0.0) { discard; }
+    if (isShellOrg(o) && d - base + most < -th * 1.02) { discard; }
+  }
+  let sd = sdOrganelle(o, h.p);
   // the cut point must be inside this organelle's material (a shell: within its thickness)
   if (sd > 0.0) { discard; }
   if (isShellOrg(o) && sd < -th * 1.02) { discard; }
   let fp = footprint(h.p);
   let v = normalize(frame.camPos - h.p);
   var s: Surf;
-  s.albedo = capPattern(o, h.p, fp); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
+  s.albedo = capPattern(o, h.p, fp, sd); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
   var c = bioLight(h.n, v, s) * 0.85;
   c = fluoro(c, o.kind, h.n, v);
   var out: GOutD;

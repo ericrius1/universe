@@ -45,14 +45,14 @@ export interface Globals {
   fogColor: Vec3;
   fogDist: number;
   bgColor: Vec3;
-  pad1: number;
+  spot: number;
   clearRadius: number;
   pxAngle: number;
   cutRadius: number;
   organelleCount: number;
   hover: number;
   selected: number;
-  quality: number;
+  spots: number;
   flags: number;
   timeScale: number;
   shellSolid: number;
@@ -137,12 +137,17 @@ export interface VOut {
   color: Vec3;
   info4: Vec4;
 }
-export interface GOutD {
+export interface GOut {
   color: Vec4;
   nrm: Vec4;
   id: number;
+}
+export interface BeadHit {
+  t: number;
+  p: Vec3;
+  rd: Vec3;
   depth: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; MolType: MolType; Inst: Inst; VOut: VOut; GOutD: GOutD }, 'frame' | 'G' | 'organelles' | 'types' | 'insts' | 'lists' | 'beads' | 'beadInfo' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; MolType: MolType; Inst: Inst; VOut: VOut; GOut: GOut; BeadHit: BeadHit }, 'frame' | 'G' | 'organelles' | 'types' | 'insts' | 'lists' | 'beads' | 'beadInfo' | 'beadDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -91,9 +91,9 @@ fn emit(inst0: Inst, crowd: bool) {
   let T = types[li / 3u];
   let lod = li % 3u;
   let n = min(atomicLoad(&counts[li]), CAP);
-  args[li * 4u + 0u] = T.lodCount[lod] * 6u;
+  args[li * 4u + 0u] = T.lodCount[lod] * 3u;
   args[li * 4u + 1u] = n;
-  args[li * 4u + 2u] = T.lodStart[lod] * 6u;
+  args[li * 4u + 2u] = T.lodStart[lod] * 3u;
   args[li * 4u + 3u] = li * CAP;
 }
 

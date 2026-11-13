@@ -86,10 +86,13 @@ export class Field {
     r.before.push(clear, crowd, lattice, actors, finish);
 
     if (!k.features.has('indirect-first-instance')) console.warn('cell: no indirect-first-instance — molecules will not draw correctly');
-    r.scene.draw(beadShader, {
-      label: 'molecules', bind: { types: mols.typeTable, insts, lists, beads: mols.beads, beadInfo: mols.beadInfo }, cull: 'none',
-      encode: (pe) => { for (let i = 0; i < NLISTS; i++) pe.drawIndirect(args.gpu, i * 16); },
-    });
+    // (each bead twice: its depth first of all in the scene — so what it hides isn't shaded either — then lit where it's
+    // the nearest, renderer.ts beads)
+    const beadBind = { types: mols.typeTable, insts, lists, beads: mols.beads, beadInfo: mols.beadInfo };
+    const encode = (pe: GPURenderPassEncoder) => { for (let i = 0; i < NLISTS; i++) pe.drawIndirect(args.gpu, i * 16); };
+    r.scene.draw(beadShader, { label: 'molecules.depth', vertex: 'vs_depth', fragment: 'fs_depth', bind: beadBind, cull: 'none', encode });
+    r.scene.draws.unshift(r.scene.draws.pop()!);
+    r.beads.draw(beadShader, { label: 'molecules', vertex: 'vs', fragment: 'fs', bind: { ...beadBind, beadDepth: r.depth }, cull: 'none', depthWrite: false, encode });
 
     // the filament segments that carry molecules, bucketed for the per-frame search
     const d = fil.data, u = new Uint32Array(d.buffer, d.byteOffset, d.length);
