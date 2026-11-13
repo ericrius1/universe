@@ -153,7 +153,9 @@ fn beadHit(in: VOut) -> BeadHit {
       n = normalize(mix(n, normalize(n * 0.55 + tg), (1.0 - bump) * vis));
       s.albedo *= mix(1.0, mix(0.55, 1.0, bump), vis);
     }
-    s.rough = 0.4; s.rim = 0.6; s.trans = 0.6;
+    // (a membrane bubble: its cream held down to a straw, so it doesn't read as a white ball)
+    s.albedo *= vec3f(0.8, 0.7, 0.52); s.sss = s.albedo * vec3f(0.85, 0.6, 0.45);
+    s.rough = 0.4; s.rim = 0.5; s.trans = 0.45;
   }
   if ((flags & F_GLOW) != 0u) { glow = in.color * 1.6; }
   // the path through the bead along this ray, exactly: a sphere's chord 2√(r² − b²) at impact parameter b, as a share
