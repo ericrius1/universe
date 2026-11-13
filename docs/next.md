@@ -160,3 +160,17 @@ The pieces, and whose files are whose (if it isn't in your row, it's someone els
 
 GPU time is the scarce thing with this many of us: take pictures of the places you changed (`ONLY=`), not of
 everything, and time only what you changed until you're nearly done; the full run happens when a piece is merged.
+
+## Round three: the finish
+
+Everything in round two is in: the real sky (stars, constellations, galaxies, the measured web, Planck's map), the real
+Earth, Moon and planets with a camera that can focus on them and a time dial, the guide with its instruments, the well
+with its microscope looks, the cell's new light. What's left is making it hold together and look its best.
+
+| piece | branch | port | its files |
+|---|---|---|---|
+| The sky's look | n-skylook | 5766 | `cosmos/levels/web.ts`, `localgroup.ts`, `galaxy.ts`, `galaxymap.ts`, `local.ts`, `points.ts`, their shaders, `cosmos/places.ts` |
+| The guide's wiring | n-finish | 5769 | `web/src/ui/`, `app.ts`, `index.html`, `cosmos/story.ts`, `pipeline/` |
+
+Ports: 5751 serves `main` as it was before any of this; 5754 `next` after round one; 5763 `next` with all of round two
+(the one to time against: `AGAINST=5763`). The laptop is quiet again, so timings mean something: use them.
