@@ -11,7 +11,7 @@ import type { Vec3 } from 'math';
 import figShader from '../shaders/c_figures.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
 import { PointSet, drawPoints, rng } from './points';
-import type { Ladder } from '../frames';
+import type { Frame, Ladder } from '../frames';
 import { bvColor, fetchBin, fetchJSON, parseStars, type Figure, type Star, type StarName } from '../sky';
 
 /** the catalogue's faintest from the Sun (stars8.bin): the crowd stays fainter than this */
@@ -25,6 +25,14 @@ const FIG_LIGHT = 0.022, FIG_GAP = 7, FIG_WIDTH = 1.1;
 const SUN_MV = 4.83, SUN_BV = 0.65, SUN_NEAR = 0.4;
 /** a star's luminosity in the points' units (its flux from 1 pc): from its V seen at d parsecs */
 const lumOf = (V: number, d: number) => d * d * Math.pow(10, -0.4 * V);
+
+/** galactic (l, b) to the galaxy frame's axes: −x toward the centre, y the north pole, z toward l = 90° */
+export function galDir(l: number, b: number): [number, number, number] {
+  const L = (l * Math.PI) / 180, B = (b * Math.PI) / 180;
+  return [-Math.cos(B) * Math.cos(L), Math.sin(B), Math.cos(B) * Math.sin(L)];
+}
+/** the stars once placed here by hand (name, l, b, distance pc, …): none now — the catalogue answers (Local.find) */
+export const NAMED: [string, number, number, number, number, number][] = [];
 
 export interface NamedStar { name: string; hip: number; bayer?: string; designation: string; pos: Vec3; V: number }
 
@@ -172,6 +180,37 @@ export class Local {
       if (!best || mag < best.mag) best = { ...s, mag, angle: Math.acos(Math.min(1, c)) };
     }
     return best;
+  }
+
+  /** where a named thing of this level is (ui/things.ts FindsThings): a star by its IAU name ('Sirius', 'Rigil
+   *  Kentaurus'), or a constellation's figure by its abbreviation as lines.json keys it ('Ori'): the figure's place is
+   *  the middle of its stars as seen from the Sun, at their median distance, its radius enough to ring them from here */
+  find(kind: string, name: string): { frame: Frame; at: Vec3; r?: number; name?: string } | null {
+    if (kind === 'star') {
+      const s = this.star(name);
+      return s ? { frame: this.lv.frame, at: [s.pos[0], s.pos[1], s.pos[2]], name: s.name } : null;
+    }
+    if (kind === 'figure') {
+      const f = this.figureSet[name];
+      if (!f) return null;
+      const hips = [...new Set(f.lines.flat())], dirs: Vec3[] = [], dists: number[] = [], m: Vec3 = [0, 0, 0];
+      for (const h of hips) {
+        const s = this.byHip.get(h);
+        if (!s) continue;
+        const d = Math.hypot(s.pos[0], s.pos[1], s.pos[2]);
+        const u: Vec3 = [s.pos[0] / d, s.pos[1] / d, s.pos[2] / d];
+        dirs.push(u); dists.push(d);
+        for (let i = 0; i < 3; i++) m[i] += u[i];
+      }
+      if (!dirs.length) return null;
+      const ml = Math.hypot(m[0], m[1], m[2]) || 1;
+      for (let i = 0; i < 3; i++) m[i] /= ml;
+      let ang = 0;
+      for (const u of dirs) ang = Math.max(ang, Math.acos(Math.min(1, u[0] * m[0] + u[1] * m[1] + u[2] * m[2])));
+      const D = dists.sort((a, b) => a - b)[dists.length >> 1];
+      return { frame: this.lv.frame, at: [m[0] * D, m[1] * D, m[2] * D], r: D * Math.tan(Math.min(ang * 1.1, 1.2)), name: f.name };
+    }
+    return null;
   }
 
   update(S: number) {
