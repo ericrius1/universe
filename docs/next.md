@@ -108,3 +108,38 @@ tell you a frame went black.
   page and with `?phone`.
 - End with a report: what changed and where, bench lines before and after, where the pictures are, and what's
   unfinished or risky. Say plainly what you didn't get to.
+
+## Round two: the content and the look
+
+Round one made room: the marches above the cell cost a tenth of what they did (so there's time in the frame to spend
+on real data), the data is fetched, and the page opens as windows. Round two fills it. Recipes and sources for
+everything here are in `docs/look.md`: read the part for your piece before writing a shader.
+
+What round one left that you'll build on:
+- **The data**, in `web/public/data/`: `sky/` (Hipparcos stars to V 8 with distances and colours, proper names,
+  constellation lines as pairs of Hipparcos numbers, a face-on map of the Milky Way and its dust), `galaxies/` (43,533
+  2MRS galaxies with distances and types, a 128³ density of the nearest 200 Mpc, the Local Group, named structures),
+  `cmb/` (Planck's map, ±500 µK), `globe/` (the Earth by day and night, clouds, relief, a sea mask), `moon/`,
+  `planets/` (with Saturn's rings' opacity along their radius), `orbits/`. Each folder has a `.json` beside its files
+  that says exactly what's in them (record layouts, axes, units, encodings): read it, don't guess.
+  `pipeline/SOURCES.md` has where each came from and the credit it asks for. Nothing draws them yet.
+- **Volumes** (`cosmos/renderer.ts` `volume()`): marched at half the frame, laid in with a tent, with a short history
+  while the view holds still (`L.march.x` is this frame's offset along the first step). Their noise is baked into
+  small tiling textures (`cosmos/noisetex.ts`): a tap, not a hash.
+- **The band behind everything** is the real sky's picture (`havens/sky/milkyway.webp`, in `levels/galaxy.ts`).
+- Timings after round one are in `perf/air-next1.json` once it's there; until then compare with `perf/air-main.json`
+  and don't make anything slower than it was.
+
+The pieces, and whose files are whose (if it isn't in your row, it's someone else's: a few lines at most, and say so):
+
+| piece | branch | port | its files |
+|---|---|---|---|
+| Stars | n-stars | 5765 | `cosmos/levels/local.ts`, `points.ts`, `shaders/c_points.wgsl`, `cosmos/film.ts`, exposure in `cosmos/renderer.ts` and `c_post.wgsl`, new files |
+| Deep sky | n-deepsky | 5766 | `cosmos/levels/web.ts`, `galaxy.ts`, `shaders/c_web.wgsl`, `c_galaxy.wgsl`, `noisetex.*`, `c_noisebake.wgsl`, new files |
+| Worlds | n-worlds | 5767 | `cosmos/levels/solar.ts`, `earth.ts`, `air.ts`, `shaders/c_solar.wgsl`, `c_earth.wgsl`, `air*.wgsl`, the camera's focus in `cosmos/controls.ts` |
+| The well | n-well | 5768 | `web/src/well/` (new), `windows.ts`, `realms.ts`, `tools/hepatocyte-sync.mjs` (new) |
+| Guide and instruments | n-guide | 5769 | `web/src/ui/`, `app.ts`, `index.html` |
+| The cell's light | n-light | 5770 | `web/shaders/`, `web/src/engine/renderer.ts` |
+
+GPU time is the scarce thing with this many of us: take pictures of the places you changed (`ONLY=`), not of
+everything, and time only what you changed until you're nearly done; the full run happens when a piece is merged.
