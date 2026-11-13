@@ -180,6 +180,11 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   // the film's own glow where it's seen edge-on (light scattered along it)
   c += m.sss * fres * 0.6;
   c = fluoro(c, o.kind, dt.n, v);
+  // (the spotlight, world.wgsl: a lit kind's film thickens and glows its own colour, the rest fades back)
+  if (G.spot > 0.001) {
+    if (spotlit(in.org + 1u)) { a = mix(a, max(a, 0.5), G.spot); c = c * (1.0 + 0.6 * G.spot) + m.albedo * (0.5 * G.spot); }
+    else { a *= 1.0 - 0.65 * G.spot; }
+  }
   let dist = length(p - frame.camPos);
   c = mix(c, G.fogColor, fogAmount(dist));
   // weighted blended OIT (McGuire & Bavoil 2013), distance measured in zooms so it behaves the same at every scale
