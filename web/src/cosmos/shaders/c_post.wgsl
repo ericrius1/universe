@@ -55,6 +55,36 @@ fn karis(c: vec3f) -> f32 { return 1.0 / (1.0 + dot(c, vec3f(0.2126, 0.7152, 0.0
   return vec4f(o / 16.0 * B.weight, 1.0);
 }
 
+// the meter (renderer.ts): the frame's log-average light, weighted to the middle (where the zoom's target is, and the
+// body it's about), from the bloom's smallest level; the stops it takes off the stars when something bright fills the
+// frame, eased in time by the share `rate` this frame keeps (the blend: 1 on a film or a dome, so their frames are the
+// same however they're reached). M.a: x rate, y the meter's say (the zoom's keyframe), z the log-average a dark sky
+// stays under, w stops per unit over it; M.b: x the most it takes off, y the light the log is taken over (its floor)
+struct MeterU { a: vec4f, b: vec4f }
+@group(2) @binding(4) var<uniform> M: MeterU;
+
+@fragment fn fs_meter(in: FullscreenOut) -> @location(0) vec4f {
+  let n = vec2i(textureDimensions(srcTex));
+  let m = min(n, vec2i(64));
+  var sum = 0.0; var wsum = 0.0;
+  for (var y = 0; y < m.y; y++) {
+    for (var x = 0; x < m.x; x++) {
+      let p = (vec2f(f32(x), f32(y)) + 0.5) / vec2f(m);
+      let c = textureLoad(srcTex, vec2i(p * vec2f(n)), 0).rgb;
+      // (the bloom's first level keeps its light compressed, l / (1 + l / 4): undone)
+      let yc = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+      let l = yc / max(1.0 - yc * 0.25, 0.02);
+      let q = (p - 0.5) * vec2f(f32(n.x) / f32(n.y), 1.0);
+      let w = exp(-dot(q, q) / (2.0 * 0.3 * 0.3));
+      sum += w * log2(1.0 + l / M.b.y);
+      wsum += w;
+    }
+  }
+  let avg = sum / max(wsum, 1e-6);
+  let stops = -clamp((avg - M.a.z) * M.a.w, 0.0, M.b.x) * M.a.y;
+  return vec4f(stops, avg, 0.0, M.a.x);
+}
+
 @fragment fn fs_final(in: FullscreenOut) -> @location(0) vec4f {
   if (F.out.z > 0.5 && length(in.uv - 0.5) > 0.5) { return vec4f(0.0, 0.0, 0.0, F.out.x); }
   let c = textureSampleLevel(srcTex, samp_linear, in.uv, 0.0).rgb;

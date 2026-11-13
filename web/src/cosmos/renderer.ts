@@ -25,6 +25,35 @@ const HISTORY = 12;
 /** a level's weight over the zoom (log10 m): 0 above a, rising to 1 at b, 1 down to c, 0 by d (a > b ≥ c > d) */
 export type Band = [number, number, number, number];
 const smooth = (t: number) => { const x = Math.max(0, Math.min(1, t)); return x * x * (3 - 2 * x); };
+
+/** the camera's exposure over the zoom: keyframes of log10 m, the stops the stars are exposed at there (L.exposure,
+ *  for every level; 0 is as each level's gains were set), and how much say the meter has there (0: none — the galaxy
+ *  and the web as graded; 1: in the solar system and at the Earth, where a lit body can fill the frame). Eased between
+ *  them over the zoom, smoothly */
+export const EXPOSURE_KEYS: [number, number, number][] = [
+  [21.0, 0, 0],      // the Milky Way and above
+  [19.6, 0, 0],      // the Sun's neighbourhood, from outside
+  [17.7, 0, 0.3],    // the neighbours
+  [14.5, 0, 1],      // the solar system
+  [9.5, 0, 1],       // the Earth and the Moon
+  [7.35, -3, 1],     // the Earth: its day side's in the frame
+  [5.5, 0, 1],       // coming down: the sky over the ground
+];
+/** the keyframes at a zoom: [stops, the meter's say] */
+export function exposureAt(logS: number): [number, number] {
+  const K = EXPOSURE_KEYS;
+  if (logS >= K[0][0]) return [K[0][1], K[0][2]];
+  for (let i = 0; i < K.length - 1; i++) {
+    const a = K[i], b = K[i + 1];
+    if (logS >= b[0]) { const t = smooth((a[0] - logS) / (a[0] - b[0])); return [a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  }
+  const z = K[K.length - 1];
+  return [z[1], z[2]];
+}
+/** the meter (c_post.wgsl fs_meter): the log-average a dark sky stays under, the stops per unit over it, the most it
+ *  takes off, the light its log is over, and how fast it eases (s) */
+const METER = { dark: 0.8, gain: 3.5, most: 9, floor: 0.01, ease: 0.45 };
+
 export const bandWeight = (l: number, [a, b, c, d]: Band) => (l > b ? 1 - smooth((l - b) / (a - b)) : 1) * (l < c ? 1 - smooth((c - l) / (c - d)) : 1);
 
 /** drawn for a planetarium instead of a screen: a square domemaster `size` pixels across, into `out` (an sRGB
@@ -50,6 +79,15 @@ export interface Level {
 export class CosmosRenderer {
   readonly hdr: Texture;
   readonly bloom: Texture;
+  /** the meter: one texel, r the stops the stars' exposure is eased by (c_post.wgsl fs_meter; c_points.wgsl reads it),
+   *  g the frame's log-average it was worked from */
+  readonly meter: Texture;
+  private readonly M: UniformBuffer<any>;
+  /** the camera's exposure from the zoom's keyframes this frame (stops: exposureAt), before the meter's */
+  exposure = 0;
+  /** the meter's frames the same however they're reached (no easing in time: a film's or a dome's), else eased */
+  steady: boolean;
+  private lastTime = -1;
   readonly scene: RenderPass;
   /** the film's uniform (loom/film), and its settings this frame: the cosmos's own, or a host's mixed in */
   readonly P: UniformBuffer<any>;
@@ -112,6 +150,9 @@ export class CosmosRenderer {
       ? k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: [N / 2, N / 2], mips: BLOOM_MIPS })
       : k.texture({ label: 'cosmos.bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM_MIPS });
     this.P = k.uniforms(post.structs.FilmU, 'cosmos.film');
+    this.meter = k.texture({ label: 'cosmos.meter', format: 'rgba16float', size: [1, 1], usage: ['sample', 'render', 'copy-src'] });
+    this.M = k.uniforms(post.structs.MeterU, 'cosmos.meter');
+    this.steady = !!dome || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('film'));
     this.encode = !dome || dome.out === 'screen';
     // (a dome's fisheye: no vignette, no grain, black outside its circle)
     this.film = dome ? { ...COSMOS_FILM, vignette: 0, grain: 0 } : { ...COSMOS_FILM };
@@ -133,6 +174,10 @@ export class CosmosRenderer {
       p.fullscreen(post, { label: `cosmos.bloom.up${i}`, fragment: 'fs_up', blend: 'add', bind: { B: u, srcTex: this.bloom.mip(i + 1) } });
       items.push(p);
     }
+    // (the meter, from the bloom's smallest level, for the next frame's stars)
+    const meter = k.pass({ label: 'cosmos.meter', color: [{ target: this.meter, clear: false }] });
+    meter.fullscreen(post, { label: 'cosmos.meter', fragment: 'fs_meter', blend: 'alpha', bind: { M: this.M, srcTex: this.bloom.mip(BLOOM_MIPS - 1) } });
+    items.push(meter);
     const fin = k.pass({ label: 'cosmos.final', color: [{ target: !dome || dome.out === 'screen' ? 'screen' : dome.out.mip(0), clear: [0, 0, 0, 1] }], enabled: () => !this.over });
     this.finDraws.push(fin.fullscreen(post, { label: 'cosmos.final', fragment: 'fs_final', bind: { F: P, B: this.bloomLv[0], srcTex: this.hdr, bloomTex: this.bloom.mip(0) } }) as unknown as Draw);
     const finOver = k.pass({ label: 'cosmos.final.over', color: [{ target: 'screen', clear: false }], enabled: () => this.over });
@@ -224,6 +269,14 @@ export class CosmosRenderer {
     this.ladder.pivotOffset(logS, this.offset);
     this.noteView(c, W, H);
     const march = [this.marchJitter, 0, 0, 0];
+    // the exposure: the zoom's keyframe, and the meter's say there (eased in time, unless steady)
+    const [stops, say] = exposureAt(logS);
+    this.exposure = stops;
+    const dt = this.lastTime < 0 ? 0 : Math.max(0, time - this.lastTime);
+    this.lastTime = time;
+    const rate = this.steady || dt === 0 ? 1 : 1 - Math.exp(-dt / METER.ease);
+    this.M.set({ a: [rate, say, METER.dark, METER.gain], b: [METER.most, METER.floor, 0, 0] });
+    const exposure = Math.pow(2, stops);
     for (const lv of this.levels) {
       lv.weight = bandWeight(logS, lv.band);
       const f = lv.frame;
@@ -240,7 +293,7 @@ export class CosmosRenderer {
       }
       lv.L.set({
         origin: lv.origin, weight: lv.weight, eye: lv.eye, scale: lv.scale, fwd: lv.fwd, tanHalf, right: lv.right, aspect,
-        up: lv.up, time: time % TIME_WRAP, pxAngle, view, march,
+        up: lv.up, time: time % TIME_WRAP, exposure, pxAngle, view, march,
       });
     }
   }
