@@ -39,8 +39,7 @@ async function open(at) {
   const tag = `about:blank#bench-${process.pid}-${Date.now()}-${pages.length}`;
   await s.send('Target.createTarget', { url: tag, newWindow: true, width: Number(w), height: Number(h) });
   const page = await (await browser.waitForTarget((t) => t.url() === tag, { timeout: 15000 })).page();
-  const cdp = await page.createCDPSession();
-  pages.push({ page, cdp, at });
+  pages.push({ page, at });
   if (phone) await page.setUserAgent(IPHONE);
   await page.setViewport({ width: Number(w), height: Number(h), deviceScaleFactor: Number(dpr), isMobile: phone, hasTouch: phone });
   page.on('console', (m) => { if (m.type() === 'error') console.error(`[error] ${m.text()}`); });
@@ -51,12 +50,19 @@ async function open(at) {
   await page.waitForFunction(() => !window.app.gardens || window.app.gardens.ready, { timeout: 240000, polling: 500 });
   return pages[pages.length - 1];
 }
-/** a page stopped (no frames, no timers) or let go again: only one draws at a time */
-const frozen = (p, on) => p.cdp.send('Page.setWebLifecycleState', { state: on ? 'frozen' : 'active' });
+/** a page held (its frames kept back, so it draws nothing) or let go again: only one draws at a time. Held by its own
+ *  requestAnimationFrame (window.__hold, made in install): Chrome's lifecycle 'frozen' would do, but a headless page
+ *  thawed from it stays hidden and never draws again */
+const frozen = (p, on) => p.page.evaluate((on) => window.__hold(on), on);
 /** what a page can time: its places by name, each set up and timed when asked (window.__bench) */
 const install = (only) => {
   const { app, kit } = window;
   kit.profiler.force = true;
+  // (holding the page: the frames it asks for kept till it's let go)
+  const raf = window.requestAnimationFrame.bind(window);
+  let kept = null;
+  window.requestAnimationFrame = (f) => (kept ? (kept.push(f), 0) : raf(f));
+  window.__hold = (on) => { if (on) kept ??= []; else { const q = kept ?? []; kept = null; for (const f of q) raf(f); } };
   const frames = (n) => new Promise((res) => { let i = 0; const f = () => (++i >= n ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
   const measure = async () => {
     await frames(30);
@@ -112,6 +118,14 @@ const install = (only) => {
 };
 const time = (p, name, parts) => p.page.evaluate((n, sc, pt) => window.__bench.time(n, sc, pt), name, scales, parts);
 
+// (a run that hangs stops itself and closes its pages, well inside the lock's own limit)
+const deadline = setTimeout(async () => {
+  console.error('bench: 18 minutes and not done: stopping');
+  for (const p of pages) await p.page.close().catch(() => {});
+  unlock();
+  process.exit(2);
+}, 18 * 60e3);
+deadline.unref();
 try {
   const mine = await open(origin);
   const names = await mine.page.evaluate(install, only);
@@ -133,6 +147,7 @@ try {
     else { r = await turn(mine, !!process.env.PARTS); if (ref) other = await turn(ref, false); }
     r.ref = other?.ms ?? null;
     rows.push(r);
+    console.error(`  ${name}: ${r.ms[scales[0]]}${other ? ` beside ${other.ms[scales[0]]}` : ''}`);
   }
 
   const base = process.env.BASE ? JSON.parse(readFileSync(process.env.BASE, 'utf8')) : null;
