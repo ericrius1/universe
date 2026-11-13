@@ -196,7 +196,8 @@ fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> Painted {
   // the pillow's height: none in the groove (the micrometre either side of the border), rising to its apex
   let border = (f2 - f1) * cs * 0.5;
   let t = sat((border - 1.0) / (0.45 * cs));
-  let hmax = select(0.45 * cs * 0.17, 0.45 * cs * 0.86 / max(G.spread, 0.5), hep) * mix(0.3, 1.0, live);
+  // (a cell's mean radius is about 0.55 of the grid's pitch, as world/field.ts's Voronoi cells come out)
+  let hmax = select(0.55 * cs * 0.17, 0.55 * cs * 0.86 / max(G.spread, 0.5), hep) * mix(0.3, 1.0, live);
   let h = select(0.0, hmax * (0.13 + 0.87 * pow(sin(t * 1.5708), 0.68)), border > 1.0);
   // a nucleus in the middle (a nucleolus in it)
   let nr = 0.17 * cs;
@@ -226,7 +227,8 @@ fn paintedField(q: vec2f, g: vec2f, fw: f32, wp: vec3f, live: f32) -> Painted {
   // the grooves (field.wgsl, organelles.wgsl, stage.wgsl, as the real cells show them)
   let fl = vec3f(0.22, 0.38, 1.0) * G.stain.x * sat(2.0 * sqrt(max(nr * nr - fr * fr, 0.0)) / 2.0) * select(0.45, 0.8, hep)
     + vec3f(1.0, 0.54, 0.24) * G.stain.y * (1.0 - G.depol) * sat(h / max(hmax, 0.1)) * 0.12 * select(0.0, 1.0, hep)
-    + vec3f(0.3, 1.0, 0.76) * G.stain2.x * select(0.0, 0.25, border < 1.0 && hep);
+    + vec3f(0.3, 1.0, 0.76) * G.stain2.x * select(0.0, 0.25, border < 1.0 && hep)
+    + vec3f(0.025, 0.03, 0.05) * sat(h);
   o.col = mix(o.col, mix(fl, vec3f(0.04, 0.07, 0.18) * G.stain.x + vec3f(0.06, 0.03, 0.01) * G.stain.y, k), G.mode);
   o.optic = mix(opt, meanOpt, k);
   return o;
@@ -276,16 +278,17 @@ fn mediumPath(mp: vec3f, rd: vec3f, surface: f32) -> f32 {
     let cs = dot(n, -rd);
     if (cs > 0.0) {
       let F = schlick(0.02, cs);
-      col = (roomSeen(i.mp, reflect(rd, n), 0.35) + panelGloss(i.mp, reflect(rd, n), 40.0)) * F;
+      // (close to, the panel's image in it goes soft: the eye's too near the surface to hold it in focus)
+      col = (roomSeen(i.mp, reflect(rd, n), 0.35 + 0.6 * near) + panelGloss(i.mp, reflect(rd, n), 40.0)) * F;
       alpha = F;
     } else {
       // from under it: the room through Snell's window, the medium's pink by total internal reflection outside it
       let ci = -cs;
       let tir = 1.0 - 1.77 * (1.0 - ci * ci) < 0.0;
-      col = select(roomSeen(i.mp, refract(rd, -n, 1.33), 0.0) * 0.9, MEDIUM_GLOW * E * 0.04, tir);
+      col = select(roomSeen(i.mp, refract(rd, -n, 1.33), 0.0) * 0.9, MEDIUM_GLOW * E * 0.04, tir) * select(0.9, 0.85, tir);
       alpha = select(0.9, 0.85, tir);
     }
-    col *= alpha;
+    // (col is already the light it gives back, premultiplied: the light through it is dimmed by alpha)
     o.color = vec4f(safe(col * G.dim), alpha);
     o.pick = (18u << 20u) | (i.id & 0xfffffu);
     o.optic = vec4f(0.0);
