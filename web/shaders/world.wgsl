@@ -32,7 +32,7 @@ struct Organelle {
 @group(1) @binding(0) var<storage, read> organelles: array<Organelle>;
 // the crowd's density round the focus (src/engine/volume.ts, shaders/volume.wgsl): what share of each cell molecules
 // fill, with a short mip chain
-struct Vol { corner: vec3f, voxel: f32, n: f32, on: f32, look: f32, pad1: f32 }   // look: 0 light, 1 illustrative (renderer.ts)
+struct Vol { corner: vec3f, voxel: f32, n: f32, on: f32, look: f32, late: f32 }   // look: 0 light, 1 illustrative (renderer.ts)
 @group(1) @binding(1) var volTex: texture_3d<f32>;
 @group(1) @binding(2) var<uniform> V: Vol;
 
@@ -188,7 +188,7 @@ fn randQuat(h: vec3f) -> vec4f {
 // a pass of their own after the scene (renderer.ts late), against a copy of the scene's depth, and each fragment asks
 // it first — hidden by what's there already (reversed Z: nearer is larger), it goes before any of its work
 fn hiddenAt(occ: texture_depth_2d, pos: vec4f, depth: f32) -> bool {
-  return textureLoad(occ, vec2i(pos.xy), 0) > depth * 1.000002 + 1e-9;
+  return V.late > 0.5 && textureLoad(occ, vec2i(pos.xy), 0) > depth * 1.000002 + 1e-9;
 }
 
 // the haze between the eye and a point d nm away
@@ -306,8 +306,11 @@ fn hueShift(c: vec3f, h: f32, l: f32) -> vec3f {
 }
 // each copy of a thing a little different from the next: ±8% in lightness, a few degrees in hue, from its id
 fn vary(c: vec3f, id: u32) -> vec3f {
-  let h = hash3u(vec3u(id, 0x9e37u, 0x51u));
-  return hueShift(c, (h.x - 0.5) * 0.22, (h.y - 0.5) * 0.16);
+  // (the turn about the grey axis to first order — it's small — so no trigonometry in the beads' vertex work)
+  let h = pcg3(vec3u(id, 0x9e37u, 0x51u));
+  let a = (f32(h.x >> 8u) * (1.0 / 16777216.0) - 0.5) * 0.22;
+  let l = (f32(h.y >> 8u) * (1.0 / 16777216.0) - 0.5) * 0.16;
+  return max((c + cross(vec3f(0.57735), c) * a) * (1.0 + l), vec3f(0.0));
 }
 
 // the light in the water round a thing, by its normal: brighter and cooler toward the key, warm and deep away from it

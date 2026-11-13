@@ -85,7 +85,7 @@ export interface Vol {
   n: number;
   on: number;
   look: number;
-  pad1: number;
+  late: number;
 }
 export interface Place {
   inside: number;

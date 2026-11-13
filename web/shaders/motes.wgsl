@@ -51,6 +51,8 @@ const PER_LEVEL: u32 = SIDE * SIDE * SIDE * PER_TILE;
   let corner = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0))[vi % 6u];
   // (out of focus by how far from the focus's distance it lies: a speck far off the plane a wider, fainter disc)
   let defocus = 1.0 + 2.5 * abs(dist - G.scale) / max(dist, 1.0) * G.dof;
+  // (no wider on screen than ~40 px: a speck by the lens is gone, not a blot over the frame)
+  if (r * defocus / max(dist * G.pxAngle, 1e-9) > 40.0) { return out; }
   let rr = r * defocus;
   let right = normalize(cross(frame.camUp, toEye / dist));
   let up = cross(toEye / dist, right);

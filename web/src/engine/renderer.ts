@@ -94,9 +94,12 @@ export class Renderer {
     });
 
     this.sceneDepth = k.texture({ label: 'scene.depth', format: 'depth32float', size: 'render', usage: ['sample', 'copy-dst'] });
-    const lateOn = () => this.late.draws.length > 0;
+    // (only with ?late for now: on this laptop the pass's own cost — the G-buffer stored and loaded again, the depth
+    // copied — came to about what its early test saved, so the tubes and cut faces draw in the scene as before)
+    const noLate = !new URLSearchParams(location.search).has('late');
+    const lateOn = () => !noLate && this.late.draws.length > 0;
     const keep = k.raw((enc) => { if (lateOn()) enc.copyTextureToTexture({ texture: this.depth.gpu }, { texture: this.sceneDepth.gpu }, [this.depth.width, this.depth.height, 1]); }, 'scene.depth');
-    this.late = k.pass({
+    this.late = noLate ? this.scene : k.pass({
       label: 'scene.late',
       color: [{ target: this.hdr, clear: false }, { target: this.nrm, clear: false }, { target: this.ids, clear: false }],
       depth: { target: this.depth, clear: false },
@@ -127,7 +130,7 @@ export class Renderer {
     // specks adrift in the water, soft and out of focus (motes.wgsl): two sizes of 9³ tiles of 4
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keepB: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
-    this.thin.draw(motes, { label: 'motes', vertex: 'vs', fragment: 'fs', count: 2 * 9 * 9 * 9 * 4 * 6, cull: 'none', blend: [add, keepB], depthWrite: false, enabled: () => this.parts.motes });
+    this.thin.draw(motes, { label: 'motes', vertex: 'vs', fragment: 'fs', count: 2 * 9 * 9 * 9 * 4 * 6, cull: 'none', blend: [add, keepB], depthWrite: false, enabled: () => this.parts.motes && (this.globals.get('scale') as number) < 20000 });
     const aoPass = k.pass({ label: 'ao', color: [{ target: this.ao, clear: [1, 1, 1, 1] }] });
     aoPass.fullscreen(post, { label: 'ao', fragment: 'fs_ao', bind: { P, depthTex: this.depth, nrmTex: this.nrm } });
     const comp = k.pass({ label: 'composite', color: [{ target: this.lit, clear: [0, 0, 0, 1] }] });
@@ -138,8 +141,8 @@ export class Renderer {
     const dof = k.pass({ label: 'dof', color: [{ target: this.dofOut, clear: [0, 0, 0, 1] }], enabled: dofOn });
     dof.fullscreen(post, { label: 'dof', fragment: 'fs_dof', bind: { P, srcTex: this.dofHalf } });
 
-    this.items = [this.scene, keep, this.late, this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
-    this.afterComp = 9;
+    this.items = [this.scene, keep, ...(noLate ? [] : [this.late]), this.beads, half, this.glass, this.thin, aoPass, comp, dofDown, dof];
+    this.afterComp = this.items.indexOf(comp) + 1;
   }
   private afterComp: number;
 
@@ -172,7 +175,7 @@ export class Renderer {
     const S = G.get('scale') as number;
     this.crowd.update(G.get('focus') as number[], S, this.parts.crowd ? Math.min(1, Math.max(0, (20000 - S) / 8000)) : 0);
     if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
-    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0 });
+    this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, late: this.late === this.scene ? 0 : 1 });
     return [...this.first(), ...this.before, ...this.crowd.work(), ...this.items];
   }
   frame() { this.kit.run(this.work()); }
