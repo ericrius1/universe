@@ -5,7 +5,7 @@
 import { INK, type Make } from './index';
 
 /** the stars named on it, and which side of their dot the name goes (x, y in px) */
-const NAMED: [number, string, number, number][] = [[32349, 'Sirius', -8, 4], [27989, 'Betelgeuse', -8, -6], [91262, 'Vega', 8, 10], [69673, 'Arcturus', 8, 12], [24436, 'Rigel', 8, 12], [102098, 'Deneb', 8, -4], [80763, 'Antares', 8, 4]];
+const NAMED: [number, string, number, number][] = [[32349, 'Sirius', -8, 4], [27989, 'Betelgeuse', -8, -6], [91262, 'Vega', 8, 10], [69673, 'Arcturus', 8, 12], [24436, 'Rigel', 8, 12], [102098, 'Deneb', 8, -4], [80763, 'Antares', -8, 14]];
 const BV0 = -0.4, BV1 = 2.1, M0 = -9, M1 = 16;
 
 const make: Make = async (p, ctx) => {
