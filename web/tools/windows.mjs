@@ -13,8 +13,8 @@
 //          window's first view, and windows.json · UI=1 with the interface (and a screenshot of it)
 import puppeteer from 'puppeteer-core';
 import http from 'node:http';
-import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { lock, unlock } from './gpulock.mjs';
 import { join } from 'node:path';
 
 const origin = process.env.ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '5751'}`;
@@ -23,21 +23,6 @@ const IDS = process.argv.slice(2).length ? process.argv.slice(2) : ['universe', 
 const EXPAND = process.env.EXPAND !== '0';
 const OUT = process.env.OUT ?? null;
 if (OUT) mkdirSync(OUT, { recursive: true });
-
-// ---------------------------------------------------------------- the lock (tools/bench.mjs's)
-const LOCK = join(tmpdir(), 'universe-gpu.lock');
-async function lock() {
-  for (let waited = 0; ; waited += 2) {
-    try { mkdirSync(LOCK); return; } catch {
-      try { if (Date.now() - statSync(LOCK).mtimeMs > 25 * 60e3) { rmSync(LOCK, { recursive: true, force: true }); continue; } } catch { continue; }
-      if (waited % 30 === 0) console.error(`windows: waiting for the GPU (${LOCK})…`);
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-}
-const unlock = () => { try { rmSync(LOCK, { recursive: true, force: true }); } catch { /* gone */ } };
-process.on('SIGINT', () => { unlock(); process.exit(130); });
-process.on('SIGTERM', () => { unlock(); process.exit(143); });
 
 // ---------------------------------------------------------------- the counting proxy
 let log = [];
@@ -69,8 +54,8 @@ const HEAVY = [
 ];
 const MB = (b) => (b / 1e6).toFixed(2);
 
-await lock();
-const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${process.env.CDP ?? 9740}`, defaultViewport: null, protocolTimeout: 0 });
+await lock('windows');
+const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${process.env.CDP ?? 9740}`, defaultViewport: null, protocolTimeout: 120000 });
 const rows = [];
 try {
   for (const id of IDS) {
