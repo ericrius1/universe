@@ -13,6 +13,7 @@
 // glides between frames as you zoom (frames.ts reference()), so each one is seen square-on at its own scale.
 import { quat, vec3, type Quat, type Vec3 } from 'math';
 import { FIGURE_EYE, FIGURE_NORMAL } from './figure/pose';
+import { eqToGal } from './sky';
 
 export const MPC = 3.0857e22, KPC = 3.0857e19, PC = 3.0857e16, LY = 9.4607e15, AU = 1.495978707e11, KM = 1e3, M = 1, MM = 1e-3, NM = 1e-9;
 const DEG = Math.PI / 180;
@@ -108,6 +109,13 @@ export function moonPos(d: number, out: Vec3 = [0, 0, 0]): Vec3 {
 
 export const OBLIQUITY = 23.4393 * DEG;
 
+/** the solar frame's axes (x the vernal equinox, y the ecliptic pole, z the ecliptic's −y) in the galaxy's */
+function eclipticInGalaxy(): Quat {
+  const s = Math.sin(OBLIQUITY), c = Math.cos(OBLIQUITY);
+  const x = eqToGal(1, 0, 0), y = eqToGal(0, -s, c), z = eqToGal(0, -c, -s);
+  return quat.normalize(quat.create(), quat.fromMat3(quat.create(), [...x, ...y, ...z]));
+}
+
 // ---------------------------------------------------------------- the ladder
 export class Ladder {
   readonly cosmos = frame('cosmos', 'The observable universe', MPC, null, 25.2);
@@ -115,8 +123,9 @@ export class Ladder {
   readonly galaxy = frame('galaxy', 'The Milky Way', KPC, this.cosmos, 21.2, [0, 0, 0], quat.multiply(quat.create(), axis(1, 0, 0, 38 * DEG), axis(0, 0, 1, -22 * DEG)));
   /** the Sun's neighbourhood: 8.2 kpc from the centre, 20 pc above the plane */
   readonly local = frame('local', 'The solar neighbourhood', PC, this.galaxy, 17.6, [8.2, 0.02, 0]);
-  /** the ecliptic, 60.2° to the galactic plane */
-  readonly solar = frame('solar', 'The solar system', AU, this.local, 12.6, [0, 0, 0], axis(1, 0, 0, -60.2 * DEG));
+  /** the ecliptic, 60.2° to the galactic plane: turned into the galaxy's axes as the sky has it (sky.ts, the IAU's
+   *  matrix), so the Sun stands among the right stars */
+  readonly solar = frame('solar', 'The solar system', AU, this.local, 12.6, [0, 0, 0], eclipticInGalaxy());
   /** the Earth, its axis tilted and turning */
   readonly earth = frame('earth', 'The Earth', KM, this.solar, 7.3);
   readonly ground = frame('ground', BOULDER.name, M, this.earth, 2.0);
