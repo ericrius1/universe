@@ -232,6 +232,8 @@ fn modelAlbedo(b: Body, lat: f32, elon: f32) -> vec3f {
       alb = textureSampleLevel(maps, samp_repeat, uv, i32(p.layer), lod).rgb;
       // (the Viking mosaic's colourised dark regions lean blue: held to the grey-brown Mars shows)
       if (in.idx == 3u) { alb = vec3f(alb.r, alb.g, min(alb.b, alb.g * 0.9)); }
+      // (OPAL's Saturn is stretched brighter than the planet's own albedo: its bands were lost in the white)
+      if (p.kind == K_SATURN) { alb *= 0.75; }
       // (Mercury's map is enhanced colour: held back toward the grey it looks to the eye)
       if (in.idx == 1u) { alb = mix(vec3f(dot(alb, vec3f(0.2126, 0.7152, 0.0722))), alb, 0.25) * 0.9; }
     } else if (p.kind == K_VENUS || p.kind == K_ICE) {
