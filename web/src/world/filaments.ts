@@ -63,7 +63,8 @@ export class Filaments {
     this.set = buildFilaments(world);
     const segs = kit.storage({ label: 'filaments', data: this.set.data, stride: SEG_FLOATS * 4 });
     const count = this.set.count * 6;
-    r.scene.draw(filamentShader, { label: 'filaments', vertex: 'vs_tube', fragment: 'fs_tube', bind: { segs }, count, cull: 'none' });
+    // (traced, so writing their own depth: after the scene, against its depth, renderer.ts late)
+    r.late.draw(filamentShader, { label: 'filaments', vertex: 'vs_tube', fragment: 'fs_tube', bind: { segs, occDepth: r.sceneDepth }, count, cull: 'none' });
     const add: GPUBlendState = { color: { srcFactor: 'one', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } };
     const keep: GPUBlendState = { color: { srcFactor: 'zero', dstFactor: 'one-minus-src' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src' } };
     r.thin.draw(filamentShader, { label: 'filaments.thin', vertex: 'vs_thin', fragment: 'fs_thin', bind: { segs }, count, cull: 'none', blend: [add, keep], depthWrite: false });

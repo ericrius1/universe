@@ -40,7 +40,7 @@ fn viewPos(uv: vec2f, d: f32) -> vec3f {
   let dims = vec2f(textureDimensions(depthTex));
   let px = vec2i(in.uv * dims);
   let d = textureLoad(depthTex, px, 0);
-  if (d <= 0.0) { return vec4f(1.0); }
+  if (d <= 0.0) { return vec4f(1.0, 1.0, 0.0, 0.0); }
   let p = viewPos(in.uv, d);
   let n = unOctNormal(textureLoad(nrmTex, px, 0).xy);
   let rad = -p.z * P.aoRadius;
@@ -66,7 +66,11 @@ fn viewPos(uv: vec2f, d: f32) -> vec3f {
     occ += select(0.0, 1.0, dz > rad * 0.02) * (1.0 - smoothstep(rad * 0.6, rad * 1.6, abs(dz)));
   }
   let ao = 1.0 - occ / f32(N);
-  return vec4f(ao, ao, ao, 1.0);
+  // (and, soft by nature, so here at half the size: the haze's light along the ray to this point, hazeLight, and the
+  // crowd's occlusion and shadow at it, world.wgsl crowdLight)
+  let wp = worldFromDepth(in.uv, d);
+  let cr = crowdLight(wp, normalize((frame.invView * vec4f(n, 0.0)).xyz));
+  return vec4f(ao, hazeLight(wp), cr.occl, cr.shad);
 }
 
 // ---------------------------------------------------------------- composite: light × occlusion, haze, background
@@ -106,26 +110,41 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   let px = vec2i(in.uv * dims);
   let d = textureLoad(depthTex, px, 0);
   let z0 = linearDepth(d);
-  if (d <= 0.0) { return vec4f(clean(glassOver(background(in.uv) * (1.0 - 0.7 * G.spot), px, z0)), 1.0); }
+  if (d <= 0.0) {
+    var bg = background(in.uv);
+    if (V.look > 0.5) { bg = inked(illustratedFog(), px, 1e30, 0u, 0.0); }
+    return vec4f(clean(glassOver(bg * (1.0 - 0.7 * G.spot), px, z0)), 1.0);
+  }
   var c = textureLoad(hdrTex, px, 0).rgb;
   // occlusion: a depth-aware blur of the half-resolution term
   let ad = vec2f(textureDimensions(aoTex));
-  var ao = 0.0; var wsum = 0.0;
+  var ao = 0.0; var hz = 0.0; var cr = vec2f(0.0); var wsum = 0.0;
   for (var y = -1; y <= 1; y++) {
     for (var x = -1; x <= 1; x++) {
       let q = in.uv + vec2f(f32(x), f32(y)) * 1.5 / ad;
-      let a = textureSampleLevel(aoTex, samp_linear, q, 0.0).r;
+      let a4 = textureSampleLevel(aoTex, samp_linear, q, 0.0);
+      let a = a4.r;
       let zq = linearDepth(textureLoad(depthTex, vec2i(clamp(q, vec2f(0.0), vec2f(0.999)) * dims), 0));
       let w = exp(-abs(zq - z0) / (z0 * 0.05));
-      ao += a * w; wsum += w;
+      ao += a * w; hz += a4.g * w; cr += a4.ba * w; wsum += w;
     }
   }
   ao = ao / max(wsum, 1e-4);
-  c *= mix(1.0, ao, P.aoStrength * (1.0 - G.fluo * 0.8));
+  hz = hz / max(wsum, 1e-4);
+  cr = cr / max(wsum, 1e-4);
+  // the crowd's occlusion and its shadow from the key (world.wgsl crowdLight): the key is most of a surface's light
+  // where it reaches, the water's light the rest; in the illustrative look the occlusion alone
+  if (V.look > 0.5) { c *= 1.0 - 0.75 * cr.x; } else { c *= (1.0 - 0.6 * cr.y) * (1.0 - 0.45 * cr.x); }
+  // (tinted by what it's on, never grey: light that bounces about in a crease takes the colour of its walls — Jimenez
+  // et al.'s multi-bounce fit, the albedo guessed from the pixel's own hue)
+  let aoK = mix(1.0, ao, P.aoStrength * (1.0 - G.fluo * 0.8));
+  c *= multiBounce(aoK, c);
   // haze over distance
   let wp = worldFromDepth(in.uv, d);
   let f = fogAmount(length(wp - frame.camPos));
-  c = mix(c, G.fogColor, f);
+  if (V.look > 0.5) {
+    c = inked(mix(c, illustratedFog(), f * 0.6), px, z0, textureLoad(idTex, px, 0).r, f);
+  } else { c = mix(c, G.fogColor * hz, f); }
   // the hovered and the chosen organelle: a soft lift
   let id = textureLoad(idTex, px, 0).r;
   if (id != 0u && (id == G.hover || id == G.selected)) { c *= 1.0 + G.highlight * select(0.18, 0.32, id == G.selected); }
@@ -142,6 +161,62 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
     out = mix(out, vec3f(1.0, 0.7, 0.54) * (1.2 + 0.4 * pulse), edge * G.spot * 0.9);
   }
   return vec4f(clean(out), 1.0);
+}
+
+// ---------------------------------------------------------------- the illustrative look (renderer.ts look)
+// Flat colour and occlusion (world.wgsl illustrated), fog to a pale ground of the compartment's own hue, and ink: a
+// line where the depth jumps, on the far side of the edge, thicker for a bigger jump, and a thinner one where one
+// thing meets another at about the same depth (Goodsell; Mol*'s illustrative style)
+fn illustratedFog() -> vec3f {
+  let f = G.fogColor + vec3f(1e-4);
+  return f / luma(f) * 0.03;
+}
+fn inked(c: vec3f, px: vec2i, z0: f32, id: u32, fog: f32) -> vec3f {
+  let dims = vec2i(textureDimensions(depthTex)) - 1;
+  var near = 0.0; var wide = 0.0; var seam = 0.0;
+  let offs = array<vec2i, 4>(vec2i(1, 0), vec2i(-1, 0), vec2i(0, 1), vec2i(0, -1));
+  for (var i = 0; i < 4; i++) {
+    let q1 = clamp(px + offs[i], vec2i(0), dims);
+    let d1 = textureLoad(depthTex, q1, 0);
+    let z1 = select(1e30, linearDepth(d1), d1 > 0.0);
+    near = max(near, (z0 - z1) / z1);
+    if (abs(z0 - z1) < z0 * 0.03 && textureLoad(idTex, q1, 0).r != id) { seam = 1.0; }
+    let q2 = clamp(px + offs[i] * 2, vec2i(0), dims);
+    let d2 = textureLoad(depthTex, q2, 0);
+    let z2 = select(1e30, linearDepth(d2), d2 > 0.0);
+    wide = max(wide, (z0 - z2) / z2);
+  }
+  let line = max(smoothstep(0.025, 0.08, near), smoothstep(0.25, 0.8, wide));
+  let ink = max(line, seam * 0.5);
+  // (the ink fades with the haze, as the paint does, so the far crowd isn't a scribble)
+  return mix(c, c * 0.06 + vec3f(0.002), clamp(ink * 1.3, 0.0, 1.0) * (1.0 - 0.8 * fog));
+}
+
+// the haze's light along the ray to a point: brighter where the key light reaches the water between things, dimmer in
+// the crowd's shadow and where it's thick (a few taps of the crowd's volume, world.wgsl crowdAt). Thin and uneven: the
+// haze keeps most of its own colour, so it never flattens the picture
+fn hazeLight(wp: vec3f) -> f32 {
+  if (V.on <= 0.0) { return 1.0; }
+  let l = normalize(G.keyDir);
+  let ro = frame.camPos;
+  let span = min(length(wp - ro), V.voxel * V.n * 0.75);
+  let rd = normalize(wp - ro);
+  var lit = 0.0;
+  for (var i = 0; i < 4; i++) {
+    let q = ro + rd * (span * (f32(i) + 0.5) / 4.0);
+    let sh = crowdAt(q + l * (3.0 * V.voxel), 1.8) * 1.6 + crowdAt(q + l * (8.0 * V.voxel), 2.6) * 2.4;
+    let here = crowdAt(q, 1.5);
+    lit += exp(-sh * 1.6) * (1.0 - 0.5 * clamp(here * 2.0, 0.0, 1.0));
+  }
+  return mix(1.0, 0.5 + 0.5 * lit / 4.0, V.on);
+}
+
+fn multiBounce(ao: f32, c: vec3f) -> vec3f {
+  let alb = clamp(c / max(max(c.r, max(c.g, c.b)), 1e-4), vec3f(0.0), vec3f(1.0)) * 0.6;
+  let a = 2.0404 * alb - 0.3324;
+  let b = -4.7951 * alb + 0.6417;
+  let k = 2.7552 * alb + 0.6903;
+  return max(vec3f(ao), ((ao * a + b) * ao + k) * ao);
 }
 
 // one pixel's stray NaN or infinity would spread through the bloom chain and the lens blur into a black block: it

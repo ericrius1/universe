@@ -16,6 +16,8 @@ struct MeshV { px: f32, py: f32, pz: f32, nx: f32, ny: f32, nz: f32, org: u32, f
 // hand — one fetch for eight hashes
 @group(2) @binding(1) var noiseTex: texture_3d<f32>;
 const NOISE_N = 64.0;
+// the scene's depth before the cut faces (renderer.ts late): world.wgsl hiddenAt
+@group(2) @binding(2) var occDepth: texture_depth_2d;
 // whether a fragment may be cut away (the wedge) or dithered out (between glass and solid): a draw without either is
 // made with this off, so the GPU knows nothing of it is discarded and hides what's behind it before shading it
 override CLIP: bool = true;
@@ -58,7 +60,10 @@ fn reachesCut(o: Organelle) -> bool {
   if (G.cut <= 0.0 || uncut(o.kind)) { return false; }
   let q = o.center - G.cutCenter;
   if (length(q) - o.bound > G.cutRadius) { return false; }
-  return min(dot(q, G.cutN1), dot(q, G.cutN2)) > -o.bound;
+  // (and only one the wedge's faces cross: one wholly in the wedge is gone, with nothing to cap — the distance into the
+  // wedge changes no faster than the distance itself, so a centre further in than the bound is all of it)
+  let m = min(dot(q, G.cutN1), dot(q, G.cutN2));
+  return m > -o.bound && m < o.bound;
 }
 @vertex fn vs_cap(@builtin(vertex_index) vi: u32) -> VOut {
   var out = vsCommon(vi, false);
@@ -154,8 +159,13 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   let m = material(o.kind, interior);
   let dt = detail(o, p, nIn);
   var s = surfOf(m);
-  s.albedo *= dt.tint;
-  var c = bioLight(dt.n, v, s) * dt.ao;
+  s.albedo = vary(s.albedo, bitcast<u32>(o.seed)) * dt.tint;
+  // (a membrane is read at its silhouette, where the eye runs along the bilayer: its deeper colour there)
+  if (isShellOrg(o) && !interior) {
+    let edge = pow(clamp(1.0 - abs(dot(nIn, v)), 0.0, 1.0), 3.0);
+    s.albedo = mix(s.albedo, s.sss * 0.85, edge * 0.6);
+  }
+  var c = bioLightAt(p, dt.n, v, s) * dt.ao;
   c += m.glow * m.albedo;
   return fluoro(c, o.kind, dt.n, v);
 }
@@ -198,14 +208,18 @@ fn shade(o: Organelle, p: vec3f, nIn: vec3f, interior: bool) -> vec3f {
   let v = normalize(frame.camPos - p);
   let dt = detail(o, p, n);
   let nv = abs(dot(dt.n, v));
-  let fres = pow(clamp(1.0 - nv, 0.0, 1.0), 2.4);
-  var a = mix(0.03, 0.9, fres) * m.glass * select(0.4, 1.0, ff);
+  // the path through a thin shell is its thickness over |n·v|: nearly clear face on, dense at its silhouette, where
+  // the eye runs along it (absorbed along that path, 1 − exp(−σ t / |n·v|), the falloff a little steeper than a flat
+  // shell's for the bend of the real one)
+  let path = 0.025 / pow(max(nv, 0.015), 1.5);
+  let fres = 1.0 - exp(-path);
+  var a = fres * m.glass * 1.25 * select(0.45, 1.0, ff);
   a *= 1.0 - G.shellSolid;
   var s = surfOf(m);
-  s.albedo *= dt.tint;
-  var c = bioLight(dt.n, v, s) + m.glow * m.albedo * 3.0;
+  s.albedo = vary(s.albedo, bitcast<u32>(o.seed)) * dt.tint;
+  var c = bioLightAt(p, dt.n, v, s) + m.glow * m.albedo * 3.0;
   // the film's own glow where it's seen edge-on (light scattered along it)
-  c += m.sss * fres * 0.6;
+  c += m.sss * fres * 0.5;
   c = fluoro(c, o.kind, dt.n, v);
   // (the spotlight, world.wgsl: a lit kind's film thickens and glows its own colour, the rest fades back)
   if (G.spot > 0.001) {
@@ -281,6 +295,9 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
 @fragment fn fs_cap(in: VOut) -> GOutD {
   let h = cutFace(in.world);
   if (!h.ok) { discard; }
+  let clip = frame.viewProj * vec4f(h.p, 1.0);
+  let depth = clip.z / clip.w;
+  if (hiddenAt(occDepth, in.pos, depth)) { discard; }
   let o = orgAt(in.org);
   // (outside its bounding sphere it can't be in its material: no need to ask its surface)
   if (length(h.p - o.center) > o.bound) { discard; }
@@ -309,13 +326,12 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
   let v = normalize(frame.camPos - h.p);
   var s: Surf;
   s.albedo = capPattern(o, h.p, fp, sd); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
-  var c = bioLight(h.n, v, s) * 0.85;
+  var c = bioLightAt(h.p, h.n, v, s) * 0.85;
   c = fluoro(c, o.kind, h.n, v);
   var out: GOutD;
   out.color = vec4f(c, 1.0);
   out.nrm = viewNormal(h.n);
   out.id = in.org + 1u;
-  let clip = frame.viewProj * vec4f(h.p, 1.0);
-  out.depth = clip.z / clip.w;
+  out.depth = depth;
   return out;
 }

@@ -84,6 +84,8 @@ export class Field {
     const actors = k.compute(fieldShader, { label: 'field.actors', entry: 'actors', bind, threads: () => [this.actorCount], enabled: () => this.actorCount > 0 });
     const finish = k.compute(fieldShader, { label: 'field.finish', entry: 'finish', bind: { types: mols.typeTable, counts, args }, threads: [NLISTS] });
     r.before.push(clear, crowd, lattice, actors, finish);
+    // (and the crowd's density, made from them for its light: engine/volume.ts)
+    r.crowd.attach({ types: mols.typeTable, insts, counts, maxInst: this.maxInst });
 
     if (!k.features.has('indirect-first-instance')) console.warn('cell: no indirect-first-instance — molecules will not draw correctly');
     // (each bead twice: its depth first of all in the scene — so what it hides isn't shaded either — then lit where it's
