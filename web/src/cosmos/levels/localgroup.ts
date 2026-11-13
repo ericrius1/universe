@@ -135,6 +135,6 @@ export class LocalGroup {
     }
     // (exposure that follows the zoom, as the web's galaxies'; the Milky Way's own disc gone as its volume comes)
     const s = Math.max(Smpc, 0.02);
-    this.lv.L.set({ weight: this.lv.weight, a: [0.3 * Math.max(s, 0.6) * Math.min(Math.max(s, 0.6), 8), 1, Math.max(Smpc * 0.01, 0.002), 1], c: [ss(22.6, 23.6, l), this.discGain, 0, 0] });
+    this.lv.L.set({ weight: this.lv.weight, a: [0.3 * Math.max(s, 0.6) * Math.min(Math.max(s, 0.6), 8), 1, Math.max(Smpc * 0.01, 0.002), 1], c: [ss(22.6, 23.6, l), this.discGain * (1 + 3 * ss(21.5, 22.7, l)), 0, 0] });
   }
 }

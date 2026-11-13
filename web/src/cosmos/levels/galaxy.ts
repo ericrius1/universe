@@ -112,8 +112,11 @@ export class Galaxy {
     // (dimmer as the eye nears the plane: edge on, the whole disc's light adds up along every ray, more than the dust
     // takes back, and the exposure's the one the galaxy seen whole has)
     const near = 0.15 + 0.85 * Math.max(0, Math.min(1, (Math.log10(Sk) - 0.5) / 0.9));
+    // (and brighter seen from among the Local Group, a few dozen pixels across: an exposure that follows the zoom, as
+    // the Local Group's own galaxies have)
+    const far = 1 + 3 * Math.max(0, Math.min(1, (Math.log10(Sk) - 2.2) / 1.2));
     const steps = Math.max(8, Math.round((this.stepsIn - (this.stepsIn - this.stepsOut) * out) * (1 - inside)));
-    this.lv.L.set({ weight: this.lv.weight, a: [this.glow * near, this.dust, steps, inside], b: [this.diffuse, this.lodBias, 0, 0], d: [this.mapIn, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
+    this.lv.L.set({ weight: this.lv.weight, a: [this.glow * near * far, this.dust, steps, inside], b: [this.diffuse, this.lodBias, 0, 0], d: [this.mapIn, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
     // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
     if (this.picture === 'in') this.stars.weight *= 1 - inside;
     this.stars.weight *= this.mapIn;
