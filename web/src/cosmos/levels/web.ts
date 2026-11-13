@@ -1,123 +1,223 @@
-// The cosmic web (megaparsecs, the Milky Way at the origin): galaxies strung along filaments between clusters round
-// empty voids, made from a jittered lattice of nodes, each joined to its nearest neighbours. Two tiers: a fine web out
-// to 450 Mpc round us and a coarse one out to the edge of the observable universe (14 Gpc), where the cosmic microwave
-// background closes the sphere (shaders/c_web.wgsl draws that shell). The Local Group and the Virgo cluster are put in
-// by hand: Andromeda, the Magellanic Clouds, the Triangulum galaxy.
-import type { Kit } from '@ericrius1/weft';
+// The cosmic web (megaparsecs, the cosmos frame: the galactic centre at the origin, the galaxy's disc tilted in it as the
+// ladder has it). Where it has been mapped it's the real one: the 43,533 galaxies of the 2MASS Redshift Survey where
+// they are out to 300 Mpc (Virgo, Perseus–Pisces, the Great Wall, and the empty wedge the Milky Way's own plane hides,
+// the zone of avoidance), coloured by type, over the real density they trace within 200 Mpc (shaders/c_web.wgsl);
+// beyond, the baked cellular noise, out to the edge of the observable universe (14 Gpc), where Planck's map of the
+// cosmic microwave background closes the sphere. The Local Group is a level of its own (localgroup.ts), made here.
+// Each file is fetched the first time what it draws comes near, not at boot.
+import { generateMips, type Kit, type StorageBuffer, type Draw, type UniformBuffer, type Texture } from '@ericrius1/weft';
 import webShader from '../shaders/c_web.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
-import { PointSet, drawPoints, rng } from './points';
+import { PointSet, drawPoints } from './points';
 import { noiseTex } from '../noisetex';
-import type { Ladder } from '../frames';
+import type { Frame, Ladder } from '../frames';
+import type { Vec3 } from 'math';
+import { SkyAxes, decodeImage, fetchBytes, fetchJson, eqToGal, lbOf, type NamedPlace } from './deepsky';
+import { LocalGroup } from './localgroup';
 
 const EDGE = 14300;   // Mpc: the last-scattering surface (comoving)
+/** the galaxies drawn: 2MRS to 300 Mpc (a phone the brightest of them) */
+const NEARBY_MAX = 300, NEARBY_PHONE = 15000;
+/** 2MRS's types (2mrs.json): unknown, spiral, elliptical or lenticular, other (irregular, peculiar) */
+const TYPE_COLOR = [[0.92, 0.88, 0.82], [0.7, 0.82, 1.0], [1.0, 0.8, 0.55], [0.62, 0.76, 1.0]];
+
+interface Structure { name: string; kind: string; xyzMpc: [number, number, number]; redshiftDistanceMpc?: number; lengthMpc?: number }
+interface Structures { structures: Structure[] }
+
+/** how big a named structure is drawn round its place (Mpc), for a guide's ring: a cluster's core about 2 Mpc, a wall
+ *  half its length; the Boötes Void about 300 million light-years (92 Mpc) across. (structures.json's radiusMpc for
+ *  it is from a source that used H0 = 50: not used.) */
+const extentOf = (s: Structure) => s.kind === 'void' ? 46 : s.kind === 'wall' ? (s.lengthMpc ?? 200) / 2 : s.kind === 'supercluster' ? 10 : 2;
 
 export class Web {
   readonly lv: Level;
   readonly vol: Level;
-  /** the galaxies show once they could be told apart */
-  private ptsOn = 1;
-  readonly pts = new PointSet(260000);
+  readonly localGroup: LocalGroup;
+  /** the galaxies (2MRS): room for them all, empty (and not drawn) till they're in */
+  readonly pts: PointSet;
+  private ptsBuf: StorageBuffer;
+  /** each drawn galaxy's record in 2mrs.bin */
+  private srcIndex: Int32Array | null = null;
+  private structures: Structure[] | null = null;
+  private structuresAsked = false;
+  private readonly cosmos: Frame;
+  private nearby: 'none' | 'asked' | 'in' = 'none';
+  /** the real density and Planck's map: asked for once the web shows, then fading in (0..1) */
+  private dens: 'none' | 'asked' | 'in' = 'none';
+  private cmb: 'none' | 'asked' | 'in' = 'none';
+  private densIn = 0;
+  private cmbIn = 0;
+  private lastT = 0;
+  readonly axes: SkyAxes;
+  private readonly D: UniformBuffer<any>;
+  private readonly draws: Draw[] = [];
+  private readonly kit: Kit;
+  private readonly small: boolean;
+  private readonly vscale: number;
+  /** the real web's light: its gain, and the log density (over the mean) where it starts */
+  realGain = 0.2;
+  realFrom = 0.6;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
+    this.kit = kit;
+    this.small = R.light;
+    this.vscale = R.volumeScale;
+    this.axes = new SkyAxes(ladder);
+    this.cosmos = ladder.cosmos;
     this.lv = R.level('web', ladder.cosmos, [99, 98, 21.9, 21.2]);
     this.vol = R.level('web.vol', ladder.cosmos, [99, 98, 24.3, 23.5]);
-    const r = rng(1977);
-    this.tier(r, 7, 0, 70, 90000, 0.018);
-    this.tier(r, 30, 70, 520, 150000, 0.022);
-    this.localGroup();
+    this.D = kit.uniforms(webShader.structs.Deep, 'web.deep');
+    this.D.set({ ...this.axes.uniforms(), k: [0, 0, this.realGain, this.vscale], m: [this.realFrom, 150, 195, 0] });
+    // (stand-ins till the real ones are in: never read while their share is 0)
+    const densTex = kit.texture({ label: 'web.density.none', format: 'r8unorm', size: [1, 1, 1], dimension: '3d' });
+    const cmbTex = kit.texture({ label: 'web.cmb.none', format: 'r8unorm', size: [1, 1] });
     // the edge first (behind everything), the web seen whole, then the galaxies
     const { cellTex, valTex, codeTex } = noiseTex(kit, R);
     R.volume('web.vol', () => this.vol.on(), (p) => {
-      p.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind: { L: this.vol.L, cellTex, valTex, codeTex }, blend: 'premultiplied', enabled: () => this.vol.on() });
-      p.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind: { L: this.vol.L, cellTex, valTex, codeTex }, blend: 'premultiplied', enabled: () => this.vol.on() });
+      const bind = { L: this.vol.L, cellTex, valTex, codeTex, densTex, cmbTex, D: this.D };
+      this.draws.push(p.fullscreen(webShader, { label: 'web.cmb', fragment: 'fs_cmb', bind, blend: 'premultiplied', enabled: () => this.vol.on() }) as unknown as Draw);
+      this.draws.push(p.fullscreen(webShader, { label: 'web.vol', fragment: 'fs_vol', bind, blend: 'premultiplied', enabled: () => this.vol.on() }) as unknown as Draw);
     });
-    drawPoints(kit, R, this.lv, this.pts, 'web', () => this.lv.on() && this.ptsOn > 0);
+    this.pts = new PointSet(R.light ? NEARBY_PHONE : 43533);
+    this.pts.count = this.pts.max;
+    this.ptsBuf = drawPoints(kit, R, this.lv, this.pts, 'web', () => this.lv.on() && this.nearby === 'in');
+    this.localGroup = new LocalGroup(kit, R, ladder, this.axes);
   }
 
-  /** nodes on a jittered lattice of `spacing` between radii r0..r1, joined to their three nearest; galaxies on them */
-  private tier(r: ReturnType<typeof rng>, spacing: number, r0: number, r1: number, count: number, sizeK: number) {
-    const n = Math.ceil(r1 / spacing);
-    const nodes: number[][] = [];
-    const grid = new Map<string, number[]>();
-    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (let k = -n; k <= n; k++) {
-      const x = (i + (r.next() - 0.5) * 0.9) * spacing, y = (j + (r.next() - 0.5) * 0.9) * spacing, z = (k + (r.next() - 0.5) * 0.9) * spacing;
-      const d = Math.hypot(x, y, z);
-      if (d < r0 - spacing || d > r1) continue;
-      // richness: most nodes are groups, a few are great clusters
-      const rich = Math.pow(r.next(), 3.2) * 6 + 0.2;
-      grid.set(`${i},${j},${k}`, [x, y, z, rich, i, j, k]);
-      nodes.push([x, y, z, rich, i, j, k]);
-    }
-    const edges: [number[], number[]][] = [];
-    for (const a of nodes) {
-      const near: [number, number[]][] = [];
-      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) for (let dk = -1; dk <= 1; dk++) {
-        if (!di && !dj && !dk) continue;
-        const b = grid.get(`${a[4] + di},${a[5] + dj},${a[6] + dk}`);
-        if (b) near.push([Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]), b]);
+  /** the 2MRS galaxies, brightest first, as points in the cosmos frame */
+  private loadNearby() {
+    this.nearby = 'asked';
+    fetchBytes('galaxies/2mrs.bin').then((buf) => {
+      const f = new Float32Array(buf), u = new Uint32Array(buf);
+      const P = this.pts;
+      P.count = 0;
+      const at: [number, number, number] = [0, 0, 0];
+      const src = new Int32Array(P.max);
+      for (let i = 0; i < f.length / 5 && P.count < P.max; i++) {
+        const x = f[i * 5], y = f[i * 5 + 1], z = f[i * 5 + 2], logL = f[i * 5 + 3], tf = u[i * 5 + 4];
+        const d = Math.hypot(x, y, z);
+        // (the Local Group's own are drawn by its level; those 2MRS could only put at 1 Mpc aren't drawn at all)
+        if (d > NEARBY_MAX || d < 1.5 || (tf >> 8) & 2) continue;
+        this.axes.eqToCosmos([x, y, z], at);
+        // brightness by K-band luminosity, size roughly with it (a 3×10¹⁰ L☉ galaxy about 12 kpc across its glow)
+        const lum = Math.pow(10, logL - 10.5);
+        const c = TYPE_COLOR[tf & 255] ?? TYPE_COLOR[0];
+        src[P.count] = i;
+        P.push(at[0], at[1], at[2], 0.012 * Math.pow(lum, 0.35), c[0], c[1], c[2], lum);
       }
-      near.sort((p, q) => p[0] - q[0]);
-      for (const [, b] of near.slice(0, 3)) if (a[4] * 1e6 + a[5] * 1e3 + a[6] < b[4] * 1e6 + b[5] * 1e3 + b[6]) edges.push([a, b]);
-    }
-    const richSum = nodes.reduce((s, a) => s + a[3], 0);
-    const nCluster = count * 0.38, nFil = count * 0.52, nField = count * 0.1;
-    const put = (x: number, y: number, z: number, elliptical: boolean) => {
-      const d = Math.hypot(x, y, z);
-      if (d < 3 || d < r0 || d > r1) return;
-      // spirals blue-white, ellipticals (in the clusters) gold; a spread of sizes and luminosities
-      const lum = Math.exp(r.gauss() * 0.7) * (elliptical ? 1.6 : 1);
-      const t = elliptical ? [1.0, 0.78, 0.5] : r.next() < 0.5 ? [0.75, 0.85, 1.0] : [0.95, 0.9, 0.85];
-      this.pts.push(x, y, z, sizeK * Math.sqrt(lum) * (0.6 + r.next()), t[0], t[1], t[2], lum);
-    };
-    for (const a of nodes) {
-      const k = Math.round((a[3] / richSum) * nCluster);
-      const sig = spacing * 0.035 * Math.sqrt(a[3]);
-      for (let i = 0; i < k; i++) put(a[0] + r.gauss() * sig, a[1] + r.gauss() * sig, a[2] + r.gauss() * sig, r.next() < 0.6);
-    }
-    for (let i = 0; i < nFil && edges.length; i++) {
-      const [a, b] = edges[Math.floor(r.next() * edges.length)];
-      // (thicker toward the clusters at either end)
-      const t = r.next(), w = spacing * 0.02 * (1 + 2.5 * Math.pow(Math.abs(t - 0.5) * 2, 4));
-      put(a[0] + (b[0] - a[0]) * t + r.gauss() * w, a[1] + (b[1] - a[1]) * t + r.gauss() * w, a[2] + (b[2] - a[2]) * t + r.gauss() * w, false);
-    }
-    for (let i = 0; i < nField; i++) {
-      const u = r1 * Math.cbrt(r.next()), th = Math.acos(2 * r.next() - 1), ph = r.next() * Math.PI * 2;
-      put(u * Math.sin(th) * Math.cos(ph), u * Math.cos(th), u * Math.sin(th) * Math.sin(ph), false);
-    }
+      this.srcIndex = src.subarray(0, P.count);
+      // (the rest of the records empty, passed over)
+      const n = P.count;
+      P.data.fill(0, n * 8);
+      this.ptsBuf.write(P.data);
+      P.count = P.max;
+      this.nearby = 'in';
+    }, (e) => console.warn('web: no 2MRS', e));
   }
 
-  private localGroup() {
-    const P = this.pts;
-    // Andromeda (M31) 0.78 Mpc, a bigger spiral than ours; M33; the Magellanic Clouds (50, 62 kpc); Virgo's heart, 16.5 Mpc
-    P.push(0.42, -0.31, 0.58, 0.034, 0.95, 0.88, 0.8, 2.6);
-    P.push(0.5, -0.45, 0.52, 0.009, 0.75, 0.85, 1.0, 0.3);
-    const r = rng(5);
-    // the Magellanic Clouds: irregular swarms of young stars, not discs
-    const cloud = (x: number, y: number, z: number, sz: number, n: number, lum: number) => {
-      for (let i = 0; i < n; i++) {
-        const u = r.gauss() * sz, v = r.gauss() * sz * 0.5, w = r.gauss() * sz * 0.8;
-        const k = r.next() < 0.3 ? 1.6 : 1;
-        P.push(x + u + v * 0.6, y + w * 0.4, z + v, sz * 0.18, 0.75 * k, 0.85, 1.0, lum / n * (0.3 + r.next() * 1.4));
+  /** the real density of the nearest 200 Mpc (a phone's at half the resolution) */
+  private loadDensity() {
+    this.dens = 'asked';
+    fetchBytes('galaxies/density.bin').then((buf) => {
+      let src = new Uint8Array(buf), N = 128;
+      if (this.small) {
+        // (each 2×2×2 block averaged; any outside the sphere is outside)
+        const M = 64, out = new Uint8Array(M * M * M);
+        for (let z = 0; z < M; z++) for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) {
+          let s = 0, zero = false;
+          for (let k = 0; k < 8; k++) {
+            const v = src[(2 * x + (k & 1)) + 128 * ((2 * y + ((k >> 1) & 1)) + 128 * (2 * z + (k >> 2)))];
+            if (!v) zero = true;
+            s += v;
+          }
+          out[x + M * (y + M * z)] = zero ? 0 : Math.round(s / 8);
+        }
+        src = out; N = M;
       }
-    };
-    cloud(-0.002, -0.032, -0.038, 0.0035, 420, 0.12);
-    cloud(0.004, -0.044, -0.044, 0.0018, 220, 0.04);
-    for (let i = 0; i < 1500; i++) P.push(9.5 + r.gauss() * 0.9, 4.2 + r.gauss() * 0.9, -12.4 + r.gauss() * 0.9, 0.015, 1.0, 0.8, 0.55, Math.exp(r.gauss() * 0.6) * 1.4);
-    // the Local Group's dwarfs
-    for (let i = 0; i < 40; i++) P.push(r.gauss() * 0.35 + 0.2, r.gauss() * 0.35 - 0.15, r.gauss() * 0.35 + 0.3, 0.0015, 0.85, 0.85, 0.9, 0.02);
+      const t = this.kit.texture({ label: 'web.density', format: 'r8unorm', size: [N, N, N], dimension: '3d', usage: ['sample', 'copy-dst'] });
+      this.kit.queue.writeTexture({ texture: t.gpu }, src, { bytesPerRow: N, rowsPerImage: N }, [N, N, N]);
+      for (const d of this.draws) d.set('densTex', t);
+      this.dens = 'in';
+    }, (e) => console.warn('web: no density', e));
+  }
+
+  /** Planck's map of the microwave background (a phone's at half the resolution) */
+  private loadCmb() {
+    this.cmb = 'asked';
+    decodeImage(['cmb/smica_4k.webp'], 'gray', this.small ? 2048 : 0).then((m) => {
+      const t: Texture = this.kit.texture({ label: 'web.cmb', format: 'r8unorm', size: [m.width, m.height], mips: 'full' });
+      t.write(m.data);
+      generateMips(this.kit, t);
+      for (const d of this.draws) d.set('cmbTex', t);
+      this.cmb = 'in';
+    }, (e) => console.warn('web: no microwave map', e));
+  }
+
+  /** what a guide can point at in the web: the named clusters, superclusters, voids and walls (structures.json) and the
+   *  Local Group's galaxies with names, where they are in the cosmos frame (megaparsecs). Fetched the first time it's
+   *  asked. The structures sit where the galaxies are drawn: at their redshift distance, as 2MRS has them. */
+  async named(): Promise<NamedPlace[]> {
+    const s = await fetchJson<Structures>('galaxies/structures.json');
+    const out: NamedPlace[] = s.structures.map((x) => {
+      const [l, b] = lbOf(eqToGal(x.xyzMpc));
+      return { name: x.name, kind: x.kind, frame: 'cosmos' as const, at: this.axes.eqToCosmos(x.xyzMpc), distanceMpc: Math.hypot(...x.xyzMpc), l, b };
+    });
+    return [...out, ...(await this.localGroup.named())];
+  }
+
+  /** where a named thing the web draws is (ui/things.ts FindsThings): 'galaxy', the Local Group's by name as
+   *  localgroup.json has them; 'structure', the named clusters, walls and voids as structures.json has them (with a ring
+   *  for their extent); null until their file is in (asked for the first time this is) */
+  find(kind: string, name: string): { frame: Frame; at: Vec3; r?: number; name?: string; ring?: boolean } | null {
+    if (kind === 'galaxy') return this.localGroup.find(name);
+    if (kind === 'level' && name === 'web.cmb') return { frame: this.cosmos, at: [0, 0, 0], r: EDGE, name: 'The microwave background', ring: true };
+    if (kind !== 'structure') return null;
+    if (!this.structuresAsked) {
+      this.structuresAsked = true;
+      fetchJson<Structures>('galaxies/structures.json').then((s) => { this.structures = s.structures; }, (e) => console.warn('web: no structures', e));
+    }
+    const s = this.structures?.find((x) => x.name === name);
+    if (!s) return null;
+    return { frame: this.cosmos, at: this.axes.eqToCosmos(s.xyzMpc), r: extentOf(s), name: s.name, ring: s.kind === 'void' || s.kind === 'wall' };
+  }
+
+  /** the 2MRS galaxy drawn nearest a point on the screen (css px, `w` × `h` the view's size, `tanHalf` the tangent of
+   *  half its vertical field): its record's index in 2mrs.bin, or null if none is drawn within `within` px */
+  nearest(x: number, y: number, w: number, h: number, tanHalf: number, within = 24): number | null {
+    const src = this.srcIndex, lv = this.lv;
+    if (!src || this.nearby !== 'in' || !lv.on()) return null;
+    const d = this.pts.data, asp = w / Math.max(1, h);
+    let best = within * within, at: number | null = null;
+    for (let i = 0; i < src.length; i++) {
+      const rx = d[i * 8] - lv.origin[0] - lv.eye[0], ry = d[i * 8 + 1] - lv.origin[1] - lv.eye[1], rz = d[i * 8 + 2] - lv.origin[2] - lv.eye[2];
+      const z = rx * lv.fwd[0] + ry * lv.fwd[1] + rz * lv.fwd[2];
+      if (z <= 0) continue;
+      const sx = ((rx * lv.right[0] + ry * lv.right[1] + rz * lv.right[2]) / (z * tanHalf * asp) * 0.5 + 0.5) * w;
+      const sy = (0.5 - (rx * lv.up[0] + ry * lv.up[1] + rz * lv.up[2]) / (z * tanHalf) * 0.5) * h;
+      const e = (sx - x) * (sx - x) + (sy - y) * (sy - y);
+      if (e < best) { best = e; at = src[i]; }
+    }
+    return at;
   }
 
   update(S: number) {
     const Smpc = S / this.lv.frame.unit;
-    // exposure that follows the zoom: what's at the view's distance always reads
     const l = Math.log10(S);
-    this.ptsOn = l < 25.0 ? 1 : 0;
-    // (fading in as the web's volume fades out)
-    const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.0) / 0.9)));
+    const now = performance.now(), dt = Math.min(0.1, (now - this.lastT) / 1000);
+    this.lastT = now;
+    // (each asked for as it first comes near: the map with the web, the density once it's within reach, the
+    // galaxies as they show)
+    if (this.vol.on() && this.cmb === 'none') this.loadCmb();
+    if (this.vol.on() && this.dens === 'none' && l < 26.0) this.loadDensity();
+    if (this.cmb === 'in') this.cmbIn = Math.min(1, this.cmbIn + dt / 0.6);
+    if (this.dens === 'in') this.densIn = Math.min(1, this.densIn + dt / 0.6);
+    // the galaxies: in from 300 Mpc or so, the whole survey a ball at the web's middle, gone into the Local Group
+    const w = this.lv.weight * (1 - Math.max(0, Math.min(1, (l - 24.7) / 0.6)));
+    if (w > 0 && this.nearby === 'none') this.loadNearby();
+    // (exposure that follows the zoom: what's at the view's distance always reads)
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.04, 0.02), 1], b: [EDGE, 0, 0, 0] });
+    this.localGroup.update(S);
     // (the web's brighter seen whole, where the voids between near filaments take up more of the view)
-    // (and gone by the time the whole of it is seen, from outside the microwave background's shell: too fine to march)
     // (and faint, not gone, seen whole from outside; past the edge, where it's what our marble holds (levels/beyond.ts),
     // bright again)
     const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0))) * (1 - 0.35 * Math.max(0, Math.min(1, (l - 26.3) / 0.5)))
@@ -128,5 +228,8 @@ export class Web {
     // samples scatter across the noise, and each costs a miss)
     const steps = Smpc > 6000 ? Math.round(28 - 16 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;
     this.vol.L.set({ b: [EDGE, cmb, 0, 0], c: [gain, steps, l > 26.3 ? 1 : 0, 0] });
+    // (the real web's gain a little higher seen from farther: its haze of walls thins out against the noise's threads)
+    const realK = this.realGain * Math.min(3, Math.max(1, Math.sqrt(Smpc / 64)));
+    this.D.set({ k: [this.densIn, this.cmbIn, realK, this.vscale], m: [this.realFrom, 150, 195, 0] });
   }
 }

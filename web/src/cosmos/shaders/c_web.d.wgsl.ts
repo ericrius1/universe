@@ -62,6 +62,16 @@ export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
 }
+export interface Deep {
+  ex: Vec4;
+  ey: Vec4;
+  ez: Vec4;
+  gx: Vec4;
+  gy: Vec4;
+  gz: Vec4;
+  k: Vec4;
+  m: Vec4;
+}
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut }, 'frame' | 'L' | 'cellTex' | 'valTex' | 'codeTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; FullscreenOut: FullscreenOut; Deep: Deep }, 'frame' | 'L' | 'D' | 'cellTex' | 'valTex' | 'codeTex' | 'cmbTex' | 'densTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

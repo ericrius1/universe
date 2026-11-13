@@ -84,6 +84,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  late: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -114,7 +122,13 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf }, 'frame' | 'G' | 'organelles' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd }, 'frame' | 'G' | 'V' | 'organelles' | 'volTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

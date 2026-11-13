@@ -1,7 +1,8 @@
 // The well: a plate of liver cells on a lab bench in San Francisco, from about a metre over the bench down among the
 // organelles of one cell, drawn by Hepatocyte's own code (src/well, its embed.ts: tools/hepatocyte-sync.mjs) on this
-// kit and laid into the cosmos's frame (Hepatocyte.layer: its HDR, before the bloom), with the lab round it (bench.wgsl)
-// and San Francisco's fog over the way down to it (fog.wgsl, lab/way.ts). A realm of its own (windows.ts, realms.ts):
+// kit and laid into the cosmos's frame (Hepatocyte.layer: its HDR, before the bloom), the lab round it its own too (the
+// black bench under one light, the dim room: Hepatocyte's lab.wgsl), and San Francisco's fog over the way down to it
+// (fog.wgsl, lab/way.ts). A realm of its own (windows.ts, realms.ts):
 // this module and the well's code are one chunk, fetched and built only when a window takes the well in.
 //
 // The camera is the cosmos's: one zoom in log10 metres, its yaw and its pitch, as everywhere else. The way down is the
@@ -13,11 +14,11 @@
 // camera the well's, in the well's micrometres; the cosmos's are back after (after()).
 //
 // When the well and the fog fill the frame none of the cosmos's own work is done (its renderer's hostOnly): the well's
-// frame, the lab and the fog are laid into its HDR alone, through its bloom and film (cosmos/renderer.ts lay), mixed
-// toward the well's own look as it comes.
+// frame (which covers all of it: the room's behind everything in it) and the fog are laid into its HDR alone, through
+// its bloom and film (cosmos/renderer.ts lay), mixed toward the well's own look as it comes. How the cells are shown
+// (phase contrast, brightfield, fluorescence, the model) is the well's store's look: `hep.setLook`, `hep.lookNow`.
 import type { Kit, RenderPass, RunEntry } from '@ericrius1/weft';
 import { Hepatocyte } from '../well/embed';
-import benchShader from './bench.wgsl';
 import fogShader from './fog.wgsl';
 import type { Cosmos } from '../cosmos';
 import { COSMOS_FILM, mixFilm, type Film } from '../cosmos/film';
@@ -25,13 +26,9 @@ import { FOG_OPEN, fogAt, pitchAt, tiltAt } from './way';
 
 export { Hepatocyte };
 
-/** the plate's numbers (mm, Hepatocyte's embed.ts): its footprint's half, and the bench under it */
-const PLATE_HALF: [number, number] = [63.9, 42.75];
-const BENCH_Y = -11.2;
-
-/** the well's look in the film: a little more colour than the cosmos's (its own film's lift, embed.ts film()), a lighter
- *  vignette and grain */
-const WELL_FILM: Partial<Film> = { saturation: 1.22, contrast: 1.12, vignette: 0.28, grain: 0.006 };
+/** the well's look in the film: a photograph's, so AgX's own curve with no lift in it (the cosmos's lifts its darks:
+ *  a dim lab would go a flat grey), its colour as it is (the instruments' greys stay grey), a light vignette, grain */
+const WELL_FILM: Partial<Film> = { exposure: 1.25, power: 1, toe: 0.4, contrast: 1.04, saturation: 1.0, saturationAfter: 1.0, vignette: 0.3, grain: 0.008 };
 
 export interface LabOptions {
   /** a phone (Hepatocyte's lighter settings: fewer cells with their organelles drawn round the eye) */
@@ -47,9 +44,7 @@ export class Lab {
   fog = 0;
   /** drawing this frame (update ran: after() gives the kit back) */
   private drawing = false;
-  private readonly benchU;
   private readonly fogU;
-  private readonly bench: RenderPass;
   private readonly fogPass: RenderPass;
   private readonly layer: RenderPass;
   /** the cosmos's own film (as the gardens keep it), and the renderer's lay as it was before this one's was put in front of it */
@@ -72,21 +67,17 @@ export class Lab {
     const hep = this.hep = new Hepatocyte(kit, { hosted: true, detailCells: o.phone ? 7 : 13 });
     const home = hep.homeCell();
     this.target = [home.x - home.r * 0.3, home.h * 0.42, home.z - home.r * 0.35];
-    this.benchU = kit.uniforms(benchShader.structs.BenchU, 'lab.bench');
     this.fogU = kit.uniforms(fogShader.structs.FogU, 'lab.fog');
-    // (the lab first, over everything: the cosmos's scene isn't drawn under it)
-    this.bench = kit.pass({ label: 'lab.bench', color: [{ target: R.hdr, clear: [0, 0, 0, 1] }] });
-    this.bench.fullscreen(benchShader, { bind: { B: this.benchU } });
+    // (the well's frame covers all of the cosmos's: its room is behind everything in it)
     this.layer = hep.layer(R.hdr);
     this.fogPass = kit.pass({ label: 'lab.fog', color: [{ target: R.hdr, clear: false }] });
     this.fogPass.fullscreen(fogShader, { blend: 'premultiplied', bind: { F: this.fogU } });
   }
 
-  /** what's laid into the cosmos's frame this time: the lab and the well once the fog opens over them, the fog */
+  /** what's laid into the cosmos's frame this time: the well and its lab once the fog opens over them, the fog */
   private work(): RunEntry[] {
     if (!this.drawing) return [];
     const out: RunEntry[] = [];
-    if (this.cosmos.r.hostOnly) out.push(this.bench);
     if (this.shows > 0) out.push(...this.hep.passes(), this.layer);
     if (this.fog > 0.001) out.push(this.fogPass);
     return out;
@@ -134,13 +125,6 @@ export class Lab {
     hep.use();
     hep.update(dt, this.eye);
     hep.shows = 1;
-    // the lab round it: in the plate's millimetres, from the same eye, gone once the eye's down in a well
-    const e = hep.toPlate(this.eye);
-    const [W, H] = kit.size.render;
-    this.benchU.set({
-      eye: e, tanHalf: Math.tan(cam.fovY / 2), fwd: f as never, aspect: W / Math.max(1, H), right: r as never, benchY: BENCH_Y,
-      up: u as never, shows: 1, plate: PLATE_HALF, light: 1, spare: 0,
-    });
   }
 
   /** once the frame's sent: the kit's globals and camera given back */

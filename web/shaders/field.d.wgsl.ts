@@ -84,6 +84,14 @@ export interface Organelle {
   center: Vec3;
   bound: number;
 }
+export interface Vol {
+  corner: Vec3;
+  voxel: number;
+  n: number;
+  on: number;
+  look: number;
+  late: number;
+}
 export interface Place {
   inside: number;
   nearest: number;
@@ -114,6 +122,12 @@ export interface Surf {
   wrap: number;
   trans: number;
   rim: number;
+  occl: number;
+  shad: number;
+}
+export interface Crowd {
+  occl: number;
+  shad: number;
 }
 export interface MolType {
   lodStart: Vec3;
@@ -173,5 +187,5 @@ export interface CompEntry {
   cum: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; MolType: MolType; Inst: Inst; Field: Field; CompEntry: CompEntry }, 'frame' | 'G' | 'F' | 'organelles' | 'types' | 'insts' | 'lists' | 'counts' | 'args' | 'comps' | 'compMeta' | 'segs' | 'segList' | 'actorIn' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Vol: Vol; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; Crowd: Crowd; MolType: MolType; Inst: Inst; Field: Field; CompEntry: CompEntry }, 'frame' | 'G' | 'V' | 'F' | 'organelles' | 'types' | 'insts' | 'lists' | 'counts' | 'args' | 'comps' | 'compMeta' | 'segs' | 'segList' | 'actorIn' | 'volTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

@@ -1,30 +1,52 @@
-// The Milky Way (kiloparsecs): its glow and dust as a volume (shaders/c_galaxy.wgsl), and its stars as points drawn from
-// the same disc, arms, bar and bulge, with the globular clusters in the halo. Seen whole it's a barred spiral; from the
-// Sun's place 8.2 kpc out it's the band across the sky behind every level below: the real one, NASA's Deep Star Maps
-// (havens/sky/milkyway.webp, the one file the gardens' sky reads too), loaded the first time the galaxy shows; the drawn band stands in till it's in.
-import { loadImageTexture, solidTexture, type Kit, type Texture, type Draw } from '@ericrius1/weft';
+// The Milky Way (kiloparsecs): its glow and dust as a volume (shaders/c_galaxy.wgsl) read from a face-on map of it
+// (data/sky/milkyway_faceon.webp and its dust: NASA/JPL-Caltech/R. Hurt's artist's concept built on Spitzer's survey,
+// scaled so its Sun is the ladder's: galaxymap.ts), and its stars as points drawn from the same map, so the two agree,
+// with the globular clusters in the halo. Both are made off the main thread (deepsky.worker.ts) the first time the
+// galaxy comes near, and fade in as they arrive. From the Sun's place 8.2 kpc out it's the band across the sky behind
+// every level below: the real one, NASA's Deep Star Maps (havens/sky/milkyway.webp, the one file the gardens' sky reads
+// too), loaded the first time the galaxy shows; the drawn band stands in till it's in.
+import { generateMips, loadImageTexture, solidTexture, type Kit, type Texture, type Draw, type StorageBuffer } from '@ericrius1/weft';
 import galShader from '../shaders/c_galaxy.wgsl';
 import type { CosmosRenderer, Level } from '../renderer';
-import { PointSet, drawPoints, rng } from './points';
-import { noiseTex } from '../noisetex';
+import { PointSet, drawPoints } from './points';
 import type { Ladder } from '../frames';
+import { decodeImage } from './deepsky';
 
-const PITCH = 0.22, BAR = 0.44;
+/** the Milky Way's stars (a phone's too: they cost little next to the march) */
+const STARS = 230000;
 
 export class Galaxy {
   readonly lv: Level;
   readonly stars: Level;
-  readonly pts = new PointSet(260000);
+  /** its stars: room for them all, empty (and not drawn) till the map's in */
+  readonly pts = new PointSet(STARS);
+  private ptsBuf: StorageBuffer;
   /** the sky's visibility below (a daytime sky hides it): set by the app */
   sky = 1;
   /** the sky's picture: asked for once the galaxy shows, in once it's loaded */
   private picture: 'none' | 'asked' | 'in' = 'none';
-  private draw!: Draw;
+  /** the face-on map and the stars from it: asked for once the galaxy comes near, then fading in (0..1) */
+  private map: 'none' | 'asked' | 'in' = 'none';
+  private mapIn = 0;
+  private lastT = 0;
+  private readonly draws: Draw[] = [];
+  /** how far inside the disc the eye is (1: the band alone) */
+  private inside = 0;
   private readonly kit: Kit;
   /** a light device's (a phone's) picture: half the size, the mip it would sample anyway */
   private readonly small: boolean;
   /** the fraction of the frame's resolution it marches at (its pixel's size on the sky, for the picture's mip) */
   private readonly vscale: number;
+  /** the map's light, its dust's absorption (per its own unit through the layer), and a diffuse dust that follows the
+   *  light (per unit of it): the map's lanes are only the darkest of it, and from inside the disc the rest is what
+   *  keeps the far side from adding up to a white wall */
+  glow = 0.5;
+  dust = 2.5;
+  diffuse = 1.5;
+  /** the march's steps from outside the disc and inside it, and a bias on the map's level (for timing it) */
+  stepsOut = 18;
+  stepsIn = 32;
+  lodBias = 0;
 
   constructor(kit: Kit, R: CosmosRenderer, ladder: Ladder) {
     this.kit = kit;
@@ -33,76 +55,39 @@ export class Galaxy {
     this.lv = R.level('galaxy', ladder.galaxy, [23.6, 22.6, -99, -100]);
     // (the stars are a second view of the same frame, with their own gains)
     this.stars = R.level('galaxy.stars', ladder.galaxy, [23.0, 22.2, -99, -100]);
-    this.populate();
-    const on = () => this.lv.on() && this.sky > 0.01;
-    const { cellTex, valTex, codeTex } = noiseTex(kit, R);
+    // (inside the disc, where all it draws is the sky's band, one tap a pixel: drawn straight into the scene, not through
+    // a volume's three passes; the march only from outside it)
+    const vis = () => this.lv.on() && this.sky > 0.01;
+    const on = () => vis() && this.inside < 0.999;
     const milkyTex = solidTexture(kit, [0, 0, 0, 1], 1, 'galaxy.sky.none');
+    const faceTex = solidTexture(kit, [0, 0, 0, 0], 1, 'galaxy.map.none');
     R.volume('galaxy', on, (p) => {
-      this.draw = p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L, cellTex, valTex, codeTex, milkyTex }, blend: 'premultiplied', enabled: on }) as unknown as Draw;
+      this.draws.push(p.fullscreen(galShader, { label: 'galaxy', fragment: 'fs', bind: { L: this.lv.L, milkyTex, faceTex }, blend: 'premultiplied', enabled: on }) as unknown as Draw);
     });
-    drawPoints(kit, R, this.stars, this.pts, 'galaxy.stars', () => this.stars.on() && this.sky > 0.01);
+    this.draws.push(R.scene.fullscreen(galShader, { label: 'galaxy.band', fragment: 'fs_band', bind: { L: this.lv.L, milkyTex, faceTex }, blend: 'premultiplied', enabled: () => vis() && this.inside >= 0.999 }) as unknown as Draw);
+    // (every record drawn, the empty ones passed over in its vertex shader, until they're filled)
+    this.pts.count = STARS;
+    this.ptsBuf = drawPoints(kit, R, this.stars, this.pts, 'galaxy.stars', () => this.stars.on() && this.sky > 0.01 && this.map === 'in');
   }
 
-  private populate() {
-    const r = rng(42), P = this.pts;
-    const sun = [8.2, 0.02, 0];
-    const temp = (t: number) => {
-      // a black body, roughly (as blackbody() in cosmos.wgsl)
-      const x = t / 100;
-      const R = x <= 66 ? 1 : Math.min(1, 1.293 * Math.pow(x - 60, -0.1332));
-      const G = x <= 66 ? Math.max(0, Math.min(1, 0.39 * Math.log(x) - 0.634)) : Math.min(1, 1.13 * Math.pow(x - 60, -0.0755));
-      const B = x >= 66 ? 1 : x <= 19 ? 0 : Math.max(0, Math.min(1, 0.543 * Math.log(x - 10) - 1.196));
-      const c = [R, G, B].map((v) => Math.pow(v, 2.2)), m = Math.max(...c);
-      return c.map((v) => v / m);
-    };
-    const star = (x: number, y: number, z: number, young: boolean) => {
-      // (none in the Sun's own bubble: the neighbourhood's stars are drawn by their own level)
-      if (Math.hypot(x - sun[0], y - sun[1], z - sun[2]) < 0.25) return;
-      const hot = young ? r.next() < 0.7 : r.next() < 0.08;
-      const T = hot ? 6500 + Math.pow(r.next(), 2) * 25000 : 3200 + r.next() * 3200;
-      const c = temp(T);
-      const lum = Math.exp(r.gauss() * 1.0) * (hot ? 3 : 1);
-      P.push(x, y, z, 0, c[0], c[1], c[2], lum);
-    };
-    const N = 230000;
-    let made = 0, tries = 0;
-    while (made < N && tries < N * 40) {
-      tries++;
-      const pick = r.next();
-      if (pick < 0.16) {
-        // the bulge and bar
-        const u = Math.abs(r.gauss()) * 1.6, v = r.gauss() * 0.55, h = r.gauss() * 0.32;
-        const x = u * (r.next() < 0.5 ? -1 : 1);
-        star(x * Math.cos(BAR) - v * Math.sin(BAR), h, x * Math.sin(BAR) + v * Math.cos(BAR), false);
-        made++;
-      } else {
-        // the disc, then kept in proportion to the arms' density
-        const rad = -2.8 * Math.log(Math.max(1e-6, r.next())) + 1.0;
-        if (rad > 18) continue;
-        const th = r.next() * Math.PI * 2;
-        const x = rad * Math.cos(th), z = rad * Math.sin(th);
-        const ph = th - Math.log(Math.max(rad, 0.3)) / Math.tan(PITCH);
-        const arm = Math.pow(0.5 + 0.5 * Math.cos(2 * ph), 5) + 0.55 * Math.pow(0.5 + 0.5 * Math.cos(2 * ph + Math.PI), 7);
-        const young = r.next() < arm * 0.9;
-        if (!young && r.next() > 0.55) continue;
-        const h = r.gauss() * (young ? 0.09 : 0.3);
-        star(x, h, z, young);
-        made++;
-      }
-    }
-    // the globular clusters, in a halo round the centre
-    for (let i = 0; i < 160; i++) {
-      const rad = Math.abs(r.gauss()) * 6 + 0.5, th = Math.acos(2 * r.next() - 1), ph = r.next() * Math.PI * 2;
-      const cx = rad * Math.sin(th) * Math.cos(ph), cy = rad * Math.cos(th), cz = rad * Math.sin(th) * Math.sin(ph);
-      for (let k = 0; k < 40; k++) P.push(cx + r.gauss() * 0.012, cy + r.gauss() * 0.012, cz + r.gauss() * 0.012, 0, 1.0, 0.85, 0.6, 0.6);
-    }
+  /** the face-on map (its colour and dust as one texture) and the stars drawn from it */
+  private loadMap() {
+    this.map = 'asked';
+    decodeImage(['sky/milkyway_faceon.webp', 'sky/milkyway_dust.webp'], 'rgba', this.small ? 1024 : 0, STARS).then((m) => {
+      const t = this.kit.texture({ label: 'galaxy.map', format: 'rgba8unorm-srgb', size: [m.width, m.height], mips: 'full' });
+      t.write(m.data);
+      generateMips(this.kit, t);
+      for (const d of this.draws) d.set('faceTex', t);
+      if (m.stars) this.ptsBuf.write(m.stars);
+      this.map = 'in';
+    }, (e) => console.warn('galaxy: no face-on map', e));
   }
 
   private loadPicture() {
     this.picture = 'asked';
     const url = new URL('havens/sky/milkyway.webp', document.baseURI).href;
     loadImageTexture(this.kit, url, { mips: true, label: 'galaxy.sky', max: this.small ? 2048 : undefined }).then((t: Texture) => {
-      this.draw.set('milkyTex', t);
+      for (const d of this.draws) d.set('milkyTex', t);
       this.picture = 'in';
     }, (e) => console.warn('galaxy: no sky picture', e));
   }
@@ -113,15 +98,28 @@ export class Galaxy {
     this.lv.weight *= this.sky;
     this.stars.weight *= this.sky;
     // (inside the disc, the sky's band takes over from the march)
-    const inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
+    const inside = this.inside = Math.max(0, Math.min(1, (Math.log10(Sk) - 0.6) / -0.9));
     if (this.picture === 'none' && this.lv.weight > 0) this.loadPicture();
+    // (the map asked for a little before the galaxy shows, from the web's middle distance in)
+    if (this.map === 'none' && Math.log10(S) < 24.4) this.loadMap();
+    const now = performance.now();
+    if (this.map === 'in') this.mapIn = Math.min(1, this.mapIn + Math.min(0.1, (now - this.lastT) / 1000) / 0.6);
+    this.lastT = now;
     // (and the march's steps fall away as it does, so the two are never both paid in full)
-    // (fewer from outside it, where it's small on the screen and soft)
+    // (fewer from outside it, where it's small on the screen and soft, and every ray's steps gather where it crosses the
+    // plane)
     const out = Math.max(0, Math.min(1, (Math.log10(Sk) - 1.0) / 0.4));
-    const steps = Math.max(8, Math.round((40 - 12 * out) * (1 - inside)));
-    this.lv.L.set({ weight: this.lv.weight, a: [0.16, 14.0, steps, inside], d: [0, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
+    // (dimmer as the eye nears the plane: edge on, the whole disc's light adds up along every ray, more than the dust
+    // takes back, and the exposure's the one the galaxy seen whole has)
+    const near = 0.15 + 0.85 * Math.max(0, Math.min(1, (Math.log10(Sk) - 0.5) / 0.9));
+    // (and brighter seen from among the Local Group, a few dozen pixels across: an exposure that follows the zoom, as
+    // the Local Group's own galaxies have)
+    const far = 1 + 3 * Math.max(0, Math.min(1, (Math.log10(Sk) - 2.2) / 1.2));
+    const steps = Math.max(8, Math.round((this.stepsIn - (this.stepsIn - this.stepsOut) * out) * (1 - inside)));
+    this.lv.L.set({ weight: this.lv.weight, a: [this.glow * near * far, this.dust, steps, inside], b: [this.diffuse, this.lodBias, 0, 0], d: [this.mapIn, 0.045, this.picture === 'in' ? 1 : 0, this.vscale] });
     // (and its stars with it: the picture holds them, and the Sun's own neighbours are drawn by their level)
     if (this.picture === 'in') this.stars.weight *= 1 - inside;
+    this.stars.weight *= this.mapIn;
     this.stars.L.set({ weight: this.stars.weight, a: [0.0005 * Math.max(Sk, 12) ** 2, 0, 0.02, 1] });
   }
 }

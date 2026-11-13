@@ -46,7 +46,7 @@ export async function buildCell(kit: Kit, canvas: HTMLCanvasElement, o: { base: 
   status('laying out the cell…', 0.12);
   await o.frame();
   const world = buildWorld();
-  const r = new Renderer(kit, packOrganelles(kit, world));
+  const r = new Renderer(kit, packOrganelles(kit, world), quality);
   status('building membranes…', 0.25);
   await o.frame();
   new Organelles(kit, r, world, quality);

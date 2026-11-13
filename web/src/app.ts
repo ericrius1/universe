@@ -369,6 +369,9 @@ export class App {
     c.push('A well');
     if (l > -2.7) return c;
     c.push(this.well?.store.inside != null ? 'Inside a liver cell' : 'A field of liver cells');
+    // (and what the picture is, when it's an instrument's or the model's: the well's look, labelled as simulated)
+    const shown = this.well?.lookNow.label;
+    if (shown) c[c.length - 1] += ` (${shown})`;
     return c;
   }
 

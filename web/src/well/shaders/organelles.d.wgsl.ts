@@ -67,9 +67,10 @@ export interface World {
   detail: number;
   dim: number;
   fieldHalf: number;
-  spare0: number;
-  spare1: number;
-  spare2: number;
+  eyeAlt: number;
+  meniscus: number;
+  under: number;
+  optics: Vec4;
 }
 export interface CellG {
   c: Vec4;
@@ -101,10 +102,12 @@ export interface Hit {
   n: Vec3;
   local: Vec3;
   ok: unknown;
+  chord: number;
 }
 export interface FOut {
   color: Vec4;
   pick: number;
+  optic: Vec4;
   depth: number;
 }
 

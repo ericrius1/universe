@@ -67,13 +67,38 @@ export interface World {
   detail: number;
   dim: number;
   fieldHalf: number;
-  spare0: number;
-  spare1: number;
-  spare2: number;
+  eyeAlt: number;
+  meniscus: number;
+  under: number;
+  optics: Vec4;
 }
 export interface CellG {
   c: Vec4;
   k: Vec4;
+}
+export interface Well {
+  v: Vec4;
+  col: Vec4;
+}
+export interface PlateU {
+  rows: number;
+  cols: number;
+  pitch: number;
+  bore: number;
+  depth: number;
+  fill: number;
+  hover: number;
+  chosen: number;
+  originX: number;
+  originZ: number;
+  lift: number;
+  spare: number;
+  shift: Vec3;
+  unit: number;
+  veil: number;
+  fieldHalf: number;
+  soft: number;
+  spare2: number;
 }
 export interface FullscreenOut {
   pos: Vec4;
@@ -110,6 +135,11 @@ export interface CanalOut {
   uv: Vec2;
   ci: number;
 }
+export interface COut {
+  color: Vec4;
+  pick: number;
+  optic: Vec4;
+}
 
-declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; FullscreenOut: FullscreenOut; MeshVertex: MeshVertex; SkyOut: SkyOut; FloorOut: FloorOut; FOut: FOut; CanalOut: CanalOut }, 'frame' | 'G' | 'cells' | 'cverts' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; World: World; CellG: CellG; Well: Well; PlateU: PlateU; FullscreenOut: FullscreenOut; MeshVertex: MeshVertex; SkyOut: SkyOut; FloorOut: FloorOut; FOut: FOut; CanalOut: CanalOut; COut: COut }, 'frame' | 'G' | 'P' | 'cells' | 'wells' | 'cverts' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
