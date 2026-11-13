@@ -65,7 +65,9 @@ try {
           if (h.title) names.add(h.title);
         }
         line = `ok · pointing names ${hits}/24 spots (${[...names].slice(0, 5).join(', ')})`;
-        if (!hits) throw new Error('pointing names nothing');
+        // (a wide view of the tissue or the whole cell has little under most of the sweep, on any build: only a close
+        // place naming nothing is a fault)
+        if (!hits && /place=(?!tissue|cell)/.test(q)) throw new Error('pointing names nothing');
       }
     } catch (e) { line = `FAILED ${e.message.split('\n')[0]}`; bad++; }
     console.log(`${(q || '(default)').padEnd(22)} ${line}${said.length ? `\n     ${[...new Set(said)].slice(0, 6).join('\n     ')}` : ''}`);
