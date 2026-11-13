@@ -119,6 +119,8 @@ export class Hepatocyte {
   /** how much of the picture is the instrument's this frame (0: the world's own) */
   instrument = 0;
   readonly scene: RenderPass;
+  /** the same scene without the optics target, drawn while no instrument shows */
+  private readonly plainScene: RenderPass;
   /** the field of cells on the chosen well's floor (rebuilt when the culture system changes) */
   field: Field;
 
@@ -221,44 +223,51 @@ export class Hepatocyte {
 
     // ---- the frame. The cells first, then the wells over them: the chosen well's floor is laid over the cells while
     // its picture of them is still showing, and the meniscus is seen through
-    const scene = this.scene = kit.pass({
-      label: 'hep.scene',
-      color: [
-        { target: this.hdr, clear: hosted ? [0, 0, 0, 0] : [1, 1, 1, 1] },
-        { target: this.pick, clear: [0, 0, 0, 0] },
-        { target: this.optic, clear: [0, 0, 0, 0] },
-      ],
-      depth: { target: this.depth, clear: 0 },
-    });
     const inField = () => this.fieldOn;
     const wells = { wells: wellBuf, P: PL };
-    // (behind everything, hosted or not: the room and its bench, or down in a well the medium)
-    scene.fullscreen(stageShader, { label: 'room', fragment: 'fs_sky', bind: wells });
-    scene.draw(plateShader, { label: 'plate.body', vertex: 'vs_body', fragment: 'fs_body', count: 36, cull: 'none', enabled: () => this.bodyOn, bind: wells });
-    scene.draw(stageShader, { label: 'floor', vertex: 'vs_floor', fragment: 'fs_floor', count: 6, cull: 'none', enabled: inField, bind: { cells: cellBuf } });
-    scene.draw(stageShader, {
-      label: 'canals', vertex: 'vs_canal', fragment: 'fs_canal', cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM],
-      bind: { cverts: canalMesh.vertices, cells: cellBuf },
-      indices: { buffer: canalMesh.indices, format: 'uint32' },
-      count: () => canalMesh.count,
-    });
-    // (the optics: the roofs' by the brightest, the nuclei's and the canals' added: OPTIC_SUM)
-    scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM], bind: { orgs: nucBuf, cells: cellBuf } });
-    scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0], bind: { orgs: orgBuf, cells: cellBuf } });
-    scene.draw(fieldShader, {
-      label: 'cells.skirt', constants: { SKIRT: 1 }, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0],
-      bind: { verts: mesh.vertices, cells: cellBuf },
-      indices: { buffer: mesh.indices, format: 'uint32' },
-      count: () => mesh.count,
-    });
-    scene.draw(fieldShader, {
-      label: 'cells.body', constants: { SKIRT: 0 }, cull: 'none', enabled: inField,
-      blend: ['premultiplied', 'opaque', OPTIC_SUM], writeMask: [0xf, 0, 0xf], depthWrite: true,
-      bind: { verts: mesh.vertices, cells: cellBuf },
-      indices: { buffer: mesh.indices, format: 'uint32' },
-      count: () => mesh.count,
-    });
-    scene.draw(plateShader, { label: 'plate.wells', vertex: 'vs_well', fragment: 'fs_well', count: 28 * 39, instances: 96, cull: 'none', blend: ['premultiplied', 'opaque', OPTIC_OVER], bind: wells });
+    // Two passes over the same draws: one with the optics target the instrument reads, one without it, for when no
+    // instrument is showing (the target's writes and its store are a frame's worth of bandwidth for nothing then)
+    const sceneFor = (optics: boolean) => {
+      const scene = kit.pass({
+        label: optics ? 'hep.scene' : 'hep.scene.plain',
+        color: [
+          { target: this.hdr, clear: hosted ? [0, 0, 0, 0] : [1, 1, 1, 1] },
+          { target: this.pick, clear: [0, 0, 0, 0] },
+          ...(optics ? [{ target: this.optic, clear: [0, 0, 0, 0] as [number, number, number, number] }] : []),
+        ],
+        depth: { target: this.depth, clear: 0 },
+      });
+      // (behind everything, hosted or not: the room and its bench, or down in a well the medium)
+      scene.fullscreen(stageShader, { label: 'room', fragment: 'fs_sky', bind: wells });
+      scene.draw(plateShader, { label: 'plate.body', vertex: 'vs_body', fragment: 'fs_body', count: 36, cull: 'none', enabled: () => this.bodyOn, bind: wells });
+      scene.draw(stageShader, { label: 'floor', vertex: 'vs_floor', fragment: 'fs_floor', count: 6, cull: 'none', enabled: inField, bind: { cells: cellBuf } });
+      scene.draw(stageShader, {
+        label: 'canals', vertex: 'vs_canal', fragment: 'fs_canal', cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM],
+        bind: { cverts: canalMesh.vertices, cells: cellBuf },
+        indices: { buffer: canalMesh.indices, format: 'uint32' },
+        count: () => canalMesh.count,
+      });
+      // (the optics: the roofs' by the brightest, the nuclei's and the canals' added: OPTIC_SUM)
+      scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM], bind: { orgs: nucBuf, cells: cellBuf } });
+      scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0], bind: { orgs: orgBuf, cells: cellBuf } });
+      scene.draw(fieldShader, {
+        label: 'cells.skirt', constants: { SKIRT: 1 }, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0],
+        bind: { verts: mesh.vertices, cells: cellBuf },
+        indices: { buffer: mesh.indices, format: 'uint32' },
+        count: () => mesh.count,
+      });
+      scene.draw(fieldShader, {
+        label: 'cells.body', constants: { SKIRT: 0 }, cull: 'none', enabled: inField,
+        blend: ['premultiplied', 'opaque', OPTIC_SUM], writeMask: [0xf, 0, 0xf], depthWrite: true,
+        bind: { verts: mesh.vertices, cells: cellBuf },
+        indices: { buffer: mesh.indices, format: 'uint32' },
+        count: () => mesh.count,
+      });
+      scene.draw(plateShader, { label: 'plate.wells', vertex: 'vs_well', fragment: 'fs_well', count: 28 * 39, instances: 96, cull: 'none', blend: ['premultiplied', 'opaque', OPTIC_OVER], bind: wells });
+      return scene;
+    };
+    const scene = this.scene = sceneFor(true);
+    this.plainScene = sceneFor(false);
 
     // ---- the instrument's blur: the optics at a quarter of the frame, then across and down (instrument.wgsl)
     const [q0, q1] = this.opticQ;
@@ -476,7 +485,7 @@ export class Hepatocyte {
   }
 
   /** this frame's GPU work: its scene, and on its own page its bloom and film to the screen too */
-  passes(): RunEntry[] { return this.instrument > 0.001 ? [this.own[0], ...this.opticPasses, ...this.own.slice(1)] : this.own; }
+  passes(): RunEntry[] { return this.instrument > 0.001 ? [this.own[0], ...this.opticPasses, ...this.own.slice(1)] : [this.plainScene, ...this.own.slice(1)]; }
 
   /** the picture laid into a host's HDR (its film's units: this one's exposure applied), over what's there by `shows`.
    *  Hosted worlds only; run it after `passes()` */
