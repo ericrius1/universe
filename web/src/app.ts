@@ -33,6 +33,7 @@ import { NM } from './cosmos/frames';
 import { COSMOS_PLACES as BOULDER_PLACES, cosmosPlaces, type CosmosPlace } from './cosmos/places';
 import { CELL_TOP, inWindow, whole, type ZoomWindow } from './windows';
 import type { Realms } from './realms';
+import { Guiding, address } from './ui/guiding';
 
 /** a view distance (log10 m) to the width of the view across the screen (log10 nm), about */
 const FOV_NM = 9.2;
@@ -99,6 +100,8 @@ export class App {
   readonly places = new Map<string, Place>();
   readonly tour: Tour;
   readonly intro: Intro;
+  /** the guide: the story in chapters, what to look for, the instruments (ui/guiding.ts) */
+  readonly guiding: Guiding;
   flyUi: FlyUi | null = null;
   game: Game | null = null;
   /** the music: "Cosmic Drift", 20 min of Suno stems blended, round and round (audio/score.ts) */
@@ -201,6 +204,7 @@ export class App {
       if (s?.cut) this.cutTarget = 1;
     });
     this.fitTour();
+    this.guiding = new Guiding(this, ui);
     // one film for the whole dive (cosmos/film.ts): the cell's frame laid into the cosmos's HDR — under the cosmos's own
     // as the two hand over, alone below them — and graded with it, the cell's film mixed in by its share
     cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
@@ -215,7 +219,7 @@ export class App {
     };
     for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
     if (params.has('notitle') || params.has('film')) this.hud.setChrome(false);
-    else setTimeout(() => { if (!this.controls?.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall' : 'Scroll or pinch to dive in', 6000); }, 2200);
+    else if (!this.guiding.greet(ui)) setTimeout(() => { if (!this.controls?.fly) this.hud.toast(this.realm === 'cosmos' ? 'Scroll or pinch to fall' : 'Scroll or pinch to dive in', 6000); }, 2200);
   }
 
   /** the cell's realm, in: its camera set where the visit starts in it, its handlers wired, its frame laid into the
@@ -243,6 +247,7 @@ export class App {
     this.hud.setPlaces(this.dockPlaces());
     this.hud.setCell(true);
     this.fitTour();
+    this.guiding.order();
   }
 
   /** the dock's places: those in the window, above the cell and in it */
@@ -288,6 +293,7 @@ export class App {
     this.hud.setCell(true);
     this.hud.setPlaces(this.dockPlaces());
     this.fitTour();
+    this.guiding.order();
     this.hud.toast('The whole universe, coming in behind you…', 4000);
   }
   /** a realm's in (main.ts's realms): the dock and the tour take in its places */
@@ -295,6 +301,7 @@ export class App {
     this.applyWindow();
     this.hud.setPlaces(this.dockPlaces());
     this.fitTour();
+    this.guiding.order();
   }
 
   /** the zoom held short of what hasn't come in: the cosmos's floor below it, its ceiling above */
@@ -420,12 +427,8 @@ export class App {
     // (zooming in by hand over the gardens, the view comes round to the film's way down onto her: from her feet' side,
     // her face the right way up, never over the crown of her head)
     if (GARDENS) this.cosmos.controls.guide = { band: [this.cosmos.controls.min, 2.6], arrive: 0.3, at: approach };
-    this.cosmos.controls.onUser = () => { if (this.tour.active) this.tour.stop(); };
-    hud.onCardFly = () => {
-      const p = this.selectedPick;
-      if (!p || !this.cell) return;
-      this.controls.flyTo(p.world, Math.max(4, vec3.distance(p.world, this.controls.position) / 5));
-    };
+    this.cosmos.controls.onUser = () => { if (this.tour.active) this.tour.stop(); this.guiding.onUser(); };
+    hud.onCardFly = () => this.flyCloser();
     hud.onPlace = (id) => this.goTo(id);
     hud.onPlay = (id) => this.startGame(id);
     hud.onButton = (id) => this.button(id);
@@ -434,13 +437,15 @@ export class App {
       const k = e.key.toLowerCase();
       if (this.game) { if (k === 'escape') this.stopGame(); return; }
       if (k === 't') { if (TOUR.length) this.button('tour'); }
+      else if (k === 'i') this.button('guide');
+      else if ((k === ']' || k === '[') && this.guiding.guide.open) this.guiding.nudge(k === ']' ? 1 : -1);
       else if (!this.cell && 'fcmp'.includes(k)) return;
       else if (k === 'f') this.button('fly');
       else if (k === 'c') this.button('cut');
       else if (k === 'm') this.button('fluo');
       else if (k === 'h' || k === '?') this.button('help');
       else if (k === 'p') this.button('play');
-      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
+      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); this.guiding.instruments.close(); if (!this.guiding.instruments.open) this.guiding.guide.close(); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
       else if (k >= '1' && k <= '9') { const p = [...this.places.values()][Number(k) - 1]; if (p) this.goTo(p.id); }
     });
   }
@@ -459,7 +464,10 @@ export class App {
       const card = p ? this.card(p.id) : null;
       this.selected = card ? p!.id : 0;
       this.selectedPick = card ? p : null;
-      hud.showCard(card);
+      // (with the guide open, a thing's card is in it: nothing the cell says lies over anything else it says)
+      if (card && this.guiding.thing(card, p!.id)) hud.showCard(null);
+      else if (!card && this.guiding.guide.open) this.guiding.untapped();
+      else hud.showCard(card);
       if (card) this.sound('click');
     };
     c.onDoubleClick = (_x, _y, p) => {
@@ -479,6 +487,14 @@ export class App {
   }
 
   sound(name: string, s = 1) { this.score.event(name, s); }
+  /** fly the cell's camera closer to the thing last tapped */
+  flyCloser() {
+    const p = this.selectedPick;
+    if (!p || !this.cell) return;
+    this.controls.flyTo(p.world, Math.max(4, vec3.distance(p.world, this.controls.position) / 5));
+  }
+  /** whether a camera is on its way somewhere */
+  flying() { return this.realm === 'cosmos' ? this.cosmos.controls.flying : !!this.controls?.flying; }
 
   /** a place's distance widened on a tall screen (the field of view is vertical), so the subject still fits across */
   fit(scale: number) { const a = this.kit.size.css[0] / Math.max(1, this.kit.size.css[1]); return a < 1 ? scale / Math.pow(a, 0.65) : scale; }
@@ -563,9 +579,10 @@ export class App {
   button(id: string) {
     const hud = this.hud;
     this.sound('click');
+    if (id === 'guide') { this.setFly(false); if (this.tour.active) this.tour.stop(); this.guiding.toggle(); return; }
     if (id === 'fly') { if (this.cell) this.setFly(!this.controls.fly); return; }
     if (id === 'tour' || id === 'play' || id === 'help') this.setFly(false);
-    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else if (TOUR.length) { hud.showCard(null); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
+    if (id === 'tour') { if (this.tour.active) this.tour.stop(); else if (TOUR.length) { hud.showCard(null); this.guiding.guide.close(); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
     else if (id === 'cut') { this.cutTarget = this.cutTarget > 0.5 ? 0 : 1; hud.toast(this.cutTarget ? 'Cutaway: the cell opened' : 'Cutaway closed'); }
     else if (id === 'fluo') { this.fluoTarget = this.fluoTarget > 0.5 ? 0 : 1; hud.toast(this.fluoTarget ? 'Under the microscope' : 'Back to colour'); }
     else if (id === 'help') hud.toggleHelp();
@@ -642,6 +659,7 @@ export class App {
     if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
+    this.guiding.frame(dt);
     this.holds();
     // the cross-fade between the cosmos and the cell: each draws while it shows (at the loop's seam, by the zoom: seam())
     const cc = this.cosmos.controls;
@@ -700,7 +718,7 @@ export class App {
     const cc = this.cosmos.controls, kit = this.kit;
     const S = this.cosmos.S / NM;
     const fovW = 2 * S * Math.tan(kit.camera.fovY / 2) * (kit.size.css[0] / kit.size.css[1]);
-    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.cosmos.crumbs(), hover: null, mouse: cc.mouse });
+    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.cosmos.beyond && cc.logS > 27.4 ? this.cosmos.crumbs() : address(cc.logS, this.cosmos.short), hover: null, mouse: cc.mouse });
     // (still at the place flown to: about as close)
     if (this.cosmosAt && !cc.flying && Math.abs(cc.logS - this.cosmosAt.logS) > 0.8) this.cosmosAt = null;
     this.hud.setHere(this.cosmosAt?.id ?? null);
@@ -764,7 +782,7 @@ export class App {
       fogColor: this.haze[0].map((x) => x * (1 - this.fluo)) as Vec3, bgColor: this.haze[1].map((x) => x * (1 - this.fluo)) as Vec3,
       fogDist: S * fogK, clearRadius: S * 0.42, pxAngle,
       organelleCount: this.world.organelles.length, hover: this.hover, selected: this.selected, highlight: 1,
-      quality: 1, flags: this.shrinkWhole ? 1 : 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin, hazeBg: hb * hb * (3 - 2 * hb),
+      spots: this.guiding.spot.k > 0.002 ? this.guiding.spot.code : 0, spot: this.guiding.spot.k, flags: this.shrinkWhole ? 1 : 0, shellSolid: solid * solid * (3 - 2 * solid), dof: this.dof, origin, hazeBg: hb * hb * (3 - 2 * hb),
     });
     this.r.globals.set({ jewel: this.jewel ? [...rel(this.jewel.at), this.jewel.r] as never : [0, 0, 0, 0] });
     // how far off a nucleosome (10.74 nm) and a base pair (1.1 nm) still count as over 9 px, the haze taken in
