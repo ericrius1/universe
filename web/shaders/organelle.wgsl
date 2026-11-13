@@ -242,8 +242,7 @@ fn cutFace(world: vec3f) -> CutHit {
   return h;
 }
 
-fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
-  let sd = sdOrganelle(o, p);
+fn capPattern(o: Organelle, p: vec3f, fp: f32, sd: f32) -> vec3f {
   let m = material(o.kind, true);
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
   // depth through the material, 0 at the outer face
@@ -280,15 +279,31 @@ fn capPattern(o: Organelle, p: vec3f, fp: f32) -> vec3f {
   let o = orgAt(in.org);
   // (outside its bounding sphere it can't be in its material: no need to ask its surface)
   if (length(h.p - o.center) > o.bound) { discard; }
-  let sd = sdOrganelle(o, h.p);
   let th = select(o.thick, shellThick(o), o.shape != S_DISC);
+  // (nor, a blob or a capsule, where its surface's noise couldn't reach: the most its octaves add, 0.875 and 0.75 of its
+  // amplitude — most of a cut face is deep inside a shell or well outside it, and its surface's noise is the cost)
+  if (o.shape != S_DISC) {
+    var d = 0.0; var base = o.r; var most = 0.75 * abs(o.amp);
+    if (o.shape == S_BLOB) {
+      let q = h.p - o.a;
+      d = length(q);
+      base = ellipsoidRadius(q / max(d, 1e-3), o.b);
+      most = 0.875 * abs(o.amp);
+    } else {
+      let ab = o.b - o.a;
+      d = length(h.p - (o.a + ab * clamp(dot(h.p - o.a, ab) / dot(ab, ab), 0.0, 1.0)));
+    }
+    if (d - base - most > 0.0) { discard; }
+    if (isShellOrg(o) && d - base + most < -th * 1.02) { discard; }
+  }
+  let sd = sdOrganelle(o, h.p);
   // the cut point must be inside this organelle's material (a shell: within its thickness)
   if (sd > 0.0) { discard; }
   if (isShellOrg(o) && sd < -th * 1.02) { discard; }
   let fp = footprint(h.p);
   let v = normalize(frame.camPos - h.p);
   var s: Surf;
-  s.albedo = capPattern(o, h.p, fp); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
+  s.albedo = capPattern(o, h.p, fp, sd); s.sss = s.albedo * 0.6; s.rough = 0.6; s.wrap = 0.6; s.trans = 0.0; s.rim = 0.0;
   var c = bioLight(h.n, v, s) * 0.85;
   c = fluoro(c, o.kind, h.n, v);
   var out: GOutD;
