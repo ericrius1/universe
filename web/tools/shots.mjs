@@ -7,8 +7,8 @@
 //   node tools/shots.mjs <outDir> [query] [width] [height]
 //     env  CDP, PORT or ORIGIN · ONLY=web,cell:dna some places · UI=1 · COLS=4 the sheet's columns · FRAMES=50 to settle
 import puppeteer from 'puppeteer-core';
-import { mkdirSync, rmSync, statSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { lock, unlock } from './gpulock.mjs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const [out, query = '', w = '1280', h = '800'] = process.argv.slice(2);
@@ -18,20 +18,6 @@ const origin = process.env.ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '57
 const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const settle = Number(process.env.FRAMES ?? 50);
 
-const LOCK = join(tmpdir(), 'universe-gpu.lock');
-async function lock() {
-  for (let waited = 0; ; waited += 2) {
-    try { mkdirSync(LOCK); return; } catch {
-      try { if (Date.now() - statSync(LOCK).mtimeMs > 25 * 60e3) { rmSync(LOCK, { recursive: true, force: true }); continue; } } catch { continue; }
-      if (waited % 30 === 0) console.error(`shots: waiting for the GPU (${LOCK})…`);
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-}
-const unlock = () => { try { rmSync(LOCK, { recursive: true, force: true }); } catch { /* gone */ } };
-process.on('SIGINT', () => { unlock(); process.exit(130); });
-process.on('SIGTERM', () => { unlock(); process.exit(143); });
-
 // (zoom as log10 metres, pitch, name: as tools/bench.mjs has them)
 const SPOTS = [[28.3, -0.08, 'keepers'], [27.3, -0.3, 'our marble'], [26.95, -0.25, 'universe'], [25.6, -0.3, 'web, whole'], [24.3, -0.4, 'web'],
   [22.6, -0.6, 'local group'], [21.35, -0.75, 'milky way'], [20.0, -0.55, 'entering the disc'], [17.7, -0.3, 'neighbours'], [15.0, -0.5, 'past the planets'],
@@ -39,7 +25,7 @@ const SPOTS = [[28.3, -0.08, 'keepers'], [27.3, -0.3, 'our marble'], [26.95, -0.
   [3.5, -0.42, 'gardens, 3 km'], [1.4, -0.6, 'gardens, 25 m'], [0.35, -0.95, 'her, 2 m'], [-1.75, -1.1, 'her eye'], [-3.6, -1.1, 'cornea']];
 const file = (i, name) => `${String(i).padStart(2, '0')}-${name.replace(/[^a-z0-9]+/gi, '-')}`;
 
-await lock();
+await lock('shots');
 let code = 0;
 const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${process.env.CDP ?? 9740}`, defaultViewport: null, protocolTimeout: 0 });
 const tag = `about:blank#shots-${process.pid}-${Date.now()}`;

@@ -84,7 +84,18 @@ npx vite preview --outDir /tmp/<yours> --port <your port> --host 127.0.0.1 --str
 PORT=<your port> BASE=perf/air-main.json node tools/bench.mjs          # every place, against the baseline
 PORT=<your port> ONLY="web,cell:dna" PARTS=1 node tools/bench.mjs     # some places, and what owns them
 PORT=<your port> node tools/shots.mjs /tmp/<yours>-shots               # a picture of every place and sheet.jpg
+PORT=<your port> AGAINST=5751 ONLY="web,earth" node tools/bench.mjs    # beside another build, in the same minute
 ```
+
+**Kept numbers lie on a warm laptop.** With several of us at work the same code reads up to twice its kept time an
+hour later, so `BASE=` only tells you something on a quiet machine. `AGAINST=<port>` times your build and another
+(port 5751 serves `main` as it was before any of this) place by place, one page frozen while the other is timed:
+that's the comparison to trust, and the one a merge is judged by.
+
+**A script of your own that draws** takes the same lock: `import { lock, unlock } from './gpulock.mjs'`, `await
+lock('mine')`, and `unlock()` in a `finally`. It's first come, first served. Give every wait in it a timeout (a page
+in a film's test mode never draws a frame by itself: `__frames` won't return there), and hold the lock for one run,
+not for a session: a script that hung on it once held everyone up for an hour.
 
 **One GPU job at a time.** Two pages timing at once time each other, and this laptop is shared by every agent. `bench`
 and `shots` take a lock and wait their turn; don't time anything by another route, and don't leave a page running
