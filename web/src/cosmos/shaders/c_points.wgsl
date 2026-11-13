@@ -20,9 +20,9 @@ const PSF_BETA = 3.0;
 const AUR_R = 1.6;
 const AUR = 0.0035;
 const FLOOR = 0.0015;
-// a star's flux as it was drawn before the shared PSF (the galaxy's stars, the belts: their gains were set for that),
-// to the light the PSF spreads
-const FLUX_K = 6.0;
+// a star's flux to the light the PSF spreads: the light the galaxy's stars and the belts gave before the shared PSF (their
+// gains were set for that), about half their flux
+const FLUX_K = 0.5;
 
 fn moffat0() -> f32 { return (PSF_BETA - 1.0) / (PI * PSF_ALPHA * PSF_ALPHA); }
 // the light per unit flux at r pixels from a star's centre

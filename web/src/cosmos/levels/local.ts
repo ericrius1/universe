@@ -17,7 +17,7 @@ import { bvColor, fetchBin, fetchJSON, parseStars, type Figure, type Star, type 
 /** the catalogue's faintest from the Sun (stars8.bin): the crowd stays fainter than this */
 const V_LIMIT = 8.0;
 /** the stars' gain: flux 10^(−0.4 V) from the Sun to the light the shared PSF spreads (c_points.wgsl) */
-const GAIN = 4.0;
+const GAIN = 48.0;
 /** the figures' light, the gap they leave round each star (px) and their width (px) */
 const FIG_LIGHT = 0.022, FIG_GAP = 7, FIG_WIDTH = 1.1;
 /** the Sun: its absolute magnitude and B−V, and the distance (pc) it fades in from as a star (closer, the solar
@@ -66,7 +66,7 @@ export class Local {
     this.kit = kit;
     this.R = R;
     this.lv = R.level('local', ladder.local, [20.6, 19.6, -99, -100]);
-    this.fig = R.level('local.figures', ladder.local, [18.3, 17.2, -99, -100]);
+    this.fig = R.level('local.figures', ladder.local, [18.1, 17.0, -99, -100]);
     this.ready = new Promise((res) => { this.start = res; });
     const P = this.pts;
     const sun = bvColor(SUN_BV);
