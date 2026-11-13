@@ -14,8 +14,8 @@ struct SkyOut { @location(0) color: vec4f, @location(1) pick: u32 }
   var o: SkyOut;
   let rd = viewRay(i.uv);
   let e = toPlate(frame.camPos);
-  var c = labSeen(e, rd);
-  c = mix(c, mediumColor(frame.camPos + rd * 400.0, rd), G.under);
+  var c = mediumColor(frame.camPos + rd * 400.0, rd);
+  if (G.under < 0.999) { c = mix(labSeen(e, rd), c, G.under); }
   c = mix(c, c * 0.25, G.mode);
   o.color = vec4f(safe(c * G.dim), 1.0);
   o.pick = 0u;

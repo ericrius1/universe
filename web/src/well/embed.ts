@@ -243,8 +243,8 @@ export class Hepatocyte {
       count: () => canalMesh.count,
     });
     // (the optics: the roofs' by the brightest, the nuclei's and the canals' added: OPTIC_SUM)
-    scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, blend: ['premultiplied', 'opaque', OPTIC_SUM], bind: { orgs: nucBuf, cells: cellBuf } });
-    scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, blend: ['premultiplied', 'opaque', 'opaque'], writeMask: [0xf, 0xf, 0], bind: { orgs: orgBuf, cells: cellBuf } });
+    scene.draw(orgShader, { label: 'nuclei', count: 6, instances: () => this.nucCount, cull: 'none', enabled: inField, blend: ['opaque', 'opaque', OPTIC_SUM], bind: { orgs: nucBuf, cells: cellBuf } });
+    scene.draw(orgShader, { label: 'organelles', count: 6, instances: () => this.orgCount, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0], bind: { orgs: orgBuf, cells: cellBuf } });
     scene.draw(fieldShader, {
       label: 'cells.skirt', constants: { SKIRT: 1 }, cull: 'none', enabled: inField, writeMask: [0xf, 0xf, 0],
       bind: { verts: mesh.vertices, cells: cellBuf },

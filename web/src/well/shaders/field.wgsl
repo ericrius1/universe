@@ -122,7 +122,9 @@ struct FOut {
   // the optics (the roof only: the skirt is behind it): the cytoplasm (n about 1.37 against the medium's 1.335) through
   // the cell's height, grainy with what's in it; a hepatocyte's glycogen for the PAS. A cell that has let go is a husk
   let glyc = 1.0 - sat((G.atpLoss * 1.3 + G.swell * 0.7) * fate);
-  let grain = noise3(i.wp * 0.9 + vec3f(f32(i.ci) * 7.1)) - 0.5;
+  // (the grain only while the instrument's showing: it's a noise for every fragment of the sheet)
+  var grain = 0.0;
+  if (G.optics.x > 0.001) { grain = noise3(i.wp * 0.9 + vec3f(f32(i.ci) * 7.1)) - 0.5; }
   let dn = 0.035 * (1.0 + 0.35 * grain) * mix(0.4, 1.0, alive) * (1.0 + 0.4 * sat(G.oncosis * fate));
   out.optic = vec4f(dn * thick, 0.0, select(0.012, 0.06 * glyc, hep) * thick * alive, 0.0);
   return out;

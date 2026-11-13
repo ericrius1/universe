@@ -269,8 +269,10 @@ fn mediumPath(mp: vec3f, rd: vec3f, surface: f32) -> f32 {
     let rv = (i.mp.xz - c) / max(r, 1e-4);
     var n = unit(vec3f(-rv.x * menSlope(r), 1.0, -rv.y * menSlope(r)));
     let near = 1.0 - smoothstep(0.5, 6.0, distance(toPlate(frame.camPos), i.mp));
-    let tw = vec2f(noise3(vec3f(i.mp.xz * 0.9, frame.time * 0.35)), noise3(vec3f(i.mp.xz * 0.9 + 7.3, frame.time * 0.35))) - 0.5;
-    n = unit(n + vec3f(tw.x, 0.0, tw.y) * 0.035 * near);
+    if (near > 0.0) {
+      let tw = vec2f(noise3(vec3f(i.mp.xz * 0.9, frame.time * 0.35)), noise3(vec3f(i.mp.xz * 0.9 + 7.3, frame.time * 0.35))) - 0.5;
+      n = unit(n + vec3f(tw.x, 0.0, tw.y) * 0.035 * near);
+    }
     let cs = dot(n, -rd);
     if (cs > 0.0) {
       let F = schlick(0.02, cs);

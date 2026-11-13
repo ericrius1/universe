@@ -109,7 +109,9 @@ fn mediumColor(wp: vec3f, rd: vec3f) -> vec3f {
   var c = mix(vec3f(0.030, 0.024, 0.027), vec3f(0.085, 0.072, 0.078), up);
   // (inside a cell: the cytosol's own haze, warmer and denser)
   c = mix(c, vec3f(0.062, 0.042, 0.032) * (0.7 + 0.6 * up), sat(G.focus.w));
-  let drift = noise3(wp * 0.012 + vec3f(0.0, frame.time * 0.03, 0.0));
+  // (two slow waves, not a noise: this runs for every fragment of everything down in the medium)
+  let q = wp * 0.011 + vec3f(0.0, frame.time * 0.03, 0.0);
+  let drift = 0.5 + 0.25 * sin(q.x + 1.7 * sin(q.z * 0.7 + q.y)) + 0.25 * sin(q.z * 1.3 - q.y * 0.6 + 2.1);
   c *= 0.78 + 0.44 * drift;
   return mix(c, vec3f(0.004, 0.005, 0.010), G.mode);
 }

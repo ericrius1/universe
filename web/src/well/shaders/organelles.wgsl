@@ -303,16 +303,13 @@ struct FOut {
   let light = vec3f(0.24, 0.22, 0.21) * crowdLight(roof - wp.y);
   var col = through(base, h.chord, max(s.r * 1.6, 0.15), h.n, light) + base * emis * 0.12;
   col = mix(col, base * (0.25 + emis * 2.4), G.mode);
-  // and as much of it there as the path through it holds: a thin edge or a thin sheet faint, a thick middle whole
-  alpha *= mix(0.3 + 0.7 * (1.0 - exp(-h.chord / max(0.35 * s.r, 0.04))), 1.0, G.mode);
+
   // injury bleeds a desaturated red through everything in the cell
   col = mix(col, mix(col, C_HARM, 0.55), sat((G.leak + G.karyolysis * 0.6) * fate) * 0.75);
   col = air(col, wp);
   // in the fluorescence register a thing is only its dye
   col = mix(col, chan * 1.15, G.mode);
-  // (premultiplied)
-  let a = alpha * i.vis;
-  out.color = vec4f(safe(col * G.dim) * a, a);
+  out.color = vec4f(safe(col * G.dim), alpha * i.vis);
   out.pick = ((s.kind + 1u) << 20u) | (s.cell & 0xfffffu);
   // (a nucleolus is inside its nucleus, so behind it in depth: its path is found here, where nucleiOnly put it)
   var opt = vec2f(0.0);

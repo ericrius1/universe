@@ -71,7 +71,7 @@ fn throughPlate(p: vec3f) -> vec3f {
 /** the bench at a point (y = BENCH_Y) seen along rd: black resin, a faint mottle, lit by the panel through or round the
  *  plate, darker in against the plate's foot, and its satin top giving back a blurred panel at a low angle */
 fn benchColor(p: vec3f, rd: vec3f) -> vec3f {
-  let mott = noise3(vec3f(p.xz * 0.35, 1.0)) * 0.6 + noise3(vec3f(p.xz * 0.04, 2.0)) * 0.4;
+  let mott = hash21(floor(p.xz * 2.0)) * 0.35 + noise3(vec3f(p.xz * 0.04, 2.0)) * 0.65;
   let alb = vec3f(0.034, 0.035, 0.038) * (0.85 + 0.3 * mott);
   let d = sdRect(p.xz, PLATE_HALF);
   let ao = mix(0.35, 1.0, smoothstep(-1.0, 7.0, d));
