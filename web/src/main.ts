@@ -80,7 +80,7 @@ async function boot() {
       const cell = await buildCell(kit, canvas, { base: BASE, quality, frame, status: (m, f) => { if (!started) status(m, f); } });
       app.attachCell(cell);
       jewel();
-      taau(kit, app, cosmos, cell.r, dome);
+      taau(kit, app, cosmos, cell.r, { dome, mobile, pace: () => pace });
       if (!started) status('nearly there…', 0.7);
       const ready = await compiled();
       console.log(`cell: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
@@ -205,24 +205,45 @@ async function boot() {
   await waitAll();
 }
 
-/** (?taau: temporal anti-aliasing with upscaling over the film's HDR, before its bloom — the cell's frames alone are
- *  jittered and reprojected: kit.camera is the cell's; the cosmos's levels march their own rays. Made with the cell) */
-function taau(kit: Kit, app: App, cosmos: Cosmos, r: Renderer, dome: boolean) {
-  if ((params.has('taau') || params.has('taau2')) && !dome && !params.has('film')) {
-    const t = app.taau = new Taau(kit, cosmos.r.hdr, r.depth);
-    if (params.has('taaudebug')) t.params.debug = true;
-    // (the floating origin moves each frame to the focus: last frame's view-projection taken over to this frame's
-    // origin — prevVP · T(origin now − origin then) — or the history would be reprojected by the origin's step)
-    const last: [number, number, number] = [origin[0], origin[1], origin[2]];
-    const shift = kit.action(() => {
-      const dx = origin[0] - last[0], dy = origin[1] - last[1], dz = origin[2] - last[2];
-      last[0] = origin[0]; last[1] = origin[1]; last[2] = origin[2];
-      const P = (t as unknown as { prevVP: Float32Array }).prevVP;
-      if ((!dx && !dy && !dz) || (window as unknown as { __noShift?: boolean }).__noShift) return;
-      for (let r = 0; r < 4; r++) P[12 + r] += P[r] * dx + P[4 + r] * dy + P[8 + r] * dz;
-    }, 'taau.origin');
-    cosmos.r.useTaau(t, [shift]);
-  }
+/** The upscaler: weft's temporal anti-aliasing with upscaling over the film's HDR, before its bloom — the cell's frames
+ *  alone are jittered and reprojected: kit.camera is the cell's; the cosmos's levels march their own rays. On by default
+ *  on a computer, while the cell's in the picture: the cell drawn at CELL_MAX of the canvas's pixels or less — the
+ *  dynamic resolution moves it between its least and that, rather than stretching a smaller picture — gathered back up
+ *  to the canvas's size over frames, and sharpened in the film's last pass (cosmos/shaders/c_post.wgsl fs_final, so
+ *  no pass of its own at the canvas's size). Above the cell the render scale is the cosmos's own, kept for it while
+ *  the cell has it. ?notaau the cell stretched as before; ?taau it on a phone too; never a film's or the dome's.
+ *  ?scale=<x> fixes the render scale everywhere. Made with the cell */
+function taau(kit: Kit, app: App, cosmos: Cosmos, r: Renderer, o: { dome: boolean; mobile: boolean; pace: () => FramePace | null }) {
+  const fixedScale = params.has('scale');
+  const upscale = !o.dome && !params.has('film') && !params.has('notaau') && (!o.mobile || params.has('taau') || params.has('taau2'));
+  if (!upscale) return;
+  const t = app.taau = new Taau(kit, cosmos.r.hdr, r.depth, { sharpen: false });
+  if (params.has('taaudebug')) t.params.debug = true;
+  // (the floating origin moves each frame to the focus: the history is carried over by the origin's step — weft's
+  // Taau.shift; ?taau2's by its last view-projection taken over to this frame's origin, prevVP · T(origin now − then))
+  const last: [number, number, number] = [origin[0], origin[1], origin[2]];
+  const shift = kit.action(() => {
+    const dx = origin[0] - last[0], dy = origin[1] - last[1], dz = origin[2] - last[2];
+    last[0] = origin[0]; last[1] = origin[1]; last[2] = origin[2];
+    if ((!dx && !dy && !dz) || (window as unknown as { __noShift?: boolean }).__noShift) return;
+    if (typeof (t as Partial<WeftTaau>).shift === 'function') { t.shift(dx, dy, dz); return; }
+    const P = (t as unknown as { prevVP: Float32Array }).prevVP;
+    for (let r = 0; r < 4; r++) P[12 + r] += P[r] * dx + P[4 + r] * dy + P[8 + r] * dz;
+  }, 'taau.origin');
+  // (the render scale under it: in the cell at most CELL_MAX — the dynamic resolution's ceiling there, and what a
+  // fixed scale above that is held to — the cosmos's own given back on leaving; it takes from the next frame)
+  const CELL_MAX = 0.66;
+  let inCell = false, cosmosScale = kit.renderScale, cellScale = CELL_MAX, cosmosMax = 1;
+  const scale = kit.action(() => {
+    const on = t.params.on, res = kit.autoRes ?? o.pace();
+    if (on !== inCell && !fixedScale) {
+      inCell = on;
+      if (on) { cosmosScale = kit.renderScale; if (res) { cosmosMax = res.max; res.max = CELL_MAX; } kit.renderScale = cellScale; }
+      else { cellScale = kit.renderScale; if (res) res.max = cosmosMax; kit.renderScale = cosmosScale; }
+    }
+    if (on && !fixedScale && kit.renderScale > CELL_MAX) kit.renderScale = CELL_MAX;
+  }, 'taau.scale');
+  cosmos.r.useTaau(t, [shift, scale]);
 }
 
 addEventListener('error', (e) => { if (!W.__ready) W.__failed = String(e.error?.stack ?? e.message); });

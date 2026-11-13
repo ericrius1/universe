@@ -751,7 +751,9 @@ export class App {
     const rotY = (v: Vec3, a: number): Vec3 => [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)];
     const n1 = rotY(this.wedgeDir, half - Math.PI / 2), n2 = rotY(this.wedgeDir, Math.PI / 2 - half);
     const fov = kit.camera.fovY;
-    const pxAngle = (2 * Math.tan(fov / 2)) / kit.size.render[1];
+    // (a pixel of the picture: the canvas's under the upscaler, which gives back its detail — so what's drawn at what detail
+    // is as it is at full size)
+    const pxAngle = (2 * Math.tan(fov / 2)) / (this.taau?.params.on ? kit.size.canvas[1] : kit.size.render[1]);
     const outside = this.compartmentName === 'outside';
     const fogK = outside ? 6 : 1.4 + 1.6 * Math.min(1, Math.max(0, Math.log10(S / 100) / 2));
     const [g0, g1] = this.shellGlass;

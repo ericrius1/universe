@@ -130,5 +130,5 @@ export interface Post {
   pad2: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'P' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Globals: Globals; Organelle: Organelle; Place: Place; Seg: Seg; Nuc: Nuc; Surf: Surf; TCell: TCell; FullscreenOut: FullscreenOut; Post: Post }, 'frame' | 'G' | 'P' | 'organelles' | 'depthTex' | 'nrmTex' | 'hdrTex' | 'aoTex' | 'srcTex' | 'idTex' | 'accumTex' | 'revealTex' | 'dofTex' | 'glassDepthTex' | 'thinAccumTex' | 'thinRevealTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
