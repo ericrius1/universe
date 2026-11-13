@@ -113,7 +113,7 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   if (d <= 0.0) {
     var bg = background(in.uv);
     if (V.look > 0.5) { bg = inked(illustratedFog(), px, 1e30, 0u, 0.0); }
-    return vec4f(clean(glassOver(bg, px, z0)), 1.0);
+    return vec4f(clean(glassOver(bg * (1.0 - 0.7 * G.spot), px, z0)), 1.0);
   }
   var c = textureLoad(hdrTex, px, 0).rgb;
   // occlusion: a depth-aware blur of the half-resolution term
@@ -148,7 +148,19 @@ const TISSUE_NRIM = vec3f(0.02, 0.025, 0.06);
   // the hovered and the chosen organelle: a soft lift
   let id = textureLoad(idTex, px, 0).r;
   if (id != 0u && (id == G.hover || id == G.selected)) { c *= 1.0 + G.highlight * select(0.18, 0.32, id == G.selected); }
-  return vec4f(clean(glassOver(c, px, z0)), 1.0);
+  // the spotlight (world.wgsl): what the guide points at breathes and is outlined warm; everything else dims
+  let lit = G.spot > 0.001 && spotlit(id);
+  if (G.spot > 0.001 && !lit) { c = mix(c, vec3f(dot(c, vec3f(0.3, 0.59, 0.11))), 0.5 * G.spot) * (1.0 - 0.7 * G.spot); }
+  var out = glassOver(c, px, z0);
+  if (lit) {
+    let pulse = 0.8 + 0.3 * sin(frame.time * 3.6);
+    let hi = vec2i(dims) - 1;
+    let edge = select(0.0, 1.0, !spotlit(textureLoad(idTex, clamp(px + vec2i(2, 0), vec2i(0), hi), 0).r) || !spotlit(textureLoad(idTex, clamp(px - vec2i(2, 0), vec2i(0), hi), 0).r)
+      || !spotlit(textureLoad(idTex, clamp(px + vec2i(0, 2), vec2i(0), hi), 0).r) || !spotlit(textureLoad(idTex, clamp(px - vec2i(0, 2), vec2i(0), hi), 0).r));
+    out = mix(out, c * (1.6 * pulse) + vec3f(0.03, 0.02, 0.01) * pulse, G.spot * 0.85);
+    out = mix(out, vec3f(1.0, 0.7, 0.54) * (1.2 + 0.4 * pulse), edge * G.spot * 0.9);
+  }
+  return vec4f(clean(out), 1.0);
 }
 
 // ---------------------------------------------------------------- the illustrative look (renderer.ts look)

@@ -34,6 +34,11 @@ export interface Frame {
   aspect: number;
   mouse: Vec4;
   user: Vec4;
+  viewProjRel: Mat4;
+  invViewProjRel: Mat4;
+  prevViewProjRel: Mat4;
+  camLo: Vec3;
+  _relPad: number;
 }
 export interface BV {
   eye: Vec3;

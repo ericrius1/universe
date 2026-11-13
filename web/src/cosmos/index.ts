@@ -77,6 +77,14 @@ export class Cosmos {
   data!: EarthData;
   beyond: Beyond | null = null;
   time = 0;
+  /** the time dial: how fast the ephemeris runs (1: the page's moment, held — at one second a second nothing moves that
+   *  could be seen; 86,400: a day a second). Only the planets, the Moon, the small bodies and the Earth along its orbit
+   *  move with it: the Earth's spin, the ground, its sun and the gardens' clock keep the page's moment */
+  timeScale = 1;
+  /** the ephemeris's moment (ms since 1970, UTC): the page's, run on by the dial */
+  get when() { return Date.UTC(2000, 0, 1, 12) + this.ladder.eday * 86400000; }
+  /** the ephemeris back to the page's moment */
+  resetTime() { this.ladder.setEphemeris(this.ladder.day); }
   /** the place's name in the crumbs */
   readonly short: string;
   /** the ground's own data fetched when the dive nears it (false: a host's ground covers it wherever it's seen —
@@ -120,7 +128,13 @@ export class Cosmos {
       if (id === 'web') { const { Web } = await import('./levels/web'); this.put(id, () => { this.web = new Web(kit, R, L); }); }
       else if (id === 'galaxy') { const { Galaxy } = await import('./levels/galaxy'); this.put(id, () => { this.galaxy = new Galaxy(kit, R, L); }); }
       else if (id === 'local') { const { Local } = await import('./levels/local'); this.put(id, () => { this.local = new Local(kit, R, L); }); }
-      else if (id === 'solar') { const { Solar } = await import('./levels/solar'); this.put(id, () => { this.solar = new Solar(kit, R, L); }); }
+      else if (id === 'solar') {
+        const { Solar } = await import('./levels/solar');
+        this.put(id, () => { this.solar = new Solar(kit, R, L); });
+        // (the camera's focus finds the bodies through it)
+        this.controls.locate = (b, out) => this.solar.locate(b, out);
+        this.controls.focusable = () => this.solar.ids();
+      }
       else if (id === 'earth') {
         const [{ Earth }] = await Promise.all([import('./levels/earth'), this.makeAir()]);
         this.put(id, () => { this.earth = new Earth(kit, R, L, this.air, this.data); });
@@ -200,6 +214,8 @@ export class Cosmos {
   update(dt: number, alpha = 1) {
     this.time += dt;
     const c = this.controls, B = this.built;
+    if (this.timeScale !== 1 && dt > 0) this.ladder.setEphemeris(this.ladder.eday + (dt * this.timeScale) / 86400);
+    c.fovY = this.kit.camera.fovY;
     c.update(dt);
     this.r.update(c, this.time);
     const S = c.S;
@@ -212,7 +228,7 @@ export class Cosmos {
     if (B.has('web')) this.web.update(S);
     if (B.has('galaxy')) this.galaxy.update(S);
     if (B.has('local')) this.local.update(S);
-    if (B.has('solar')) this.solar.update(S);
+    if (B.has('solar')) { this.solar.earthShare = B.has('earth') && this.earth.ready ? 1 : 0; this.solar.update(S); }
     // (the ground round the spot, fetched once the dive comes within reach of it)
     if (!this.loading && this.data && c.logS < 12 && (B.has('earth') || this.groundData)) { this.loading = true; void this.data.load().catch((e) => console.warn('cosmos: the ground failed to load', e)); }
     // (and whoever lies in the meadow, once it comes within a few kilometres)
@@ -220,7 +236,7 @@ export class Cosmos {
     if (B.has('earth')) this.earth.update(S);
     // (not under a host's picture that fills the frame: its own air, not this one's, is what's seen)
     if (this.air) {
-      const ew = B.has('earth') ? this.earth.lv.weight : 0;
+      const ew = B.has('earth') && this.earth.shown ? this.earth.lv.weight : 0;
       // (the Earth's level gives the air its view: without it — a window below it, where a host's ground covers this
       // one's — there's no air)
       this.air.on = (ew > 0.002 || (!!sf && sf.ground.weight > 0.002)) && !this.r.covered && B.has('earth');

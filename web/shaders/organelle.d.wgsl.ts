@@ -24,6 +24,11 @@ export interface Frame {
   aspect: number;
   mouse: Vec4;
   user: Vec4;
+  viewProjRel: Mat4;
+  invViewProjRel: Mat4;
+  prevViewProjRel: Mat4;
+  camLo: Vec3;
+  _relPad: number;
 }
 export interface Cell3 {
   d1: number;
@@ -45,14 +50,14 @@ export interface Globals {
   fogColor: Vec3;
   fogDist: number;
   bgColor: Vec3;
-  pad1: number;
+  spot: number;
   clearRadius: number;
   pxAngle: number;
   cutRadius: number;
   organelleCount: number;
   hover: number;
   selected: number;
-  quality: number;
+  spots: number;
   flags: number;
   timeScale: number;
   shellSolid: number;

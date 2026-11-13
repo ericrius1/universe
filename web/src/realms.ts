@@ -2,10 +2,14 @@
 // those alone), then the rest behind it, nearest first. The zoom is held short of a realm that isn't in yet (holds:
 // the cosmos's camera's floor below the view, its ceiling above), as it is above the gardens while they build.
 // Letting the window out (expand) wants everything, and builds what's missing the same way.
-import { REALM_BANDS, GARDENS_COVER, UNIVERSE, meets, type RealmId, type ZoomWindow } from './windows';
+// Below the Earth there are two ways down (windows.ts Way): the main line's, to Seven Havens and the cell, and the
+// well's. Their realms overlap on the zoom, so only one way is live at a time (`way`): what shows, what holds the zoom
+// and what the first frame waits for are the live way's, and the other's realms stay out of it. A window on one way
+// wants that way's realms alone; the whole universe wants both.
+import { REALM_BANDS, GARDENS_COVER, FOG_COVER, UNIVERSE, WAY_OF, meets, type RealmId, type Way, type ZoomWindow } from './windows';
 
 /** the order realms are listed in (and so the order of the draw, coarsest first: cosmos/index.ts) */
-const ALL: RealmId[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground', 'beyond', 'gardens', 'cell'];
+const ALL: RealmId[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground', 'beyond', 'gardens', 'cell', 'well'];
 
 export interface RealmsOptions {
   /** Seven Havens' gardens at the bottom of the dive (they cover what's behind them below GARDENS_COVER) */
@@ -25,17 +29,24 @@ export class Realms {
   private readonly started = new Map<RealmId, Promise<void>>();
   /** when each realm came in (ms since the page opened) */
   readonly times: Partial<Record<RealmId, number>> = {};
+  /** the way down that's live: the window's, or the main line's */
+  way: Way;
 
-  constructor(public window: ZoomWindow, private o: RealmsOptions) { this.want(); }
+  constructor(public window: ZoomWindow, private o: RealmsOptions) { this.way = window.way ?? 'havens'; this.want(); }
+
+  /** whether a realm is on the live way (or on both) */
+  private onWay(id: RealmId) { const w = WAY_OF[id]; return !w || w === this.way; }
 
   /** where a realm shows on the zoom (log10 m), [top, bottom]: the stars behind the levels below them are covered by
    *  the gardens where those fill the frame */
   band(id: RealmId): [number, number] {
     const [t, b] = REALM_BANDS[id];
-    if ((id === 'galaxy' || id === 'local') && this.o.gardens) return [t, Math.max(b, GARDENS_COVER)];
+    if ((id === 'galaxy' || id === 'local') && (this.o.gardens || this.window.way === 'well')) return [t, Math.max(b, this.window.way === 'well' ? FOG_COVER : GARDENS_COVER)];
     return [t, b];
   }
-  private possible(id: RealmId) { return (id !== 'gardens' || this.o.gardens) && (id !== 'beyond' || this.o.beyond); }
+  private possible(id: RealmId) {
+    return (id !== 'gardens' || this.o.gardens) && (id !== 'beyond' || this.o.beyond) && (!this.window.way || !WAY_OF[id] || WAY_OF[id] === this.window.way);
+  }
 
   private want() {
     const w = this.window, set = new Set<RealmId>();
@@ -49,14 +60,14 @@ export class Realms {
 
   wants(id: RealmId) { return this.wanted.has(id); }
   isReady(id: RealmId) { return this.isIn.has(id); }
-  /** every realm the window wants */
-  list() { return ALL.filter((id) => this.wanted.has(id)); }
+  /** every realm the window wants on the live way (the other way's are built when it's taken: setWay) */
+  list() { return ALL.filter((id) => this.wanted.has(id) && this.onWay(id)); }
   /** whether the whole universe has the loop's seam: the keepers' world, the gardens and the cell all in it */
   get seamed() { return this.wanted.has('beyond') && this.wanted.has('gardens') && this.wanted.has('cell'); }
 
   /** the realms that show at a zoom (and what they need) */
   at(l: number): RealmId[] {
-    const out = new Set(this.list().filter((id) => { const [t, b] = this.band(id); return l < t && l > b; }));
+    const out = new Set(this.list().filter((id) => { const [t, b] = this.band(id); return this.onWay(id) && l < t && l > b; }));
     if (out.has('gardens')) out.add('ground');
     if (out.has('ground') && this.wanted.has('earth') && l > GARDENS_COVER) out.add('earth');
     return ALL.filter((id) => out.has(id));
@@ -69,7 +80,7 @@ export class Realms {
   holds(l: number): { floor: number | null; ceiling: number | null } {
     let floor: number | null = null, ceiling: number | null = null;
     for (const id of this.wanted) {
-      if (this.isIn.has(id)) continue;
+      if (this.isIn.has(id) || !this.onWay(id)) continue;
       const [t, b] = this.band(id);
       if (b >= l - 1e-6) ceiling = Math.min(ceiling ?? Infinity, b);
       else if (t <= l + 1e-6) floor = Math.max(floor ?? -Infinity, t);
@@ -109,6 +120,13 @@ export class Realms {
     })();
     this.started.set(id, p);
     return p;
+  }
+
+  /** take the other way down (at `l`): what it needs and hasn't got built behind the view, nearest first */
+  setWay(way: Way, l: number) {
+    if (way === this.way) return Promise.resolve();
+    this.way = way;
+    return this.rest(l);
   }
 
   /** the window let out to the whole universe: what's missing built behind the view (`l`), nearest first */

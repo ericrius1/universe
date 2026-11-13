@@ -19,7 +19,7 @@ import { join } from 'node:path';
 
 const origin = process.env.ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '5751'}`;
 const W = Number(process.env.W ?? 1710), H = Number(process.env.H ?? 1000), DPR = Number(process.env.DPR ?? 2);
-const IDS = process.argv.slice(2).length ? process.argv.slice(2) : ['universe', 'cosmos', 'solar', 'earth', 'havens', 'cell'];
+const IDS = process.argv.slice(2).length ? process.argv.slice(2) : ['universe', 'cosmos', 'solar', 'earth', 'havens', 'cell', 'hepatocyte'];
 const EXPAND = process.env.EXPAND !== '0';
 const OUT = process.env.OUT ?? null;
 if (OUT) mkdirSync(OUT, { recursive: true });
@@ -51,6 +51,7 @@ const HEAVY = [
   ['keepers', (p) => p.includes('/data/beyond/')],
   ['her', (p) => p.includes('/data/figure/')],
   ['cell code', (p) => /\/assets\/cell-/.test(p)],
+  ['well code', (p) => /\/assets\/lab-/.test(p)],
 ];
 const MB = (b) => (b / 1e6).toFixed(2);
 

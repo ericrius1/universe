@@ -24,6 +24,11 @@ export interface Frame {
   aspect: number;
   mouse: Vec4;
   user: Vec4;
+  viewProjRel: Mat4;
+  invViewProjRel: Mat4;
+  prevViewProjRel: Mat4;
+  camLo: Vec3;
+  _relPad: number;
 }
 export interface Cell3 {
   d1: number;
@@ -81,7 +86,9 @@ export interface EarthU {
   gz: Vec4;
   spot: Vec4;
   hr: Vec4;
+  mx: Vec4;
+  mz: Vec4;
 }
 
-declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; AirView: AirView; Medium: Medium; Scat: Scat; FullscreenOut: FullscreenOut; EarthU: EarthU }, 'frame' | 'L' | 'AV' | 'E' | 'tLut' | 'msLut' | 'svLut' | 'earthMap' | 'regionMap' | 'regionH' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Cell3: Cell3; Lv: Lv; AirView: AirView; Medium: Medium; Scat: Scat; FullscreenOut: FullscreenOut; EarthU: EarthU }, 'frame' | 'L' | 'AV' | 'E' | 'tLut' | 'msLut' | 'svLut' | 'dayMap' | 'regionMap' | 'regionH' | 'nightMap' | 'cloudMap' | 'reliefMap' | 'seaMask' | 'moonColor' | 'moonHeight' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

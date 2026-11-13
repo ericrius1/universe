@@ -25,7 +25,8 @@ const origin = process.env.ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '57
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 const phone = !!process.env.PHONE;
 const scales = (process.env.SCALES ?? '1').split(',').map(Number);
-const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+// (ONLY: places by name, separated by commas — or by semicolons, for the places with a comma in their name)
+const only = process.env.ONLY ? process.env.ONLY.split(process.env.ONLY.includes(';') ? ';' : ',').map((x) => x.trim()) : null;
 const against = process.env.AGAINST ? (/^\d+$/.test(process.env.AGAINST) ? `http://127.0.0.1:${process.env.AGAINST}` : process.env.AGAINST) : null;
 
 
@@ -81,6 +82,9 @@ const install = (only) => {
     [22.6, -0.6, 'local group'], [21.35, -0.75, 'milky way'], [20.0, -0.55, 'entering the disc'], [17.7, -0.3, 'neighbours'], [15.0, -0.5, 'past the planets'],
     [13, -0.62, 'solar system'], [11.2, -0.5, 'inner planets'], [8.9, -0.2, 'earth and moon'], [7.35, -0.15, 'earth'], [5.3, -0.4, 'coming down'],
     [3.5, -0.42, 'gardens, 3 km'], [1.4, -0.6, 'gardens, 25 m'], [0.35, -0.95, 'her, 2 m'], [-1.75, -1.1, 'her eye'], [-3.6, -1.1, 'cornea']];
+  // (on the well's way, ?w=hepatocyte: its own stretch, the camera looking down as the way does: lab/way.ts)
+  if (app.realms?.way === 'well') SPOTS.splice(0, SPOTS.length, [0, -0.85, 'well: bench'], [-0.7, -0.85, 'well: plate'], [-1.6, -1.3, 'well: down a well'],
+    [-2.2, -1.32, 'well: meniscus'], [-3.1, -0.9, 'well: field'], [-3.9, -0.6, 'well: cells'], [-4.6, -0.42, 'well: one cell'], [-5.7, -0.3, 'well: organelles'], [-6.3, -0.25, 'well: deep']);
   /** each place: go there, and say what can be left out of it (a part's name, off, on) */
   const go = new Map();
   for (const [l, pitch, name] of SPOTS) go.set(name, () => {
