@@ -7,7 +7,8 @@
 // in the canyon's wind. Once her eye fills the frame the canyon isn't drawn: she's drawn alone (figure.ts facePass), on
 // down to the cornea's cells. It's fetched and built in the background from the moment the page opens (prepareGardens:
 // its code a chunk of its own, its builders in workers while the cell loads; then its GPU side and its pipelines once
-// the cell's in); until it's in, the dive slows into a floor a little above it and waits there (controls.floor).
+// the cell's in, or at once in a window that opens on them: windows.ts); until it's in, the dive slows into a floor a
+// little above it and waits there (controls.floor, from realms.ts).
 //
 // The camera is the cosmos's: the ground level's view (metres, x east, y up, z south — the canyon's axes too), moved
 // to where she lies in the canyon; the canyon's clock is the cosmos's moment at the canyon's site. While the gardens
@@ -152,8 +153,7 @@ export class Gardens {
   update(dt: number) {
     const c = this.cosmos, h = this.haven, kit = this.kit, R = c.r, fig = c.surface.figure;
     const ground = c.surface.ground, l = c.controls.logS;
-    // (the dive held a little above the gardens until they're in)
-    c.controls.floor = this.ready ? null : BAND[0];
+    // (the dive is held a little above the gardens until they're in: main.ts's realms, by their band's top)
     this.weight = this.ready && h && !R.dome ? bandWeight(l, BAND) * (ground.weight > 0.002 ? 1 : 0) : 0;
     const was = this.drawing;
     // (the canyon drawn down to her eye; she alone past it)

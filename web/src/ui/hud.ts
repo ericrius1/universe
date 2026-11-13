@@ -21,8 +21,8 @@ const RUNGS: [number, string, string][] = [
   [1e2, '100 nm', 'viruses, nuclear pores'],
   [1e0, '1 nm', 'DNA\'s width, a lipid'],
 ];
-/** the ladder's ends (log10 nm) */
-const TOP = 36.2, BOTTOM = -0.3;
+/** the ladder's ends (log10 nm), round its first rung and its last: the window's (setRange) */
+const TOP_PAD = 0.2, BOTTOM_PAD = 0.3;
 
 const LYR = 9.4607e24, AU_NM = 1.495978707e20;
 const num = (x: number) => { const p = +x.toPrecision(2); return p >= 1e4 ? p.toLocaleString('en') : String(p); };
@@ -77,11 +77,26 @@ export class Hud {
   onPlay: (game: string) => void = () => {};
   onCardFly: (() => void) | null = null;
   private toastTimer = 0;
+  /** the window's name, under the brand, and the one way out to everything (setWindow) */
+  private windowEl = h('div', 'window');
+  private widen = h('button', 'widen', 'Let it out to everything ↗') as HTMLButtonElement;
+  /** let a narrower window out to the whole universe */
+  onWiden: () => void = () => {};
+  /** the ladder's rungs, each its length (log10 nm), and the ends the dot moves between */
+  private rungs: [HTMLElement, number][] = [];
+  private top = 36 + TOP_PAD;
+  private bottom = 0 - BOTTOM_PAD;
+  private base: string;
 
   constructor(parent: HTMLElement, places: Place[], base: string) {
     this.root = parent;
+    this.base = base;
     const brand = h('div', 'brand', '<div class="brand-name">Universe</div>');
     brand.append(this.crumbs);
+    this.widen.title = 'Open the whole zoom, from the edge of everything to a molecule';
+    this.widen.addEventListener('click', (e) => { e.stopPropagation(); this.onWiden(); });
+    this.windowEl.style.display = 'none';
+    brand.append(this.windowEl);
     home({ mount: brand, before: brand.firstElementChild, mark: true });
     const top = h('div', 'topbar');
     const btn = (id: string, label: string, title: string) => {
@@ -100,9 +115,10 @@ export class Hud {
     btn('help', '?', 'How to move (H)');
 
     // the ladder of scales
-    for (const [, label, what] of RUNGS) {
+    for (const [nm, label, what] of RUNGS) {
       const r = h('div', 'rung', `<span class="rung-l">${label}</span><span class="rung-w">${what}</span>`);
       this.ladder.append(r);
+      this.rungs.push([r, Math.log10(nm)]);
     }
     this.ladder.append(this.ladderDot);
     this.ladderDot.append(this.ladderVal);
@@ -110,15 +126,7 @@ export class Hud {
     const scaleBox = h('div', 'scalebox');
     scaleBox.append(this.bar, this.timeText);
 
-    for (const p of places) {
-      // (the places above the cell have no picture yet: no request for one)
-      const img = p.art ? `<img alt="" src="${base}art/${p.art}.webp" onerror="this.style.visibility='hidden'">` : '<img alt="" style="visibility:hidden">';
-      const c = h('button', 'place', `${img}<span>${p.name}</span>`) as HTMLButtonElement;
-      c.title = p.line;
-      c.addEventListener('click', (e) => { e.stopPropagation(); this.onPlace(p.id); });
-      this.placeEls.set(p.id, c);
-      this.dock.append(c);
-    }
+    this.setPlaces(places);
     this.help.innerHTML = `
       <div class="help-in">
         <h2>Getting around</h2>
@@ -139,6 +147,55 @@ export class Hud {
     parent.append(brand, top, this.ladder, scaleBox, this.tag, this.card, this.caption, this.dock, this.help, this.toastEl);
   }
 
+  /** the dock's places (the window's: they change as it's let out and its realms come in) */
+  setPlaces(places: Place[]) {
+    const ids = places.map((p) => p.id).join();
+    if (this.last.places === ids) return;
+    this.last.places = ids;
+    for (const p of places) {
+      if (this.placeEls.has(p.id)) continue;
+      // (the places above the cell have no picture yet: no request for one)
+      const img = p.art ? `<img alt="" src="${this.base}art/${p.art}.webp" onerror="this.style.visibility='hidden'">` : '<img alt="" style="visibility:hidden">';
+      const c = h('button', 'place', `${img}<span>${p.name}</span>`) as HTMLButtonElement;
+      c.title = p.line;
+      c.addEventListener('click', (e) => { e.stopPropagation(); this.onPlace(p.id); });
+      this.placeEls.set(p.id, c);
+    }
+    const keep = new Set(places.map((p) => p.id));
+    for (const [id, el] of this.placeEls) if (!keep.has(id)) el.remove();
+    this.dock.append(...places.map((p) => this.placeEls.get(p.id)!));
+    this.last.here = '';
+  }
+
+  /** a window narrower than everything (null: the whole universe): its name under the brand, the way out to everything,
+   *  and the ladder kept to its stretch (`top`, `bottom`: its ends as fields of view, log10 nm) */
+  setWindow(w: { name: string; line: string; top: number; bottom: number } | null) {
+    if (w) {
+      this.windowEl.innerHTML = '';
+      const name = h('span', 'window-name');
+      name.textContent = w.name;
+      name.title = w.line;
+      this.windowEl.append(name, this.widen);
+      this.windowEl.style.display = '';
+    } else this.windowEl.style.display = 'none';
+    this.setRange(w ? w.top : Infinity, w ? w.bottom : -Infinity);
+  }
+  /** the ladder's rungs within a stretch (log10 nm; one rung past each end kept, so the dot's always between two) */
+  private setRange(top: number, bottom: number) {
+    const L = this.rungs.map(([, l]) => l);
+    let i0 = 0, i1 = L.length - 1;
+    while (i0 < L.length - 1 && L[i0 + 1] >= top) i0++;
+    while (i1 > i0 + 1 && L[i1 - 1] <= bottom) i1--;
+    this.rungs.forEach(([el], i) => { el.style.display = i >= i0 && i <= i1 ? '' : 'none'; });
+    this.top = L[i0] + TOP_PAD;
+    this.bottom = L[i1] - BOTTOM_PAD;
+    this.last.dot = '';
+  }
+  /** the cell's buttons (fly, play, the cutaway, the microscope): only where the window has the cell */
+  setCell(on: boolean) { for (const id of ['fly', 'play', 'cut', 'fluo']) this.show(id, on); }
+  /** a button shown or not */
+  show(id: string, on: boolean) { const b = this.buttons[id]; if (b) b.style.display = on ? '' : 'none'; }
+
   private set(key: string, el: HTMLElement, v: string, prop: 'html' | 'text' | 'style' = 'text', styleKey = '') {
     if (this.last[key] === v) return;
     this.last[key] = v;
@@ -150,7 +207,7 @@ export class Hud {
   update(s: HudState) {
     this.set('crumbs', this.crumbs, s.crumbs.map((c, i) => `<span${i === s.crumbs.length - 1 ? ' class="here"' : ''}>${c}</span>`).join('<i>›</i>'), 'html');
     // ladder: from the observable universe to a nanometre; the dot sits at log10 of the field of view
-    const t = Math.max(0, Math.min(1, (TOP - Math.log10(Math.max(s.fov, 1e-3))) / (TOP - BOTTOM)));
+    const t = Math.max(0, Math.min(1, (this.top - Math.log10(Math.max(s.fov, 1e-3))) / (this.top - this.bottom)));
     this.set('dot', this.ladderDot, `${(t * 100).toFixed(2)}%`, 'style', 'top');
     this.set('dotv', this.ladderVal, fmtLength(s.fov));
     // a round length about a sixth of the screen
