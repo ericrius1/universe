@@ -10,7 +10,9 @@
   --mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #05060a; color: var(--ink); font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antialiased; }
+/* (touch-action: no browser zoom on a phone, by a pinch or a double tap, which cropped the page; the canvas's none takes
+   the view's own pinch) */
+html, body { margin: 0; height: 100%; background: #05060a; color: var(--ink); font-family: var(--sans); overflow: hidden; -webkit-font-smoothing: antialiased; touch-action: pan-x pan-y; }
 #c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; outline: none; }
 #ui { position: fixed; inset: 0; pointer-events: none; }
 /* zero specificity, so an overlay's own pointer-events: none (the game panel, the help, the hover tag) still wins */
