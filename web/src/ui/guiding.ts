@@ -62,11 +62,11 @@ export class Guiding {
       logS: () => (app.realm === 'cosmos' ? this.heightLog() : null),
     });
 
-    // quiet floating "Learn more" beacon: shown subtly above the dock when at a place after Intro fades or on manual zoom
+    // compact floating "Deep dive" beacon: always gently available above the dock when Intro isn't showing
     this.peekEl = document.createElement('button');
     this.peekEl.type = 'button';
     this.peekEl.className = 'peek';
-    this.peekEl.innerHTML = `${LEARN_ICON}<span class="peek-name"></span><em class="peek-cue">Learn more</em>`;
+    this.peekEl.innerHTML = `${LEARN_ICON}<span class="peek-name"></span><span class="peek-cue">Deep dive ↗</span>`;
     this.peekEl.addEventListener('click', (e) => {
       e.stopPropagation();
       const ch = STORY[this.peekChap];
@@ -115,13 +115,13 @@ export class Guiding {
     this.app.hud.show('guide', this.guide.order.length > 0 && !params.has('dome'));
   }
 
-  /** the guide open (at the chapter the view is at) or closed */
+  /** the guide open (at the closest chapter to the current view) or closed */
   toggle() {
     const g = this.guide;
     if (g.open) { g.close(); return; }
     if (!g.order.length) return;
     this.dismissWelcome();
-    const idx = this.nearest() ?? g.order[0];
+    const idx = this.closest() ?? g.order[0];
     this.openAt(idx, true);
   }
   /** open at a chapter (from the welcome) */
@@ -347,18 +347,21 @@ export class Guiding {
       this.guide.setFocusedBody(null);
     }
 
-    // quiet "Learn more" beacon when at a chapter, intro isn't showing, guide isn't open, and not in tour/game/dome
+    // compact "Deep dive" beacon: always visible for the closest location when Intro isn't showing and Guide is closed
     const canPeek = !introShowing && !this.guide.open && !this.app.tour.active && !this.app.game && !this.welcoming && !params.has('dome');
     if (!canPeek) {
       this.peekEl.classList.remove('on');
     } else if ((this.peekAt -= dt) <= 0) {
-      this.peekAt = 0.25;
-      const idx = this.app.flying() ? null : this.nearest();
+      this.peekAt = 0.2;
+      const idx = this.app.flying() ? null : this.closest();
       if (idx !== null && STORY[idx]) {
         if (this.peekChap !== idx) {
           this.peekChap = idx;
-          this.peekEl.querySelector('.peek-name')!.textContent = STORY[idx].short;
-          this.peekEl.title = `Learn more about ${STORY[idx].title}`;
+          const ch = STORY[idx];
+          const spots = ch.look.filter((l) => l.spot?.length).length;
+          this.peekEl.querySelector('.peek-name')!.textContent = ch.title;
+          this.peekEl.querySelector('.peek-cue')!.textContent = spots > 0 ? `Deep dive · ${spots} ↗` : 'Deep dive ↗';
+          this.peekEl.title = `Deep dive into ${ch.title}`;
         }
         this.peekEl.classList.add('on');
       } else {
@@ -375,7 +378,7 @@ export class Guiding {
     }
   }
 
-  /** the window's chapter the view is at, if it's at one */
+  /** the window's chapter the view is at, if it's closely at one (for auto-following while the guide is open) */
   private nearest(): number | null {
     const app = this.app, o = this.guide.order;
     if (app.realm === 'cosmos') {
@@ -392,6 +395,35 @@ export class Guiding {
     const c = app.controls;
     if (!c) return null;
     let best: number | null = null, score = 2.2;
+    for (const i of o) {
+      const ch = STORY[i];
+      if (!inCell(ch)) continue;
+      const p = app.places.get(ch.place);
+      if (!p) continue;
+      const s = app.fit(p.scale);
+      const k = Math.abs(Math.log(c.scale / s)) + vec3.distance(c.pivot, p.at) / Math.max(c.scale, s);
+      if (k < score) { score = k; best = i; }
+    }
+    return best;
+  }
+
+  /** the closest chapter in the current realm with no dead zones (for the persistent Deep dive beacon & button) */
+  private closest(): number | null {
+    const app = this.app, o = this.guide.order;
+    if (app.realm === 'cosmos') {
+      const l = app.cosmos.controls.logS;
+      let best: number | null = null, d = Infinity;
+      for (const i of o) {
+        const c = STORY[i];
+        if (inCell(c)) continue;
+        const p = COSMOS_PLACES.find((q) => q.id === c.place);
+        if (p && Math.abs(p.logS - l) < d) { d = Math.abs(p.logS - l); best = i; }
+      }
+      return best;
+    }
+    const c = app.controls;
+    if (!c) return null;
+    let best: number | null = null, score = Infinity;
     for (const i of o) {
       const ch = STORY[i];
       if (!inCell(ch)) continue;

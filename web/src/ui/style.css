@@ -59,10 +59,10 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
   border-bottom: 1px solid transparent; transition: color 0.2s, border-color 0.2s; }
 .widen:hover, .widen:focus-visible { color: var(--accent); border-bottom-color: rgba(240, 202, 117, 0.55); outline: none; }
 
-.topbar { position: fixed; top: 16px; right: calc(16px + var(--ctl-w)); display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+.topbar { position: fixed; top: 16px; right: calc(16px + var(--ctl-w)); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end;
   max-width: max(200px, calc(100vw - var(--brand-w, 276px) - var(--ctl-w) - 32px)); }
-.btn { font: 500 12.5px var(--sans); color: var(--ink); background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
-  padding: 8px 14px; cursor: pointer; backdrop-filter: blur(16px) saturate(1.35); -webkit-backdrop-filter: blur(16px) saturate(1.35);
+.btn { display: inline-flex; align-items: center; gap: 5px; font: 500 12.5px/1 var(--sans); color: var(--ink); background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
+  height: 33px; padding: 0 13px; cursor: pointer; backdrop-filter: blur(16px) saturate(1.35); -webkit-backdrop-filter: blur(16px) saturate(1.35);
   box-shadow: var(--sheen), 0 6px 20px -10px rgba(0, 0, 0, 0.6);
   transition: background 0.22s, border-color 0.22s, box-shadow 0.22s, transform 0.16s; letter-spacing: 0.01em; white-space: nowrap; }
 .btn:hover { background: rgba(22, 42, 34, 0.78); border-color: rgba(240, 202, 117, 0.48); box-shadow: var(--sheen), 0 0 18px -6px rgba(120, 223, 176, 0.35); }
@@ -70,6 +70,12 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .btn.active { background: linear-gradient(125deg, rgba(240, 202, 117, 0.24), rgba(120, 223, 176, 0.2)); border-color: rgba(240, 202, 117, 0.65);
   box-shadow: var(--sheen), 0 0 20px -6px rgba(240, 202, 117, 0.35); }
 .btn b { font-weight: 600; color: var(--accent); }
+.btn-deep { padding: 0 14px 0 10px; gap: 6px; background: linear-gradient(125deg, rgba(24, 54, 41, 0.86), rgba(14, 30, 24, 0.9));
+  border-color: rgba(240, 202, 117, 0.6); box-shadow: var(--sheen), 0 6px 22px -8px rgba(0, 0, 0, 0.7), 0 0 18px -6px rgba(120, 223, 176, 0.42); }
+.btn-deep .learn-ic { width: 16px; height: 16px; }
+.btn-deep:hover { border-color: rgba(120, 223, 176, 0.82); background: linear-gradient(125deg, rgba(30, 66, 50, 0.92), rgba(18, 38, 30, 0.94)); }
+.btn-deep:hover .li-star { transform: rotate(45deg) scale(1.08); fill: #fff1be; }
+.btn-deep:hover .li-arc { transform: rotate(90deg); }
 .btn-play { background: linear-gradient(125deg, rgba(240, 202, 117, 0.28), rgba(120, 223, 176, 0.28)); border-color: rgba(240, 202, 117, 0.56); }
 .btn-play:hover { background: linear-gradient(125deg, rgba(240, 202, 117, 0.38), rgba(120, 223, 176, 0.36)); border-color: rgba(120, 223, 176, 0.72); }
 
@@ -172,39 +178,42 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .learn-ic .li-star { fill: rgba(240, 202, 117, 0.88); transform-origin: 12px 12px; transition: transform 0.55s cubic-bezier(.2, .8, .2, 1), fill 0.3s; }
 .learn-ic .li-core { fill: var(--jade); }
 
-.intro-more { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 11px; border-radius: 999px;
-  background: linear-gradient(125deg, rgba(16, 34, 27, 0.78), rgba(12, 22, 20, 0.84));
-  border: 1px solid rgba(240, 202, 117, 0.46); color: var(--ink); cursor: pointer; text-shadow: none;
-  font: 500 12.5px/1 var(--sans); letter-spacing: 0.015em;
-  backdrop-filter: blur(16px) saturate(1.35); -webkit-backdrop-filter: blur(16px) saturate(1.35);
-  box-shadow: var(--sheen), 0 8px 26px -8px rgba(0, 0, 0, 0.72), 0 0 22px -6px rgba(120, 223, 176, 0.28);
+.intro-more { pointer-events: auto; display: inline-flex; align-items: center; gap: 9px; padding: 7px 15px 7px 11px; border-radius: 999px;
+  background: linear-gradient(125deg, rgba(20, 44, 34, 0.88), rgba(11, 24, 20, 0.92));
+  border: 1px solid rgba(240, 202, 117, 0.64); color: var(--ink); cursor: pointer; text-shadow: none;
+  font: 600 13px/1 var(--sans); letter-spacing: 0.015em;
+  backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: var(--sheen), 0 10px 28px -8px rgba(0, 0, 0, 0.78), 0 0 26px -4px rgba(120, 223, 176, 0.42);
   transition: transform 0.24s cubic-bezier(.2, .8, .2, 1), border-color 0.24s, background 0.24s, box-shadow 0.24s; }
-.intro-more small { font: 500 10.5px var(--mono); color: var(--jade); padding-left: 7px; border-left: 1px solid rgba(240, 202, 117, 0.26); }
+.intro-more small { font: 600 10.5px var(--mono); color: var(--jade); padding-left: 8px; border-left: 1px solid rgba(240, 202, 117, 0.3); }
 .intro-more .intro-arr { font-style: normal; color: var(--accent); font-size: 13px; transition: transform 0.24s cubic-bezier(.2, .8, .2, 1); }
-.intro-more:hover, .intro-more:focus-visible { transform: translateY(-2px); border-color: rgba(120, 223, 176, 0.75);
-  background: linear-gradient(125deg, rgba(24, 52, 40, 0.88), rgba(16, 30, 26, 0.92));
-  box-shadow: var(--sheen), 0 12px 28px -8px rgba(0, 0, 0, 0.8), 0 0 26px -4px rgba(120, 223, 176, 0.45); outline: none; }
+.intro-more:hover, .intro-more:focus-visible { transform: translateY(-2px); border-color: rgba(120, 223, 176, 0.85);
+  background: linear-gradient(125deg, rgba(28, 60, 46, 0.94), rgba(16, 32, 27, 0.95));
+  box-shadow: var(--sheen), 0 12px 30px -8px rgba(0, 0, 0, 0.85), 0 0 30px -4px rgba(120, 223, 176, 0.55); outline: none; }
 .intro-more:hover .li-star, .intro-more:focus-visible .li-star { transform: rotate(45deg) scale(1.08); fill: #fff1be; }
 .intro-more:hover .li-arc, .intro-more:focus-visible .li-arc { transform: rotate(90deg); }
 .intro-more:hover .intro-arr { transform: translate(2px, -2px); }
 .intro-more:active { transform: scale(0.97); }
 
-/* quiet floating "Learn more" beacon: sits gently above the dock once Intro fades or on manual zoom */
+/* compact floating "Deep dive" beacon: always gently available above the dock when Intro isn't showing */
 .peek { position: fixed; left: 50%; bottom: calc(var(--dock-top, 138px) + 12px); transform: translate(-50%, 10px);
-  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: 999px; white-space: nowrap;
-  background: linear-gradient(125deg, rgba(14, 30, 24, 0.72), rgba(10, 19, 17, 0.78));
-  border: 1px solid rgba(240, 202, 117, 0.34); color: var(--ink); cursor: pointer;
-  font: 500 12px/1 var(--sans); letter-spacing: 0.01em;
-  backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  box-shadow: var(--sheen), 0 8px 24px -10px rgba(0, 0, 0, 0.7);
+  display: inline-flex; align-items: center; gap: 9px; padding: 5px 7px 5px 12px; border-radius: 999px; white-space: nowrap;
+  background: linear-gradient(125deg, rgba(18, 40, 31, 0.86), rgba(10, 22, 18, 0.92));
+  border: 1px solid rgba(240, 202, 117, 0.56); color: var(--ink); cursor: pointer;
+  font: 500 12.5px/1 var(--sans); letter-spacing: 0.01em;
+  backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: var(--sheen), 0 10px 28px -8px rgba(0, 0, 0, 0.8), 0 0 26px -5px rgba(120, 223, 176, 0.4);
   opacity: 0; pointer-events: none;
-  transition: opacity 0.4s, transform 0.4s cubic-bezier(.2, .8, .2, 1), border-color 0.22s, box-shadow 0.22s; }
-.peek.on { opacity: 0.94; transform: translate(-50%, 0); pointer-events: auto; }
-.peek .peek-name { font-family: var(--serif); font-size: 13.5px; font-weight: 400; color: var(--ink); }
-.peek .peek-cue { font: 500 10.5px var(--mono); font-style: normal; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
-  padding-left: 8px; border-left: 1px solid rgba(240, 202, 117, 0.25); white-space: nowrap; }
-.peek:hover, .peek:focus-visible { opacity: 1; transform: translate(-50%, -2px); border-color: rgba(120, 223, 176, 0.68);
-  box-shadow: var(--sheen), 0 10px 26px -8px rgba(0, 0, 0, 0.8), 0 0 22px -4px rgba(120, 223, 176, 0.4); outline: none; }
+  transition: opacity 0.35s, transform 0.35s cubic-bezier(.2, .8, .2, 1), border-color 0.22s, box-shadow 0.22s; }
+.peek.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.peek .learn-ic { width: 19px; height: 19px; }
+.peek .peek-name { font-family: var(--serif); font-size: 14px; font-weight: 400; color: var(--ink); }
+.peek .peek-cue { font: 600 11px/1 var(--sans); letter-spacing: 0.02em; color: #0f2017;
+  background: linear-gradient(120deg, #f8df9b, #8ee5bc); padding: 6px 11px; border-radius: 999px; white-space: nowrap;
+  box-shadow: 0 2px 10px -2px rgba(240, 202, 117, 0.45); transition: filter 0.2s; }
+.peek:hover, .peek:focus-visible { transform: translate(-50%, -2px); border-color: rgba(120, 223, 176, 0.85);
+  box-shadow: var(--sheen), 0 12px 30px -8px rgba(0, 0, 0, 0.86), 0 0 30px -4px rgba(120, 223, 176, 0.55); outline: none; }
+.peek:hover .peek-cue { filter: brightness(1.06); }
 .peek:hover .li-star { transform: rotate(45deg) scale(1.08); fill: #fff1be; }
 .peek:hover .li-arc { transform: rotate(90deg); }
 
@@ -256,7 +265,7 @@ body:has(.focus-pill.on) .toast { top: calc(max(var(--top-bottom, 50px), var(--b
   .brand { left: 16px; column-gap: 10px; }
   .brand-name { font-size: 25px; }
   .topbar { gap: 6px; }
-  .btn { padding: 7px 10px; font-size: 12px; }
+  .btn { height: 31px; padding: 0 10px; font-size: 12px; }
 }
 @media (max-width: 960px) and (min-width: 761px) {
   body.guiding .intro, body:has(.card.on) .intro { opacity: 0 !important; pointer-events: none !important; }

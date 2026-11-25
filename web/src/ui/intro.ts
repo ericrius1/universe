@@ -67,7 +67,7 @@ export class Intro {
       <div class="intro-size"><i></i><span>${size}</span><i></i></div>
       <h2 class="intro-name">${name}</h2>
       <p class="intro-line">${p.line}</p>
-      ${ch ? `<div class="intro-cta"><button class="intro-more" type="button" aria-label="Learn more about ${p.name}">${LEARN_ICON}<span>Learn more</span>${hint}<em class="intro-arr" aria-hidden="true">↗</em></button></div>` : ''}`;
+      ${ch ? `<div class="intro-cta"><button class="intro-more" type="button" aria-label="Deep dive into ${p.name}">${LEARN_ICON}<span>Deep dive</span>${hint}<em class="intro-arr" aria-hidden="true">↗</em></button></div>` : ''}`;
     const btn = this.el.querySelector<HTMLButtonElement>('.intro-more');
     if (btn) {
       btn.addEventListener('pointerenter', () => { this.hovering = true; });

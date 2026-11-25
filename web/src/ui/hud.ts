@@ -3,6 +3,7 @@
 // buttons (tour, the guide, fly, play, cutaway, microscope, sound, help), the tour's captions, and the way back to ericlevin.dev
 // (home.ts, its mark before the name). Plain DOM, written only when a value changes.
 import { home } from './home';
+import { LEARN_ICON } from './intro';
 import type { Card } from './info';
 import type { Place } from './places';
 
@@ -109,15 +110,15 @@ export class Hud {
     brand.append(this.windowEl);
     home({ mount: brand, before: brand.firstElementChild, mark: true });
     const top = this.topbar = h('div', 'topbar');
-    const btn = (id: string, label: string, title: string) => {
-      const b = h('button', 'btn', label) as HTMLButtonElement;
+    const btn = (id: string, label: string, title: string, extra = '') => {
+      const b = h('button', extra ? `btn ${extra}` : 'btn', label) as HTMLButtonElement;
       b.title = title;
       b.addEventListener('click', (e) => { e.stopPropagation(); this.onButton(id); });
       this.buttons[id] = b;
       top.append(b);
     };
     btn('tour', '<b>▶</b> Tour', 'A guided fall (T)');
-    btn('guide', '<b>◇</b> Guide', 'The story, chapter by chapter: what to look for, and how we know (I)');
+    btn('guide', `${LEARN_ICON}<span>Deep dive</span>`, 'Deep dive: explore details and bring landmarks into focus (I)', 'btn-deep');
     btn('fly', '<b>✈&#xFE0E;</b> Fly', 'Fly it yourself (F)');
     btn('play', '✦ Play', 'Become part of the cell (P)');
     btn('cut', '◐ Cutaway', 'Open or close the cell (C)');
@@ -146,7 +147,7 @@ export class Hud {
           <div><b>Look round</b><span>drag. Right-drag or two fingers to pan.</span></div>
           <div><b>Go to</b><span>double-click anything, or pick a place below.</span></div>
           <div><b>Fly</b><span>F: the mouse looks, W A S D and Q / E fly, Shift is faster, scroll sets the speed, Esc lands. On a phone, left thumb flies, drag looks.</span></div>
-          <div><b>Learn</b><span>the Guide (I) tells it chapter by chapter, [ and ] to step; in the cell, hover for a name, click for its story.</span></div>
+          <div><b>Deep dive</b><span>click Deep dive (or press I) for scale facts, visual highlights, and planet/molecule focus; [ and ] step chapters.</span></div>
           <div><b>Time</b><span>slows as you shrink: 100× slower among the molecules.</span></div>
         </div>
         <p class="help-foot">The planets and the Moon are where they are today. Molecules from the RCSB Protein Data Bank.
