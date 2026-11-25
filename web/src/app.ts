@@ -196,14 +196,15 @@ export class App {
     this.hud.onWiden = () => this.expand();
     this.hud.setCell(realms.wants('cell'));
     // the interface's toggle, top right (and / anywhere), as in every project on the site: it shows unless folded away
-    interfaceToggle({ name: 'cell', label: 'the interface', phone: true, onChange: (open) => document.body.classList.toggle('ui-off', !open) });
+    const ctl = interfaceToggle({ name: 'cell', label: 'the interface', phone: true, onChange: (open) => document.body.classList.toggle('ui-off', !open) });
     // a picture of the view (G, or the camera beside the toggle): the frame as drawn, none of the page's interface; a
     // game has the keys while it's on
     let capture: Capture | null = null;
-    picture({
+    const pic = picture({
       name: 'universe', letter: () => !this.game, sound: () => this.score.out,
       grab: () => (capture ??= new Capture(this.kit)).blob('image/jpeg', 0.92),
     });
+    this.hud.observeChrome(ctl.button, pic.button);
     this.gamePanel = document.createElement('div');
     this.gamePanel.className = 'gamepanel';
     ui.append(this.gamePanel);
@@ -219,7 +220,7 @@ export class App {
     });
     this.fitTour();
     this.guiding = new Guiding(this, ui);
-    this.intro.onMore = (id) => { this.intro.hide(true); this.guiding.openFor(id); };
+    this.intro.onMore = (id) => { this.intro.hide(true); this.hud.showCard(null); this.guiding.openFor(id); };
     // one film for the whole dive (cosmos/film.ts): the cell's frame laid into the cosmos's HDR — under the cosmos's own
     // as the two hand over, alone below them — and graded with it, the cell's film mixed in by its share
     cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
@@ -714,7 +715,7 @@ export class App {
   button(id: string) {
     const hud = this.hud;
     this.sound('click');
-    if (id === 'guide') { this.setFly(false); if (this.tour.active) this.tour.stop(); this.guiding.toggle(); return; }
+    if (id === 'guide') { this.setFly(false); if (this.tour.active) this.tour.stop(); hud.showCard(null); this.guiding.toggle(); return; }
     if (id === 'fly') { if (this.cell) this.setFly(!this.controls.fly); return; }
     if (id === 'tour' || id === 'play' || id === 'help') this.setFly(false);
     if (id === 'tour') { if (this.tour.active) this.tour.stop(); else if (TOUR.length) { hud.showCard(null); this.guiding.guide.close(); this.intro.hide(true); this.at = null; this.cosmosAt = null; this.tour.start(); } }
@@ -733,6 +734,7 @@ export class App {
   }
 
   private playMenu() {
+    this.guiding.guide.close();
     const games = this.cell?.games ?? [];
     const items = games.map((g) => `<button class="play-item" data-id="${g.id}"><img alt="" src="${BASE}art/${g.art}.webp" onerror="this.style.visibility='hidden'"><span><b>${g.role}</b><em>${g.title}</em><small>${g.blurb}</small></span></button>`).join('');
     this.hud.showCard({ title: 'Become part of the cell', text: games.length ? 'Pick a role. Each is a real machine, doing its real job.' : 'Coming soon.' }, `<div class="play-list">${items}</div>`);

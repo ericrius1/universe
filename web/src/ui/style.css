@@ -48,7 +48,7 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .brand-name { font-family: var(--serif); font-weight: 300; font-size: 30px; line-height: 1; letter-spacing: 0.01em;
   background: linear-gradient(120deg, #fce8b2, #f0ca75 42%, #83e2b7 88%); -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 1px 10px rgba(8, 16, 14, 0.55)); }
-.crumbs { margin-top: 6px; font-size: 12.5px; color: var(--dim); letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; max-width: 60vw;
+.crumbs { margin-top: 6px; font-size: 12.5px; color: var(--dim); letter-spacing: 0.02em; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; max-width: var(--crumbs-max, 52vw);
   text-shadow: 0 1px 8px rgba(4, 10, 9, 0.72); }
 .crumbs i { color: rgba(240, 202, 117, 0.48); font-style: normal; }
 .crumbs .here { color: var(--ink); font-weight: 500; }
@@ -59,7 +59,8 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
   border-bottom: 1px solid transparent; transition: color 0.2s, border-color 0.2s; }
 .widen:hover, .widen:focus-visible { color: var(--accent); border-bottom-color: rgba(240, 202, 117, 0.55); outline: none; }
 
-.topbar { position: fixed; top: 16px; right: calc(16px + var(--ctl-w)); display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; max-width: 70vw; }
+.topbar { position: fixed; top: 16px; right: calc(16px + var(--ctl-w)); display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+  max-width: max(200px, calc(100vw - var(--brand-w, 276px) - var(--ctl-w) - 32px)); }
 .btn { font: 500 12.5px var(--sans); color: var(--ink); background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
   padding: 8px 14px; cursor: pointer; backdrop-filter: blur(16px) saturate(1.35); -webkit-backdrop-filter: blur(16px) saturate(1.35);
   box-shadow: var(--sheen), 0 6px 20px -10px rgba(0, 0, 0, 0.6);
@@ -72,9 +73,10 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .btn-play { background: linear-gradient(125deg, rgba(240, 202, 117, 0.28), rgba(120, 223, 176, 0.28)); border-color: rgba(240, 202, 117, 0.56); }
 .btn-play:hover { background: linear-gradient(125deg, rgba(240, 202, 117, 0.38), rgba(120, 223, 176, 0.36)); border-color: rgba(120, 223, 176, 0.72); }
 
-.ladder { position: fixed; left: 30px; top: 50%; transform: translateY(-50%); height: min(46vh, 380px); width: 170px; pointer-events: none;
+.ladder { position: fixed; left: 30px; top: calc(50% - 34px); transform: translateY(-50%); height: min(42vh, 350px, calc(100vh - 330px)); width: 170px; pointer-events: none;
   display: flex; flex-direction: column; justify-content: space-between; border-left: 1px solid rgba(240, 202, 117, 0.24); padding-left: 16px; }
-.rung { position: relative; display: flex; flex-direction: column; line-height: 1.15; }
+.rung { position: relative; display: flex; flex-direction: column; line-height: 1.15; transition: opacity 0.16s ease; }
+.rung.covered { opacity: 0; }
 .rung::before { content: ''; position: absolute; left: -18px; top: 6px; width: 8px; height: 1px; background: rgba(240, 202, 117, 0.42); }
 .rung-l { font: 600 11px var(--mono); color: var(--dim); text-shadow: 0 1px 6px rgba(4, 10, 8, 0.75); }
 .rung-w { font-size: 10.5px; color: var(--faint); text-shadow: 0 1px 6px rgba(4, 10, 8, 0.75); }
@@ -85,8 +87,10 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .ladder-val { position: absolute; left: 14px; top: -9px; font: 600 11px var(--mono); color: #122019;
   background: linear-gradient(120deg, #f8df9b, #9ceac4); padding: 2px 7px; border-radius: 999px; white-space: nowrap;
   box-shadow: 0 0 16px rgba(240, 202, 117, 0.45); }
+@media (max-height: 780px) { .rung-w { display: none; } }
+@media (max-height: 520px) { .ladder { display: none; } }
 
-.scalebox { position: fixed; left: 26px; bottom: 138px; pointer-events: none; text-shadow: 0 1px 8px rgba(4, 10, 8, 0.75); }
+.scalebox { position: fixed; left: 26px; bottom: calc(var(--dock-top, 138px) + 12px); pointer-events: none; text-shadow: 0 1px 8px rgba(4, 10, 8, 0.75); }
 .scalebar { display: flex; flex-direction: column; gap: 5px; }
 .scalebar i { display: block; height: 3px; border-left: 1px solid var(--accent); border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); transition: width 0.1s; }
 .scalebar span { font: 600 12px var(--mono); color: var(--ink); }
@@ -96,7 +100,8 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
   border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px; opacity: 0; transition: opacity 0.15s; white-space: nowrap;
   backdrop-filter: blur(10px); box-shadow: var(--sheen), 0 6px 18px -8px rgba(0, 0, 0, 0.7); }
 
-.card { position: fixed; right: 18px; top: 72px; width: min(360px, calc(100vw - 36px)); max-height: calc(100vh - 220px); overflow: auto;
+.card { position: fixed; right: 18px; top: calc(var(--top-bottom, 50px) + 18px); width: min(360px, calc(100vw - 36px));
+  max-height: calc(100vh - var(--top-bottom, 50px) - var(--dock-top, 138px) - 34px); overflow: auto;
   background: var(--glass-deep); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px 16px;
   backdrop-filter: blur(20px) saturate(1.35); -webkit-backdrop-filter: blur(20px) saturate(1.35);
   box-shadow: var(--sheen), 0 22px 54px -20px rgba(0, 0, 0, 0.75);
@@ -114,7 +119,7 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
   padding: 6px; scrollbar-width: none; }
 .dock::-webkit-scrollbar { display: none; }
 .place { flex: 0 0 auto; width: 88px; background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 5px 5px 7px;
-  color: var(--ink); cursor: pointer; font: 500 11.5px var(--sans); display: flex; flex-direction: column; gap: 5px; align-items: center;
+  color: var(--ink); cursor: pointer; font: 500 11.5px/1.2 var(--sans); display: flex; flex-direction: column; gap: 5px; align-items: center;
   backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); box-shadow: var(--sheen);
   transition: transform 0.22s cubic-bezier(.2, .8, .2, 1), border-color 0.22s, background 0.22s, box-shadow 0.22s; }
 .place img { width: 76px; height: 52px; object-fit: cover; border-radius: 9px; background: radial-gradient(circle at 38% 36%, #244034, #0c1714 75%); }
@@ -126,14 +131,14 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
   box-shadow: var(--sheen), 0 0 22px -4px rgba(240, 202, 117, 0.35), 0 0 12px -4px rgba(120, 223, 176, 0.3); }
 .place.here span { color: var(--accent); }
 
-.caption { position: fixed; left: 50%; bottom: 128px; transform: translate(-50%, 8px); max-width: min(720px, 90vw); text-align: center;
+.caption { position: fixed; left: 50%; bottom: calc(var(--dock-top, 138px) + 14px); transform: translate(-50%, 8px); max-width: min(720px, calc(100vw - 380px)); text-align: center;
   font: 300 clamp(17px, 2.1vw, 24px)/1.4 var(--serif); color: var(--ink); text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none;
   transition: opacity 0.6s, transform 0.6s; }
 .caption.on { opacity: 1; transform: translate(-50%, 0); }
 .caption small { display: block; font: 500 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
 
 /* ---------------------------------------------------------------- place intro + solarpunk "Learn more" icon (ui/intro.ts) */
-.intro { position: fixed; left: 50%; bottom: 146px; transform: translateX(-50%); width: min(820px, calc(100vw - 32px)); text-align: center;
+.intro { position: fixed; left: 50%; bottom: calc(var(--dock-top, 138px) + 18px); transform: translateX(-50%); width: min(740px, calc(100vw - 380px)); text-align: center;
   pointer-events: none; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 22px rgba(0, 0, 0, 0.85); }
 /* (a soft dusk behind the words, so they read over a pale membrane as well as the dark) */
 .intro::before { content: ''; position: absolute; left: 50%; top: 50%; width: 132%; height: 180%; transform: translate(-50%, -50%); z-index: -1;
@@ -185,8 +190,8 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .intro-more:active { transform: scale(0.97); }
 
 /* quiet floating "Learn more" beacon: sits gently above the dock once Intro fades or on manual zoom */
-.peek { position: fixed; left: 50%; bottom: 138px; transform: translate(-50%, 10px);
-  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: 999px;
+.peek { position: fixed; left: 50%; bottom: calc(var(--dock-top, 138px) + 12px); transform: translate(-50%, 10px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: 999px; white-space: nowrap;
   background: linear-gradient(125deg, rgba(14, 30, 24, 0.72), rgba(10, 19, 17, 0.78));
   border: 1px solid rgba(240, 202, 117, 0.34); color: var(--ink); cursor: pointer;
   font: 500 12px/1 var(--sans); letter-spacing: 0.01em;
@@ -197,20 +202,20 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .peek.on { opacity: 0.94; transform: translate(-50%, 0); pointer-events: auto; }
 .peek .peek-name { font-family: var(--serif); font-size: 13.5px; font-weight: 400; color: var(--ink); }
 .peek .peek-cue { font: 500 10.5px var(--mono); font-style: normal; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
-  padding-left: 8px; border-left: 1px solid rgba(240, 202, 117, 0.25); }
+  padding-left: 8px; border-left: 1px solid rgba(240, 202, 117, 0.25); white-space: nowrap; }
 .peek:hover, .peek:focus-visible { opacity: 1; transform: translate(-50%, -2px); border-color: rgba(120, 223, 176, 0.68);
   box-shadow: var(--sheen), 0 10px 26px -8px rgba(0, 0, 0, 0.8), 0 0 22px -4px rgba(120, 223, 176, 0.4); outline: none; }
 .peek:hover .li-star { transform: rotate(45deg) scale(1.08); fill: #fff1be; }
 .peek:hover .li-arc { transform: rotate(90deg); }
 
 /* floating pill while the cosmos camera is focused right onto a planet/world (Jupiter, Saturn, etc.) */
-.focus-pill { position: fixed; left: 50%; top: 68px; transform: translate(-50%, -10px);
+.focus-pill { position: fixed; left: 50%; top: calc(max(var(--top-bottom, 50px), var(--brand-bottom, 62px)) + 12px); transform: translate(-50%, -10px);
   display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 999px;
   background: linear-gradient(125deg, rgba(16, 34, 27, 0.84), rgba(10, 19, 17, 0.9));
   border: 1px solid rgba(120, 223, 176, 0.48); color: var(--ink);
   backdrop-filter: blur(16px) saturate(1.35); -webkit-backdrop-filter: blur(16px) saturate(1.35);
   box-shadow: var(--sheen), 0 12px 30px -10px rgba(0, 0, 0, 0.78), 0 0 22px -6px rgba(120, 223, 176, 0.35);
-  font: 500 12px var(--sans); opacity: 0; pointer-events: none; transition: opacity 0.35s, transform 0.35s cubic-bezier(.2, .8, .2, 1); z-index: 2; }
+  font: 500 12px var(--sans); opacity: 0; pointer-events: none; transition: opacity 0.35s, transform 0.35s cubic-bezier(.2, .8, .2, 1), left 0.3s; z-index: 20; }
 .focus-pill.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .fp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); box-shadow: 0 0 10px var(--jade); }
 .fp-label { color: var(--ink); white-space: nowrap; }
@@ -219,7 +224,7 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .fp-back:hover { filter: brightness(1.06); }
 .fp-back:active { transform: scale(0.96); }
 
-.help { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(4, 9, 8, 0.62); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.help { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 9, 8, 0.62); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
 .help.on { opacity: 1; pointer-events: auto; }
 .help-in { width: min(640px, 92vw); background: var(--glass-deep); border: 1px solid var(--line); border-radius: 20px; padding: 24px 26px;
   backdrop-filter: blur(20px); box-shadow: var(--sheen), 0 24px 60px -18px rgba(0, 0, 0, 0.8); }
@@ -229,22 +234,53 @@ html, body { margin: 0; height: 100%; background: #050808; color: var(--ink); fo
 .help-grid b { color: var(--accent); font-weight: 600; }
 .help-foot { font: 11px var(--mono); color: var(--faint); margin: 16px 0 12px; }
 
-.toast { position: fixed; left: 50%; top: 74px; transform: translate(-50%, -10px); background: rgba(12, 24, 20, 0.86); border: 1px solid var(--line);
-  border-radius: 999px; padding: 8px 16px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s;
-  backdrop-filter: blur(14px); box-shadow: var(--sheen); }
+.toast { position: fixed; left: 50%; top: calc(max(var(--top-bottom, 50px), var(--brand-bottom, 62px)) + 12px); z-index: 70; transform: translate(-50%, -10px); background: rgba(12, 24, 20, 0.86); border: 1px solid var(--line);
+  border-radius: 999px; padding: 8px 16px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s, top 0.25s, left 0.3s;
+  backdrop-filter: blur(14px); box-shadow: var(--sheen); text-align: center; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
+body:has(.focus-pill.on) .toast { top: calc(max(var(--top-bottom, 50px), var(--brand-bottom, 62px)) + 60px); }
 
-/* the interface's toggle (controls.ts, the same in every project on the site) keeps the top right corner, the buttons
-   to its left (--ctl-w: its width and a gap); folded, it leaves the cell to itself */
-:root { --ctl-w: 73px; }
-@media (hover: none) and (pointer: coarse) { :root { --ctl-w: 50px; } }
+/* on desktop, keep centered banners clear of an open Guide or Card on the right */
+@media (min-width: 761px) {
+  body.guiding .focus-pill, body:has(.card.on) .focus-pill,
+  body.guiding .toast, body:has(.card.on) .toast {
+    left: calc((100vw - min(396px, calc(100vw - 36px)) - 18px) / 2);
+    max-width: calc(100vw - 440px);
+  }
+  body.guiding .intro, body:has(.card.on) .intro {
+    left: calc((100vw - min(396px, calc(100vw - 36px)) - 18px) / 2);
+    width: min(620px, calc(100vw - 460px));
+  }
+}
+@media (max-width: 1180px) and (min-width: 761px) {
+  .brand { left: 16px; column-gap: 10px; }
+  .brand-name { font-size: 25px; }
+  .topbar { gap: 6px; }
+  .btn { padding: 7px 10px; font-size: 12px; }
+}
+@media (max-width: 960px) and (min-width: 761px) {
+  body.guiding .intro, body:has(.card.on) .intro { opacity: 0 !important; pointer-events: none !important; }
+}
+
+/* the interface's toggle (controls.ts) and picture button (picture.ts) keep the top right corner, the topbar to their
+   left (--ctl-w: both buttons' measured width and gaps, kept live by hud.ts); folded, they leave the scene to itself */
+:root { --ctl-w: 152px; --top-bottom: 50px; --dock-top: 138px; --brand-w: 276px; --brand-bottom: 62px; --scalebox-bottom: 108px; }
+@media (hover: none) and (pointer: coarse) { :root { --ctl-w: 102px; } }
 .ctl-toggle {
   top: 16px; right: 16px; height: 33px; font-family: var(--mono);
   --ctl-ink: var(--ink); --ctl-bg: var(--glass); --ctl-edge: var(--line);
   --ctl-on-ink: var(--ink); --ctl-on-bg: rgba(240, 202, 117, 0.22); --ctl-on-edge: rgba(240, 202, 117, 0.62);
 }
-/* (while the cell loads, and flying, it steps aside with the rest: / still works) */
-body:has(#loading:not(.gone)) .ctl-toggle, body.flying .ctl-toggle { opacity: 0; pointer-events: none; }
+.pic-button {
+  font-family: var(--mono); opacity: 0.85;
+  --pic-ink: var(--ink); --pic-bg: var(--glass); --pic-edge: var(--line);
+  box-shadow: var(--sheen), 0 6px 20px -10px rgba(0, 0, 0, 0.6);
+}
+.pic-button:hover, .pic-button:focus-visible { opacity: 1; background: rgba(22, 42, 34, 0.78); border-color: rgba(240, 202, 117, 0.48); }
+body.ui-off .pic-button { opacity: 0.55; }
+/* (while loading, flying, or when chrome is hidden for games/films, top-right chrome steps aside too) */
+body:has(#loading:not(.gone)) .ctl-toggle, body.flying .ctl-toggle, body.nochrome .ctl-toggle,
+body:has(#loading:not(.gone)) .pic-button, body.flying .pic-button, body.nochrome .pic-button { opacity: 0; pointer-events: none; }
 body.ui-off .brand, body.ui-off .topbar, body.ui-off .ladder, body.ui-off .scalebox, body.ui-off .dock, body.ui-off .tag, body.ui-off .card, body.ui-off .peek, body.ui-off .focus-pill { opacity: 0 !important; pointer-events: none !important; }
 body.nochrome .brand, body.nochrome .topbar, body.nochrome .ladder, body.nochrome .scalebox, body.nochrome .dock, body.nochrome .tag, body.nochrome .card, body.nochrome .intro, body.nochrome .peek, body.nochrome .focus-pill { opacity: 0 !important; pointer-events: none !important; }
 
@@ -309,26 +345,32 @@ body.flying .card { z-index: 2; }
 @media (max-width: 760px) {
   /* (the frame rate, loom's ui/stats: top right under the toggle, opposite the scale; the bottom is the dock's and the places') */
   body #stats-box { top: 64px; bottom: auto; right: 10px; font-size: 10px; padding: 6px 10px; }
-  .brand { top: 12px; left: 14px; }
+  .brand { top: 12px; left: 14px; column-gap: 10px; }
   .brand-name { font-size: 24px; }
-  .brand { column-gap: 10px; }
   .brand .home-link { width: 34px; height: 34px; }
-  .topbar { top: auto; bottom: 136px; right: 0; left: 0; padding: 0 10px; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; max-width: none; gap: 6px; scrollbar-width: none; }
+  .ctl-toggle { top: 12px; right: 12px; }
+  .topbar { top: auto; bottom: calc(var(--dock-top, 134px) + 10px); right: 0; left: 0; padding: 0 10px; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; max-width: none; gap: 6px; scrollbar-width: none; }
   .topbar::-webkit-scrollbar { display: none; }
   .btn { padding: 7px 11px; font-size: 12px; }
   .ladder { display: none; }
-  .scalebox { left: 14px; bottom: auto; top: 64px; }
-  .card { top: auto; bottom: 178px; right: 10px; left: 10px; width: auto; max-height: 42vh; }
-  .caption { bottom: 178px; }
-  .intro { bottom: 186px; }
+  .scalebox { left: 14px; bottom: auto; top: calc(var(--brand-bottom, 62px) + 8px); }
+  .card { top: auto; bottom: calc(var(--dock-top, 134px) + 52px); right: 10px; left: 10px; width: auto; max-height: 42vh; }
+  .caption { bottom: calc(var(--dock-top, 134px) + 52px); max-width: 90vw; }
+  .intro { left: 50%; bottom: calc(var(--dock-top, 134px) + 56px); width: min(820px, calc(100vw - 32px)); }
   .intro-name { font-size: 32px; margin: 6px 0 6px; }
   .intro-line { font-size: 14px; }
   .intro-cta { margin-top: 10px; }
-  .peek { bottom: 184px; }
-  .focus-pill { top: 104px; max-width: calc(100vw - 24px); }
+  .peek { bottom: calc(var(--dock-top, 134px) + 52px); }
+  .focus-pill { top: calc(var(--scalebox-bottom, 108px) + 8px); max-width: calc(100vw - 24px); }
+  .toast { top: calc(var(--scalebox-bottom, 108px) + 8px); max-width: calc(100vw - 24px); }
+  body:has(.focus-pill.on) .toast { top: calc(var(--scalebox-bottom, 108px) + 54px); }
   /* (flying, the card goes up top, clear of the stick and the ▲ ▼) */
   body.flying .card { top: 60px; bottom: auto; max-height: 38vh; }
   .help-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .ctl-toggle kbd, .pic-button kbd { display: none; }
+  .ctl-toggle, .pic-button { padding: 0 11px; }
 }
 
 /* ---------------------------------------------------------------- play */
@@ -350,7 +392,8 @@ body.flying .card { z-index: 2; }
 /* ---------------------------------------------------------------- the solarpunk guide (ui/guide.ts)
    the story in chapters, top to bottom: a botanical-observatory glass panel on the right; on a phone a sheet over the
    bottom. Its title rises out of a blur a letter at a time. Closed unless asked for */
-.guide { position: fixed; right: 18px; top: 72px; width: min(396px, calc(100vw - 36px)); max-height: calc(100vh - 228px); display: flex; flex-direction: column;
+.guide { position: fixed; right: 18px; top: calc(var(--top-bottom, 50px) + 18px); width: min(396px, calc(100vw - 36px));
+  max-height: calc(100vh - var(--top-bottom, 50px) - var(--dock-top, 138px) - 34px); display: flex; flex-direction: column;
   overflow: hidden; background: var(--glass-deep); border: 1px solid rgba(240, 202, 117, 0.26); border-radius: 20px;
   backdrop-filter: blur(22px) saturate(1.38); -webkit-backdrop-filter: blur(22px) saturate(1.38);
   box-shadow: var(--sheen), 0 24px 60px -18px rgba(0, 0, 0, 0.78), 0 0 36px -18px rgba(120, 223, 176, 0.24);
@@ -453,7 +496,8 @@ body.flying .card { z-index: 2; }
 body.instrumenting .g-inst { border-color: rgba(120, 223, 176, 0.78); }
 
 /* an instrument (ui/instruments/): beside the guide on a laptop, over it where there's no room, a sheet on a phone */
-.instr { position: fixed; top: 72px; right: calc(18px + min(396px, calc(100vw - 36px)) + 12px); width: min(400px, calc(100vw - 456px)); max-height: calc(100vh - 216px);
+.instr { position: fixed; top: calc(var(--top-bottom, 50px) + 18px); right: calc(18px + min(396px, calc(100vw - 36px)) + 12px); width: min(400px, calc(100vw - 456px));
+  max-height: calc(100vh - var(--top-bottom, 50px) - var(--dock-top, 138px) - 34px);
   overflow-y: auto; overscroll-behavior: contain; padding: 15px 17px 13px; background: var(--glass-deep); border: 1px solid var(--line-jade); border-radius: 20px;
   backdrop-filter: blur(20px) saturate(1.35); -webkit-backdrop-filter: blur(20px) saturate(1.35);
   box-shadow: var(--sheen), 0 22px 54px -18px rgba(0, 0, 0, 0.78);
@@ -546,7 +590,6 @@ body.flying .marks, body.flying .instr { opacity: 0 !important; pointer-events: 
   /* (an instrument up: it has the bottom to itself) */
   .instr { background: rgba(10, 19, 17, 0.95); }
   body.instrumenting .guide, body.instrumenting .topbar, body.instrumenting .dock, body.instrumenting .marks { opacity: 0 !important; pointer-events: none !important; }
-  /* (the address on one line, its deepest steps kept: hud.ts; and the scale under a window's name when there is one) */
+  /* (the address on one line, its deepest steps kept: hud.ts; scalebox follows --brand-bottom automatically) */
   .crumbs { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; max-width: calc(100vw - 150px); }
-  body.windowed .scalebox { top: 96px; }
 }

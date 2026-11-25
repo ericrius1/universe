@@ -88,17 +88,27 @@ export class Hud {
   private bottom = 0 - BOTTOM_PAD;
   private base: string;
 
+  private brand!: HTMLElement;
+  private topbar!: HTMLElement;
+  private scaleBox!: HTMLElement;
+  private chromeEls: HTMLElement[] = [];
+  private ro: ResizeObserver | null = null;
+  private layoutRaf = 0;
+  private rungY: number[] = [];
+  private ladderH = 0;
+  private dotT = 0;
+
   constructor(parent: HTMLElement, places: Place[], base: string) {
     this.root = parent;
     this.base = base;
-    const brand = h('div', 'brand', '<div class="brand-name">Universe</div>');
+    const brand = this.brand = h('div', 'brand', '<div class="brand-name">Universe</div>');
     brand.append(this.crumbs);
     this.widen.title = 'Open the whole zoom, from the edge of everything to a molecule';
     this.widen.addEventListener('click', (e) => { e.stopPropagation(); this.onWiden(); });
     this.windowEl.style.display = 'none';
     brand.append(this.windowEl);
     home({ mount: brand, before: brand.firstElementChild, mark: true });
-    const top = h('div', 'topbar');
+    const top = this.topbar = h('div', 'topbar');
     const btn = (id: string, label: string, title: string) => {
       const b = h('button', 'btn', label) as HTMLButtonElement;
       b.title = title;
@@ -124,7 +134,7 @@ export class Hud {
     this.ladder.append(this.ladderDot);
     this.ladderDot.append(this.ladderVal);
     this.bar.append(this.barLine, this.barText);
-    const scaleBox = h('div', 'scalebox');
+    const scaleBox = this.scaleBox = h('div', 'scalebox');
     scaleBox.append(this.bar, this.timeText);
 
     this.setPlaces(places);
@@ -146,6 +156,92 @@ export class Hud {
     this.help.addEventListener('click', () => this.toggleHelp(false));
     this.card.addEventListener('click', (e) => e.stopPropagation());
     parent.append(brand, top, this.ladder, scaleBox, this.tag, this.card, this.caption, this.dock, this.help, this.toastEl);
+    this.ro = new ResizeObserver(() => this.scheduleLayout());
+    for (const el of [brand, top, this.dock, scaleBox, this.ladder]) this.ro.observe(el);
+    addEventListener('resize', () => this.scheduleLayout());
+    document.fonts?.ready.then(() => this.scheduleLayout());
+    this.scheduleLayout();
+  }
+
+  /** watch floating top-right chrome (controls toggle, camera button) so the topbar and panels stay clear of them */
+  observeChrome(...els: (HTMLElement | null | undefined)[]) {
+    for (const el of els) {
+      if (!el || this.chromeEls.includes(el)) continue;
+      this.chromeEls.push(el);
+      this.ro?.observe(el);
+    }
+    this.scheduleLayout();
+  }
+
+  private scheduleLayout() {
+    if (this.layoutRaf) return;
+    this.layoutRaf = requestAnimationFrame(() => {
+      this.layoutRaf = 0;
+      this.syncLayout();
+    });
+  }
+
+  /** measure live HUD edges into CSS custom properties so topbar, camera/toggle, brand, crumbs, dock and panels never overlap */
+  syncLayout() {
+    const doc = document.documentElement.style;
+    const W = innerWidth, H = innerHeight;
+    const desktop = W > 760;
+
+    // right-corner floating chrome (.ctl-toggle + .pic-button): keep .topbar 8px clear of whichever sits furthest left
+    let minLeft = W - 16;
+    let chromeBottom = 0;
+    for (const el of this.chromeEls) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0) {
+        minLeft = Math.min(minLeft, r.left);
+        chromeBottom = Math.max(chromeBottom, r.bottom);
+      }
+    }
+    const ctlW = Math.max(0, Math.ceil(W - minLeft - 16 + 8));
+    if (ctlW > 0) doc.setProperty('--ctl-w', `${ctlW}px`);
+
+    // top-left brand row 1 (home mark, title, contact pill) so .topbar never collides horizontally with it
+    let brandRowRight = 0;
+    for (const sel of ['.home-link', '.brand-name', '.home-contact']) {
+      const r = this.brand.querySelector<HTMLElement>(sel)?.getBoundingClientRect();
+      if (r && r.width > 0) brandRowRight = Math.max(brandRowRight, r.right);
+    }
+    if (brandRowRight > 0) doc.setProperty('--brand-w', `${Math.ceil(brandRowRight)}px`);
+
+    const brandRect = this.brand.getBoundingClientRect();
+    if (brandRect.height > 0) doc.setProperty('--brand-bottom', `${Math.ceil(brandRect.bottom)}px`);
+
+    const topRect = this.topbar.getBoundingClientRect();
+    if (desktop) {
+      const topBottom = Math.ceil(Math.max(topRect.bottom, chromeBottom, 50));
+      doc.setProperty('--top-bottom', `${topBottom}px`);
+      // when .topbar wraps to a second row on narrow desktops, keep .crumbs strictly to its left
+      const crumbsRect = this.crumbs.getBoundingClientRect();
+      if (topRect.height > 46 && crumbsRect.width > 0 && topRect.left > crumbsRect.left + 80) {
+        doc.setProperty('--crumbs-max', `${Math.floor(topRect.left - crumbsRect.left - 16)}px`);
+      } else {
+        doc.setProperty('--crumbs-max', '52vw');
+      }
+    }
+
+    const scaleRect = this.scaleBox.getBoundingClientRect();
+    if (scaleRect.height > 0) doc.setProperty('--scalebox-bottom', `${Math.ceil(scaleRect.bottom)}px`);
+
+    const dockRect = this.dock.getBoundingClientRect();
+    if (dockRect.height > 0) doc.setProperty('--dock-top', `${Math.ceil(H - dockRect.top)}px`);
+
+    // cache ladder rung vertical centers so update() can softly clear whichever rung sits under the scale pill
+    this.ladderH = this.ladder.clientHeight;
+    this.rungY = this.rungs.map(([el]) => (el.style.display === 'none' ? -1e4 : el.offsetTop + el.offsetHeight * 0.5));
+    this.maskRungs();
+  }
+
+  private maskRungs() {
+    if (!this.ladderH) return;
+    const dotY = this.dotT * this.ladderH;
+    this.rungs.forEach(([el], i) => {
+      el.classList.toggle('covered', Math.abs(this.rungY[i] - dotY) < 17);
+    });
   }
 
   /** the dock's places (the window's: they change as it's let out and its realms come in) */
@@ -166,6 +262,7 @@ export class Hud {
     for (const [id, el] of this.placeEls) if (!keep.has(id)) el.remove();
     this.dock.append(...places.map((p) => this.placeEls.get(p.id)!));
     this.last.here = '';
+    this.scheduleLayout();
   }
 
   /** a window narrower than everything (null: the whole universe): its name under the brand, the way out to everything,
@@ -181,6 +278,7 @@ export class Hud {
     } else this.windowEl.style.display = 'none';
     document.body.classList.toggle('windowed', !!w);
     this.setRange(w ? w.top : Infinity, w ? w.bottom : -Infinity);
+    this.scheduleLayout();
   }
   /** the ladder's rungs within a stretch (log10 nm; one rung past each end kept, so the dot's always between two) */
   private setRange(top: number, bottom: number) {
@@ -192,11 +290,12 @@ export class Hud {
     this.top = L[i0] + TOP_PAD;
     this.bottom = L[i1] - BOTTOM_PAD;
     this.last.dot = '';
+    this.scheduleLayout();
   }
   /** the cell's buttons (fly, play, the cutaway, the microscope): only where the window has the cell */
   setCell(on: boolean) { for (const id of ['fly', 'play', 'cut', 'fluo']) this.show(id, on); }
   /** a button shown or not */
-  show(id: string, on: boolean) { const b = this.buttons[id]; if (b) b.style.display = on ? '' : 'none'; }
+  show(id: string, on: boolean) { const b = this.buttons[id]; if (b) { b.style.display = on ? '' : 'none'; this.scheduleLayout(); } }
 
   private set(key: string, el: HTMLElement, v: string, prop: 'html' | 'text' | 'style' = 'text', styleKey = '') {
     if (this.last[key] === v) return;
@@ -212,7 +311,12 @@ export class Hud {
     this.set('crumbs', this.crumbs, crumbs.map((c, i) => `<span${i === crumbs.length - 1 ? ' class="here"' : ''}>${c}</span>`).join('<i>›</i>'), 'html');
     // ladder: from the observable universe to a nanometre; the dot sits at log10 of the field of view
     const t = Math.max(0, Math.min(1, (this.top - Math.log10(Math.max(s.fov, 1e-3))) / (this.top - this.bottom)));
-    this.set('dot', this.ladderDot, `${(t * 100).toFixed(2)}%`, 'style', 'top');
+    const dotPct = `${(t * 100).toFixed(2)}%`;
+    if (this.last.dot !== dotPct) {
+      this.dotT = t;
+      this.set('dot', this.ladderDot, dotPct, 'style', 'top');
+      this.maskRungs();
+    }
     this.set('dotv', this.ladderVal, fmtLength(s.fov));
     // a round length about a sixth of the screen
     const target = s.nmPerPx * 140;

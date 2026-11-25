@@ -202,9 +202,9 @@ export class Marks {
       } else { it.path.setAttribute('d', ''); it.el.classList.remove('mark-path'); }
       // (a small thing's ring well clear of it, a big one's just outside its edge)
       const r = m.path ? 0 : m.r > 30 ? m.r + 8 : Math.max(11, m.r * 1.35 + 6);
-      const lx = m.path ? m.x : m.x + r * 0.72 + 10;
-      let ly = m.path ? m.y - 24 : m.y - r * 0.72 - 15;
       const w = Math.max(54, m.name.length * 7.2 + 22);
+      const lx = m.path ? m.x - w / 2 : m.x + r * 0.72 + 10;
+      let ly = m.path ? m.y - 24 : m.y - r * 0.72 - 15;
       let dy = 0;
       for (let step = 0; step < 6; step++) {
         const hit = placed.some(([px, py, pw]) => Math.abs((ly + dy) - py) < 25 && lx < px + pw && lx + w > px);

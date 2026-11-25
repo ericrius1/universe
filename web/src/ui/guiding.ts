@@ -133,6 +133,7 @@ export class Guiding {
     const i = chapterAt(placeId);
     if (i < 0) { this.toggle(); return; }
     this.dismissWelcome();
+    this.app.hud.showCard(null);
     this.app.sound('click');
     this.openAt(i, true);
   }
