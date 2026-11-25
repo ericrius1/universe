@@ -29,15 +29,15 @@ import type { SpotWords } from './cosmos/places';
  *  one at a time and a frame apart, a first visit's (nothing cached) took five seconds on a Mac */
 class TimedCompiler extends SerialCompiler {
   readonly times: [string, number][] = [];
-  private busy = 0;
+  private active = 0;
   private waiting: (() => void)[] = [];
   constructor(kit: Kit, private lanes: number) { super(kit); }
   compile(rec: Parameters<SerialCompiler['compile']>[0], start: () => Promise<unknown>): Promise<unknown> {
     const timed = () => { const t = performance.now(); return start().finally(() => this.times.push([rec.label, performance.now() - t])); };
     if (this.lanes <= 1) return super.compile(rec, timed);
     return new Promise((res) => {
-      const go = () => { this.busy++; res(timed().finally(() => { this.busy--; this.waiting.shift()?.(); })); };
-      if (this.busy < this.lanes) go(); else this.waiting.push(go);
+      const go = () => { this.active++; res(timed().finally(() => { this.active--; this.waiting.shift()?.(); })); };
+      if (this.active < this.lanes) go(); else this.waiting.push(go);
     });
   }
   slowest(n: number) { return [...this.times].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, ms]) => `${k} ${Math.round(ms)}`).join(', '); }
