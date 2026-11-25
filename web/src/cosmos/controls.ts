@@ -173,11 +173,21 @@ export class CosmosControls {
   /** turn the view to look along a direction (the top frame's axes): from one body toward another, say — the Moon as
    *  the Earth sees it is lookAlong(moon − earth), from locate() */
   lookAlong(dir: Vec3) {
+    const a = this.anglesFor(dir);
+    this.pitch = a.pitch;
+    this.yaw = a.yaw;
+    this.velYaw = this.velPitch = 0;
+  }
+  /** yaw and pitch that look along `dir` (the top frame's axes) at the current zoom */
+  anglesFor(dir: Vec3): { yaw: number; pitch: number } {
     this.ladder.reference(this.logS, this.ref);
     const d = vec3.transformQuat([0, 0, 0], vec3.normalize([0, 0, 0], dir), quat.invert(quat.create(), this.ref));
-    this.pitch = clamp(Math.asin(clamp(d[1], -1, 1)), -1.55, 1.55);
-    this.yaw = Math.atan2(-d[0], -d[2]);
-    this.velYaw = this.velPitch = 0;
+    return { pitch: clamp(Math.asin(clamp(d[1], -1, 1)), -1.55, 1.55), yaw: Math.atan2(-d[0], -d[2]) };
+  }
+  /** how near a body the zoom can go (log10 m), or null if the body isn't known */
+  focusDistance(id: string): number | null {
+    if (!this.locate || this.locate(id, this.bodyAt) === null) return null;
+    return this.nearest(id);
   }
   /** how near a body the zoom goes: where it fills the frame's height, and never below the solar system's stretch */
   private nearest(id: string) {

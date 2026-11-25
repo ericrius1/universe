@@ -87,6 +87,20 @@ export class Things {
     return at ? { frame: this.cosmos.ladder.local, at, name: shown } : null;
   }
 
+  /** a found thing's direction from the current pivot (the top frame's axes, unit vector), for smoothly turning the
+   *  camera to bring it into centre view; null if it coincides with the pivot */
+  directionOf(f: Found): Vec3 | null {
+    const c = this.cosmos, cc = c.controls;
+    c.ladder.pivotOffset(cc.logS, this.off);
+    vec3.subtract(this.v, f.at, f.frame.target);
+    vec3.transformQuat(this.v, this.v, f.frame.q);
+    const u = f.frame.unit;
+    const d: Vec3 = [this.v[0] * u - this.off[0], this.v[1] * u - this.off[1], this.v[2] * u - this.off[2]];
+    const len = Math.hypot(d[0], d[1], d[2]);
+    if (len < 1e-6) return null;
+    return [d[0] / len, d[1] / len, d[2] / len];
+  }
+
   /** a found thing on the screen now (css px), or null if it's behind the view, off it, or too small a part of it */
   mark(f: Found): Mark | null {
     const c = this.cosmos, cc = c.controls, kit = this.kit;
@@ -174,6 +188,8 @@ export class Marks {
       this.el.append(el);
       this.items.push({ el, path });
     }
+    // keep nearby label pills from stacking on top of one another (e.g. inner solar system at 70 AU)
+    const placed: [number, number, number][] = [];
     this.items.forEach((it, i) => {
       const m = marks[i];
       if (!m) { it.el.style.display = 'none'; it.path.setAttribute('d', ''); return; }
@@ -186,8 +202,19 @@ export class Marks {
       } else { it.path.setAttribute('d', ''); it.el.classList.remove('mark-path'); }
       // (a small thing's ring well clear of it, a big one's just outside its edge)
       const r = m.path ? 0 : m.r > 30 ? m.r + 8 : Math.max(11, m.r * 1.35 + 6);
+      const lx = m.path ? m.x : m.x + r * 0.72 + 10;
+      let ly = m.path ? m.y - 24 : m.y - r * 0.72 - 15;
+      const w = Math.max(54, m.name.length * 7.2 + 22);
+      let dy = 0;
+      for (let step = 0; step < 6; step++) {
+        const hit = placed.some(([px, py, pw]) => Math.abs((ly + dy) - py) < 25 && lx < px + pw && lx + w > px);
+        if (!hit) break;
+        dy = (step % 2 === 0 ? -1 : 1) * (Math.floor(step / 2) + 1) * 26;
+      }
+      placed.push([lx, ly + dy, w]);
       it.el.style.transform = `translate(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px)`;
       it.el.style.setProperty('--r', `${r.toFixed(1)}px`);
+      it.el.style.setProperty('--dy', `${dy}px`);
     });
     this.el.classList.toggle('on', marks.length > 0);
   }

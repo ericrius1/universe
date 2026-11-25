@@ -29,7 +29,7 @@ const MAKERS: Record<Instrument['id'], () => Promise<{ default: Make }>> = {
 };
 
 /** the page's type and ink, for a canvas */
-export const INK = { ink: '#f4ede6', dim: 'rgba(244,237,230,0.62)', faint: 'rgba(244,237,230,0.34)', line: 'rgba(255,230,210,0.16)', accent: '#ffb38a', violet: '#b3a6ff' };
+export const INK = { ink: '#f7f3e8', dim: 'rgba(242,236,220,0.68)', faint: 'rgba(235,226,204,0.40)', line: 'rgba(236,210,148,0.18)', accent: '#f0ca75', violet: '#78dfb0' };
 export const FONT = { sans: '"Inter", system-ui, sans-serif', mono: '"JetBrains Mono", ui-monospace, monospace', serif: '"Fraunces", Georgia, serif' };
 
 /** a canvas sized to its box at the screen's pixel ratio, and the room in it to draw (css px) */

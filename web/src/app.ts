@@ -32,6 +32,7 @@ import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import type { Cosmos } from './cosmos';
 import { NM } from './cosmos/frames';
 import { COSMOS_PLACES as BOULDER_PLACES, cosmosPlaces, type CosmosPlace } from './cosmos/places';
+import { applyGardensStory } from './cosmos/story';
 import { CELL_TOP, inWindow, whole, type ZoomWindow } from './windows';
 import type { Realms } from './realms';
 import { Guiding, address } from './ui/guiding';
@@ -63,9 +64,12 @@ const BEYOND_PLACE: CosmosPlace = {
   line: 'What holds it all.',
 };
 export const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES), ...(params.has('dome') ? [] : WELL_PLACES)];
-if (GARDENS) for (const s of TOUR) {
-  if (s.place === 'u:boulder') s.caption = HAVENS_CAPTIONS.tourSpot;
-  else if (s.place === 'u:person' && s.caption.startsWith('<small>')) s.caption = HAVENS_CAPTIONS.tourPerson;
+if (GARDENS) {
+  applyGardensStory();
+  for (const s of TOUR) {
+    if (s.place === 'u:boulder') s.caption = HAVENS_CAPTIONS.tourSpot;
+    else if (s.place === 'u:person' && s.caption.startsWith('<small>')) s.caption = HAVENS_CAPTIONS.tourPerson;
+  }
 }
 // (the whole tour, kept: the window's is the stops in it)
 const FULL_TOUR: Stop[] = [...TOUR];
@@ -215,6 +219,7 @@ export class App {
     });
     this.fitTour();
     this.guiding = new Guiding(this, ui);
+    this.intro.onMore = (id) => { this.intro.hide(true); this.guiding.openFor(id); };
     // one film for the whole dive (cosmos/film.ts): the cell's frame laid into the cosmos's HDR — under the cosmos's own
     // as the two hand over, alone below them — and graded with it, the cell's film mixed in by its share
     cosmos.r.host = (f) => (this.mix < 1 ? mixFilm(this.cellFilm, f, 1 - this.cellShare) : f);
@@ -574,7 +579,7 @@ export class App {
       else if (k === 'm') this.button('fluo');
       else if (k === 'h' || k === '?') this.button('help');
       else if (k === 'p') this.button('play');
-      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); this.guiding.instruments.close(); if (!this.guiding.instruments.open) this.guiding.guide.close(); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
+      else if (k === 'escape') { this.setFly(false); this.tour.stop(); hud.showCard(null); this.guiding.clearFocus(false); this.guiding.instruments.close(); if (!this.guiding.instruments.open) this.guiding.guide.close(); hud.toggleHelp(false); this.intro.hide(true); this.selected = 0; }
       else if (k >= '1' && k <= '9') { const p = [...this.places.values()][Number(k) - 1]; if (p) this.goTo(p.id); }
     });
   }
@@ -675,6 +680,7 @@ export class App {
     const p = COSMOS_PLACES.find((q) => q.id === id);
     if (!p || this.wayFor(p)) return;
     if (this.realm === 'cell') { this.leaveCell(); if (this.realm === 'cell') return; }
+    this.guiding.clearFocus(false);
     this.hud.showCard(null);
     this.cosmos.controls.flyTo(p.logS, { pitch: p.pitch, done: () => this.sound('arrive') });
     this.cosmosAt = p;
@@ -788,7 +794,7 @@ export class App {
     if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
-    this.guiding.frame(dt);
+    this.guiding.frame(dt, this.intro.showing);
     this.holds();
     // the cross-fade between the cosmos and the cell: each draws while it shows (at the loop's seam, by the zoom: seam())
     const cc = this.cosmos.controls;
