@@ -218,12 +218,13 @@ export class Web {
     this.lv.L.set({ weight: w, a: [0.3 * Math.max(Smpc, 0.6) * Math.min(Math.max(Smpc, 0.6), 8), 1, Math.max(Smpc * 0.04, 0.02), 1], b: [EDGE, 0, 0, 0] });
     this.localGroup.update(S);
     // (the web's brighter seen whole, where the voids between near filaments take up more of the view)
-    // (and faint, not gone, seen whole from outside; past the edge, where it's what our marble holds (levels/beyond.ts),
-    // bright again)
+    // (and faint, not gone, seen whole from outside; held as it is at the top of the zoom on out past it, where the ball
+    // shrinks into the loop's seam: src/loop.ts)
+    const lt = Math.min(l, 26.95);
     const gain = 0.8 * (1 + 0.5 * Math.max(0, Math.min(1, (l - 24.8) / 1.0))) * (1 - 0.35 * Math.max(0, Math.min(1, (l - 26.3) / 0.5)))
-      * (1 + 1.4 * Math.max(0, Math.min(1, (l - 26.9) / 0.4)));
-    // (the microwave background's shell fainter there too, a skin round the web rather than a mottled ball)
-    const cmb = 1 - 0.7 * Math.max(0, Math.min(1, (l - 26.9) / 0.4));
+      * (1 + 1.4 * Math.max(0, Math.min(1, (lt - 26.9) / 0.4)));
+    // (the microwave background's shell a little fainter there)
+    const cmb = 1 - 0.7 * Math.max(0, Math.min(1, (lt - 26.9) / 0.4));
     // (fewer steps from outside the shell, where the web's a faint skin and every ray crosses the whole of it: its
     // samples scatter across the noise, and each costs a miss)
     const steps = Smpc > 6000 ? Math.round(28 - 16 * Math.max(0, Math.min(1, (l - 26.3) / 0.5))) : 36;

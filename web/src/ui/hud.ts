@@ -38,8 +38,16 @@ export function fmtLength(nm: number): string {
   if (nm >= 1e6) return `${+(nm / 1e6).toPrecision(2)} mm`;
   if (nm >= 1e3) return `${+(nm / 1e3).toPrecision(2)} µm`;
   if (nm >= 1) return `${+nm.toPrecision(2)} nm`;
-  return `${+(nm * 10).toPrecision(2)} Å`;
+  if (nm >= 0.1) return `${+(nm * 10).toPrecision(2)} Å`;
+  // (below the atom: picometres to yoctometres, then powers of ten; past the Planck length, a length means nothing)
+  if (nm < PLANCK_NM * 0.5) return 'less than a Planck length';
+  const units: [number, string][] = [[1e-3, 'pm'], [1e-6, 'fm'], [1e-9, 'am'], [1e-12, 'zm'], [1e-15, 'ym']];
+  for (const [u, n] of units) if (nm >= u) return `${+(nm / u).toPrecision(2)} ${n}`;
+  const e = Math.floor(Math.log10(nm * 1e-9)), m = +(nm * 1e-9 / Math.pow(10, e)).toPrecision(2);
+  return `${m === 1 ? '' : `${m} × `}10${String(e).split('').map((d) => SUP[d] ?? d).join('')} m`;
 }
+const PLANCK_NM = 1.616e-26;
+const SUP: Record<string, string> = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
 
 const h = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 

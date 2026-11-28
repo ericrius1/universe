@@ -21,6 +21,12 @@ powers of ten.
   with its coverage: a daytime sky hides the stars, a night one doesn't.
 - **The hand-over to the cell**: zooming in past ~150 µm gives the camera to the cell's world (and out past it, back);
   the skin's living layer and the tissue's haze are matched so the two dissolve into each other.
+- **Below the atom, and round again**: one bead of the DNA (`web/src/loop.ts` JEWEL) comes apart into atoms, and the
+  zoom goes on through a carbon atom's orbitals, its nucleus, a proton's quarks, the long desert of scales and the
+  foam at the Planck length into an infinite light, which gathers into the universe's ball seen from outside
+  (`web/shaders/quantum.wgsl`, `quantum_core.wgsl`: one analytic fullscreen pass round the bead, in units of the view
+  distance so float32 holds 30 decades down). Past it, the cosmos's zoom crosses back in above the edge, so the zoom
+  by hand and the loop film both come round: the edge of everything, in, and out the bottom into the top.
 
 URL: `?s=<log10 metres>` starts at a zoom (27 is the whole observable universe, -3.7 the skin's cells) · `?utc=<hours>`
 the time of day (default mid-morning in Boulder) · `?now` the real moment · `?place=<cell place>` starts in the cell ·
@@ -77,6 +83,10 @@ lockfile it moves). To work on the kit alongside the app, clone it beside this r
 ```bash
 cd web && npx vite build --outDir ../scratch/filmbuild && npx vite preview --outDir ../scratch/filmbuild --port 5741
 PORT=5741 node tools/film.mjs trailer 1920 1080   # film/trailer/cell-trailer.mp4 (frames + the score, rendered offline)
+PORT=5741 node tools/film.mjs loop 1280 720       # the loop (src/loop.ts), 60 fps; FROM=/UNTIL= renders a stretch into the kept frames
+SONG=../film/loop/score-src.wav LOOPED=1 python3 tools/loop-score.py <frames> 60   # its score fitted to it
+SCORE=../film/loop/score-suno.wav node tools/loop.mjs   # one 720p file that plays round without a seam
+node tools/loop-shots.mjs ../scratch/loop -9.3 -15 -34.8 '#0'   # frames of it at zooms (or frame numbers)
 ```
 
 Push to main and it's live: the Vercel project `universe` is linked to this repo with its root at `web/`, and builds

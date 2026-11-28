@@ -6,7 +6,7 @@
 // behind it.
 
 /** a realm: one part of the zoom, built only if the window needs it (main.ts's realms) */
-export type RealmId = 'beyond' | 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground' | 'gardens' | 'cell' | 'well';
+export type RealmId = 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground' | 'gardens' | 'cell' | 'well';
 /** the two ways down from the Earth: the main line's, to Seven Havens and on into the cell, and the well's, through
  *  San Francisco's fog to a plate of liver cells on a lab bench (lab/way.ts) */
 export type Way = 'havens' | 'well';
@@ -17,8 +17,6 @@ export const WAY_OF: Partial<Record<RealmId, Way>> = { ground: 'havens', gardens
  *  levels' own bands (cosmos/levels/*: their Band's a and d, the widest of a level's parts), the gardens' (gardens.ts
  *  BAND) and the cell's (below the cosmos's camera's `min`, where the cell takes over) */
 export const REALM_BANDS: Record<RealmId, [number, number]> = {
-  // (past the edge of the observable universe: levels/beyond.ts, 0 by 26.97)
-  beyond: [Infinity, 26.97],
   // (the cosmic web and the microwave background: levels/web.ts, the points to 21.2)
   web: [Infinity, 21.2],
   // (the Milky Way and the Sun's neighbours: behind everything below them, the stars over the meadow at night)
@@ -60,7 +58,7 @@ export interface ZoomWindow {
 
 export const WINDOWS: ZoomWindow[] = [
   { id: 'universe', name: 'Universe', line: 'From the edge of everything to the inside of a cell.', top: null, bottom: null, start: 26.95 },
-  // (to the edge of the observable universe, short of the keepers' world past it; down to the nearest stars, short of
+  // (to the edge of the observable universe, short of the light past it; down to the nearest stars, short of
   // where the solar system's belts come in)
   { id: 'cosmos', name: 'The cosmos', line: 'The observable universe, the cosmic web, the Milky Way, the nearest stars.', top: 26.97, bottom: 17.6, start: 26.95 },
   // (from the Oort cloud's outer reach down to the Earth and the Moon round it)

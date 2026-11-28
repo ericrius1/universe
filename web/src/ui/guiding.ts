@@ -109,7 +109,6 @@ export class Guiding {
       if (inCell(c)) return cellOk;
       const p = COSMOS_PLACES.find((q) => q.id === c.place);
       if (!p) return false;
-      if (p.logS > 26.97 && !this.app.realms.wants('beyond')) return false;
       return inWindow(w, p.logS, 0.05);
     }).map(([, i]) => i);
     this.app.hud.show('guide', this.guide.order.length > 0 && !params.has('dome'));

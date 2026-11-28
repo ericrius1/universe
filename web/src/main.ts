@@ -39,13 +39,13 @@ async function boot() {
   if (win.id !== 'universe') document.title = `${win.name} · Universe`;
   // (Seven Havens' gardens, where the dive ends: their code fetched and their builders at work from now, while the rest
   // loads — gardens.ts — if the window takes them in)
-  const realmsWanted = new Realms(win, { gardens: GARDENS, beyond: !dome, build: async () => {} });
+  const realmsWanted = new Realms(win, { gardens: GARDENS, loop: !dome, build: async () => {} });
   if (realmsWanted.wants('gardens')) void prepareGardens(BASE);
   status('waking the GPU…', 0.05);
   // (?phone: a phone's settings anywhere)
   const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && innerWidth < 900) || params.has('phone');
   // (a computer whose GPU is light — ui/gpu.ts: a base M1 or M2, as in a MacBook Air; graphics on the processor — has
-  // the phone's volumes and the keepers' world as a phone draws them, on the computer's interface; the governor finds
+  // the phone's volumes, on the computer's interface; the governor finds
   // the rest from how it runs)
   const light = !mobile && !params.has('film') && lightGpu();
   trackGpuMemory();
@@ -58,8 +58,6 @@ async function boot() {
   // (a phone marches the volumes at the top of the zoom at half its resolution: they're soft, and the costliest there)
   const cosmos = new Cosmos(kit, {
     time, dome: dome ? { size: Number(params.get('dome') || 1024), out: 'screen' } : undefined, volumeScale: mobile || light ? 0.5 : 1,
-    // (past the edge of the universe, the keepers' world: not on a dome; a phone's lighter and at a little less resolution)
-    beyond: dome ? undefined : { assets: new URL('data/beyond/', document.baseURI).href, hi: !mobile && !light && !params.has('lo'), scale: mobile || light ? 0.75 : 1 },
     ...(GARDENS ? { place: HAVENS, short: HAVENS_WORDS.short, data: `${new URL(HAVENS_DATA, document.baseURI).href}`, meadow: false } : {}),
   });
 
@@ -67,11 +65,11 @@ async function boot() {
   let app: App;
   let pipelines = 0;
   const compiled = async () => { const r = await kit.ready(); pipelines = r.pipelines; return r; };
-  // (the jewel, the loop's bead of glass with the keepers' world in it: src/loop.ts — the loop film's, and the app's own
-  // zoom round the same loop over the gardens; its pipelines not compiled for other films)
-  const jewel = () => {
-    if (!app.cell || !cosmos.beyond || app.r.jewelU) return;
-    if (params.get('film') === 'loop' || (realms.seamed && !params.has('film'))) app.r.jewel(cosmos.beyond.out, !mobile);
+  // (the world below the atom round the loop's bead: src/loop.ts — the loop film's, and the app's own zoom round the
+  // same loop over the gardens; its pipeline not compiled for other films)
+  const quantum = () => {
+    if (!app.cell || app.r.quantumU) return;
+    if (params.get('film') === 'loop' || (realms.seamed && !params.has('film'))) app.r.quantum();
   };
   const build = async (id: RealmId) => {
     const t0 = performance.now();
@@ -79,7 +77,7 @@ async function boot() {
       const { buildCell } = await import('./cell');
       const cell = await buildCell(kit, canvas, { base: BASE, quality, frame, status: (m, f) => { if (!started) status(m, f); } });
       app.attachCell(cell);
-      jewel();
+      quantum();
       taau(kit, app, cosmos, cell.r, { dome, mobile, pace: () => pace });
       if (!started) status('nearly there…', 0.7);
       const ready = await compiled();
@@ -98,12 +96,11 @@ async function boot() {
       console.log(`well: ${ready.pipelines} pipelines in ${(performance.now() - t0).toFixed(0)} ms (${ready.failed} failed)`);
     } else {
       await cosmos.build([id as CosmosRealm]);
-      if (id === 'beyond') jewel();
       await compiled();
     }
   };
   let started = false;
-  const realms = new Realms(win, { gardens: GARDENS, beyond: !dome, build, onIn: () => app?.realmIn() });
+  const realms = new Realms(win, { gardens: GARDENS, loop: !dome, build, onIn: () => app?.realmIn() });
   // (the ground's own data only if it's seen: under the gardens, in a window that opens below where they fill the frame,
   // it never is)
   cosmos.groundData = realms.wants('earth');

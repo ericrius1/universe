@@ -1,5 +1,5 @@
 // The film's settings (loom/film: the film, its settings, mixFilm and filmFields, loom's render/film) for each part
-// of the dive: the cosmos's own (COSMOS_FILM: as its frames have always been graded), the keepers' world past it, the
+// of the dive: the cosmos's own (COSMOS_FILM: as its frames have always been graded), the
 // cell's laid in under it (CELL_FILM); a host's for what it lays into the frame (Universe's gardens: Seven Havens' look)
 // mixed in as the dive goes from one to the other. The renderer packs the one in force into its uniform each frame.
 import type { Film } from '@ericrius1/loom/render/film';
@@ -20,21 +20,12 @@ export const COSMOS_FILM: Film = {
   grade: 0, split: 0, rich: 0, golden: 0, dusk: 0, noon: 0, night: 0, cover: 0,
 };
 
-/** the keepers' world past the edge of the universe (levels/beyond.ts): AgX's own curve, not the cosmos's lifted one
- *  (its frames are dark round sparse lights; theirs are lit), a little punch, the glow and halation of a lens round its
- *  marbles and threads, film's grain */
-export const BEYOND_FILM: Film = {
-  ...COSMOS_FILM,
-  exposure: 1.15, bloomShare: 0.04, bloomAdd: 0.03, glow: 0.22, glowFrom: 0.9, halation: 0.12,
-  punch: 0.35, saturation: 1.05, saturationAfter: 1.06, contrast: 1.1, toe: 1, power: 1,
-  vignette: 0.55, vignetteQ: 0.15, dither: 0.6, grain: 0.022, grainMids: 0.6,
-};
-
 /** the cell's frames (src/engine/renderer.ts, laid into this film), as they were graded with their own: only what's
- *  bright blooms, added; its exposure, AgX with more saturation after it, a straight contrast, its vignette and grain */
+ *  bright blooms, added, softly; its exposure, AgX with a little less saturation after it (a quiet palette: pearl and
+ *  slate, not paints), a gentle contrast, its vignette and grain */
 export const CELL_FILM: Film = {
   ...COSMOS_FILM,
-  exposure: 0.85, bloomShare: 0, bloomAdd: 0.22, bloomEven: 1, knee: 1, kneeLo: 1.1, kneeHi: 3.2,
-  saturationAfter: 1.12, contrast: 1.14, toe: 0, power: 1 / 2.2,
+  exposure: 0.85, bloomShare: 0, bloomAdd: 0.13, bloomEven: 1, knee: 1, kneeLo: 1.1, kneeHi: 3.2,
+  saturationAfter: 0.95, contrast: 1.1, toe: 0, power: 1 / 2.2,
   vignette: 0.55, vignetteQ: 0, dither: 0, grain: 0.012, grainMids: 0,
 };

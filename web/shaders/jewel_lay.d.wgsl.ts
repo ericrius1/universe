@@ -35,11 +35,12 @@ export interface FullscreenOut {
   pos: Vec4;
   uv: Vec2;
 }
-export interface Jewel {
+export interface Quantum {
   center: Vec3;
   radius: number;
-  inner: Vec4;
-  tint: Vec4;
+  eye: Vec3;
+  L: number;
+  view: Vec4;
   flags: Vec4;
 }
 export interface LayOut {
@@ -47,5 +48,5 @@ export interface LayOut {
   depth: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Jewel: Jewel; LayOut: LayOut }, 'frame' | 'J' | 'jewelTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; FullscreenOut: FullscreenOut; Quantum: Quantum; LayOut: LayOut }, 'frame' | 'J' | 'jewelTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

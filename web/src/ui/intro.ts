@@ -12,6 +12,7 @@ export const SIZE: Record<string, string> = {
   nucleus: '7 µm',
   pore: '120 nm',
   dna: '20 nm',
+  atom: '0.1 nm',
   mito: '2 µm',
   atp: '50 nm',
   er: '300 nm',

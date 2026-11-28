@@ -1,5 +1,5 @@
 // A picture drawn at a fraction of the resolution, laid into the scene upsampled: its light and coverage
-// premultiplied, as it would have been drawn there. fs: one bilinear tap (levels/beyond.ts, the keepers' world).
+// premultiplied, as it would have been drawn there. fs: one bilinear tap.
 // fs_tent: the volumes (renderer.ts volume()), four bilinear taps half a texel off the pixel each way, a tent over the
 // texels round it: the march's per-pixel dither averaged out rather than blown up into blocks. fs_hist: a volume's
 // short history, this frame's march mixed into the last frames' by its share.

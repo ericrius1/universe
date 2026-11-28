@@ -78,6 +78,17 @@ export const CELL_STORY: CellChapter[] = [
     act: { act: 'play:polymerase', label: '✦ Play as RNA polymerase' },
   },
   {
+    place: 'atom', short: 'Below the atom', part: 'All the way down', title: 'Below the atom', scale: '0.1 nm', like: 'a ten-millionth of a millimetre, and then a lot smaller',
+    stats: [{ v: '10⁻¹⁰ m', k: 'an atom' }, { v: '10⁻¹⁵ m', k: 'a proton' }, { v: '10⁻³⁵ m', k: 'Planck length' }],
+    text: 'Keep zooming into one bead of the DNA and it comes apart into atoms. An atom is almost all empty space, a haze of electrons around a nucleus a hundred thousand times smaller than the atom itself. The nucleus is protons and neutrons, and each of those is three quarks held together by gluons, with particles flickering in and out around them. Below the quarks nothing new shows up for about seventeen powers of ten, until you get to the Planck length, where space itself is thought to bubble like foam. Past that, size doesn\'t really mean anything anymore, and the zoom comes back around to the beginning, because the whole universe we can see started out smaller than this.',
+    look: [
+      { t: 'Keep zooming in on the bead and it turns into a carbon atom, then its cloud of electrons, then its tiny nucleus.' },
+      { t: 'Inside a proton there are three quarks tied together by gluons.' },
+      { t: 'Past the Planck length the light gathers into a ball, which is the universe being born, and if you keep going you\'re back at the edge of everything.' },
+    ],
+    know: 'The observable universe is about 10²⁷ metres across and the Planck length is about 10⁻³⁵ metres, so there are around sixty-two powers of ten between the biggest and the smallest things here.',
+  },
+  {
     place: 'pore', short: 'Nuclear pores', part: 'Out of the nucleus', title: 'Nuclear pores', scale: '120 nm', like: 'about the size of a virus',
     stats: [{ v: '~1,000', k: 'proteins / gate' }, { v: '8-fold', k: 'ring symmetry' }, { v: '~1,000 / s', k: 'molecules passed' }],
     text: 'The nucleus is wrapped in two membranes, and messenger RNA can\'t cross them. It leaves through a nuclear pore complex: one of the largest molecular machines in the cell, built from roughly a thousand proteins arranged in an eight-fold ring. Small molecules slip through freely; big cargo like messenger RNA is escorted through a selective mesh of disordered threads filling the channel.',

@@ -21,7 +21,6 @@ import type { Earth } from './levels/earth';
 import type { Surface } from './levels/surface';
 import type { Air } from './levels/air';
 import type { EarthData } from './levels/earthdata';
-import { Beyond, logSOf, M_PER_CM, WORLD_C, WORLD_R, type BeyondOptions } from './levels/beyond';
 
 /** a moment: today at `utcHours` (default mid-morning in Boulder, 17:30 UTC) */
 export function moment(utcHours = 17.5) {
@@ -51,15 +50,12 @@ export interface CosmosOptions {
   /** the meadow at the bottom of the dive, whoever lies there drawn into it (default true; false: a host draws its own
    *  ground there and lays them into it — Universe's gardens — the meadow only a stand-in close up while that loads) */
   meadow?: boolean;
-  /** past the edge of the observable universe, the keepers' world (levels/beyond.ts): its pictures, a phone's or a
-   *  desktop's, its resolution (default none: the zoom stops at the edge) */
-  beyond?: BeyondOptions;
 }
 export type { DomeOptions };
 
-/** the realms above the cell, in the order they draw (coarsest first; the keepers' world after the scene) */
-export type CosmosRealm = 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground' | 'beyond';
-export const COSMOS_REALMS: CosmosRealm[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground', 'beyond'];
+/** the realms above the cell, in the order they draw (coarsest first) */
+export type CosmosRealm = 'web' | 'galaxy' | 'local' | 'solar' | 'earth' | 'ground';
+export const COSMOS_REALMS: CosmosRealm[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground'];
 
 export class Cosmos {
   readonly ladder: Ladder;
@@ -75,7 +71,6 @@ export class Cosmos {
   /** the Earth's air and its ground's data: made with the Earth or the ground, whichever is first */
   air!: Air;
   data!: EarthData;
-  beyond: Beyond | null = null;
   time = 0;
   /** the time dial: how fast the ephemeris runs (1: the page's moment, held — at one second a second nothing moves that
    *  could be seen; 86,400: a day a second). Only the planets, the Moon, the small bodies and the Earth along its orbit
@@ -102,22 +97,15 @@ export class Cosmos {
     this.short = o.short ?? 'Boulder';
     this.controls = new CosmosControls(kit.canvas, this.ladder, o.input ?? true);
     this.r = new CosmosRenderer(kit, this.ladder, o.dome ?? null, o.volumeScale ?? 1);
-    if (o.beyond) {
-      // (out to just inside their sky; the view easing off our marble onto the middle of their world as it goes)
-      this.controls.max = logSOf(WORLD_R * 0.86);
-      this.ladder.beyond = { at: [WORLD_C[0] * M_PER_CM, WORLD_C[1] * M_PER_CM, WORLD_C[2] * M_PER_CM], from: logSOf(25), to: logSOf(110) };
-    }
   }
 
   /** whether a realm is built */
   has(id: CosmosRealm) { return this.built.has(id); }
-  /** whether a realm can be built here (the keepers' world only when asked for: `beyond`) */
-  can(id: CosmosRealm) { return id !== 'beyond' || !!this.o.beyond; }
 
   /** build realms (all of them, with nothing given): their code fetched, their levels made and put in their place in
    *  the draw order. Resolves once they're made; their pipelines compile after (kit.ready) */
   async build(ids: CosmosRealm[] = COSMOS_REALMS) {
-    await Promise.all(ids.filter((id) => this.can(id)).map((id) => this.realm(id)));
+    await Promise.all(ids.map((id) => this.realm(id)));
   }
 
   private realm(id: CosmosRealm): Promise<void> {
@@ -142,9 +130,6 @@ export class Cosmos {
         const [{ Surface }] = await Promise.all([import('./levels/surface'), this.makeAir()]);
         const fig = o.figure ?? new URL(`data/figure/${CAST[FIGURE].file}`, document.baseURI).href;
         this.put(id, () => { this.surface = new Surface(kit, R, L, this.air, this.data, fig, o.meadow ?? true); });
-      } else if (id === 'beyond' && o.beyond) {
-        const b = o.beyond;
-        this.put(id, () => { this.beyond = new Beyond(kit, R, L, b); });
       }
       this.built.add(id);
     })();
@@ -180,7 +165,6 @@ export class Cosmos {
   /** where the view is, coarsest first */
   crumbs(): string[] {
     const l = this.controls.logS;
-    if (this.beyond && l > 27.4) return l > 27.95 ? ['Beyond', 'The keepers'] : ['Beyond', 'A marble'];
     if (l > 24.6) return ['The observable universe'];
     const c = ['Universe'];
     if (l > 21.8) { c.push('The cosmic web', l > 23.2 ? 'Superclusters' : 'The Local Group'); return c; }
@@ -242,7 +226,6 @@ export class Cosmos {
       this.air.on = (ew > 0.002 || (!!sf && sf.ground.weight > 0.002)) && !this.r.covered && B.has('earth');
       if (this.air.on) this.air.update(this.earth.lv, this.earth.sun);
     }
-    this.beyond?.update(c.logS, dt);
     this.r.over = alpha < 1;
     this.r.alpha = alpha;
   }

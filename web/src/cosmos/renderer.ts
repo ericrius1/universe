@@ -104,7 +104,7 @@ export class CosmosRenderer {
   film: Film;
   /** its alpha: 1, or less over the cell's frame while the two hand over (index.ts) */
   alpha = 1;
-  /** a level's own grade over whatever film is in force (levels/beyond.ts: the keepers' world, graded for itself) */
+  /** a level's own grade over whatever film is in force (none of Universe's has one now) */
   grade: ((f: Film) => Film) | null = null;
   /** a host's film for what it lays in last (`lay`), mixed with this one's own (Universe's: the cell's, cosmos/film.ts
    *  CELL_FILM, as the two hand over) */
@@ -113,7 +113,7 @@ export class CosmosRenderer {
   readonly levels: Level[] = [];
   /** run before the scene (generation, culling) */
   readonly before: RunEntry[] = [];
-  /** its own work after the scene, into its HDR, before a host's (levels/beyond.ts: the keepers' world laid in) */
+  /** its own work after the scene, into its HDR, before a host's */
   readonly after: RunEntry[] = [];
   /** a host's own work this frame: before all of it, and after the scene, into its HDR before the bloom (Universe's:
    *  Seven Havens' gardens drawn, then laid into the frame) */
@@ -356,8 +356,8 @@ export class CosmosRenderer {
     this.sizeBloom(f);
   }
 
-  /** the frame in two halves, for a host that reads the HDR in between (Universe's jewel: the keepers' world, drawn
-   *  here, read by the cell before this is laid over it): the scene and its own work after it, then the rest */
+  /** the frame in two halves, for a host that reads the HDR in between: the scene and its own work after it, then the
+   *  rest */
   offscreen(): RunEntry[] { return [...this.before, this.scene, ...this.after]; }
   finish(): RunEntry[] { this.prep(); return [...this.afterScene(), ...this.lay(), ...this.taauItems, ...this.items]; }
 

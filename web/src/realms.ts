@@ -9,13 +9,13 @@
 import { REALM_BANDS, GARDENS_COVER, FOG_COVER, UNIVERSE, WAY_OF, meets, type RealmId, type Way, type ZoomWindow } from './windows';
 
 /** the order realms are listed in (and so the order of the draw, coarsest first: cosmos/index.ts) */
-const ALL: RealmId[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground', 'beyond', 'gardens', 'cell', 'well'];
+const ALL: RealmId[] = ['web', 'galaxy', 'local', 'solar', 'earth', 'ground', 'gardens', 'cell', 'well'];
 
 export interface RealmsOptions {
   /** Seven Havens' gardens at the bottom of the dive (they cover what's behind them below GARDENS_COVER) */
   gardens: boolean;
-  /** the keepers' world past the edge (not on a dome) */
-  beyond: boolean;
+  /** the loop's round past the edge of the universe and below the atom (not on a dome) */
+  loop: boolean;
   /** build one realm: resolves once it's made and its pipelines are compiled */
   build: (id: RealmId) => Promise<void>;
   /** a realm's in */
@@ -45,7 +45,7 @@ export class Realms {
     return [t, b];
   }
   private possible(id: RealmId) {
-    return (id !== 'gardens' || this.o.gardens) && (id !== 'beyond' || this.o.beyond) && (!this.window.way || !WAY_OF[id] || WAY_OF[id] === this.window.way);
+    return (id !== 'gardens' || this.o.gardens) && (!this.window.way || !WAY_OF[id] || WAY_OF[id] === this.window.way);
   }
 
   private want() {
@@ -62,8 +62,9 @@ export class Realms {
   isReady(id: RealmId) { return this.isIn.has(id); }
   /** every realm the window wants on the live way (the other way's are built when it's taken: setWay) */
   list() { return ALL.filter((id) => this.wanted.has(id) && this.onWay(id)); }
-  /** whether the whole universe has the loop's seam: the keepers' world, the gardens and the cell all in it */
-  get seamed() { return this.wanted.has('beyond') && this.wanted.has('gardens') && this.wanted.has('cell'); }
+  /** whether the whole universe has the loop's seam: the edge of the universe, the gardens and the cell all in it (the
+   *  zoom past the edge comes round into the light below the atom: src/loop.ts SEAM) */
+  get seamed() { return this.o.loop && this.wanted.has('web') && this.wanted.has('gardens') && this.wanted.has('cell'); }
 
   /** the realms that show at a zoom (and what they need) */
   at(l: number): RealmId[] {

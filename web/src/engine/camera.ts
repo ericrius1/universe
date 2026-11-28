@@ -79,14 +79,17 @@ export class Controls {
   enabled = true;
   /** films and tours drive the camera themselves */
   driven = false;
-  /** a way in (the app's: the loop film's way down to its jewel): zooming in by hand, the pivot, yaw and pitch turn
+  /** how much faster than elsewhere a zoom by hand goes at a scale (nm): the app's, below the atom, where there are
+   *  dozens of decades to cross */
+  zoomGain: ((scale: number) => number) | null = null;
+  /** a way in (the app's: the loop film's way down to its bead): zooming in by hand, the pivot, yaw and pitch turn
    *  toward `at`'s for the scale, a share of what's left for each step in, all of it by `arrive` (nm) — the zoom about
    *  that way then, not the point under the cursor (`exact`: the pivot kept to it, as it already is). Holding still,
    *  turning or zooming out, the view is the visitor's */
   guide: { at: (scale: number) => { pivot: Vec3; yaw: number; pitch: number; exact?: boolean; settle?: boolean } | null; arrive: number } | null = null;
   /** how far (px) the visitor has turned or panned it by hand, for the app to tell a dive from a look round */
   turned = 0;
-  /** the pivot kept where the app has it (Universe: on the jewel, or diving down to it): a press doesn't move it onto
+  /** the pivot kept where the app has it (Universe: on the loop's bead, or diving down to it): a press doesn't move it onto
    *  what's under the pointer, nor a pinch's drift pan it */
   keepPivot = false;
   /** a touch's lone finger: its movement not yet counted as turning, whether a second finger has joined it (a pinch:
@@ -466,6 +469,7 @@ export class Controls {
 
   /** zoom by `amount` (log units, + is out) keeping the point under (x, y) where it is */
   zoomAt(x: number, y: number, amount: number) {
+    amount *= this.zoomGain?.(this.scale) ?? 1;
     if (amount < 0) this.inAt = performance.now();
     if (amount > 0 && this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) { this.onAbove(); return; }
     if (amount < 0 && this.guide?.at(this.scale)) {
@@ -582,7 +586,8 @@ export class Controls {
     if (k.has('arrowright')) this.orbit(-dt * 1.2, 0);
     if (k.has('arrowup')) this.orbit(0, dt * 1.0);
     if (k.has('arrowdown')) this.orbit(0, -dt * 1.0);
-    if (k.has('=') || k.has('+')) this.zoomTarget -= dt * 1.5;
-    if (k.has('-') || k.has('_')) { if (this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) this.onAbove(); else this.zoomTarget += dt * 1.5; }
+    const kz = dt * 1.5 * (this.zoomGain?.(this.scale) ?? 1);
+    if (k.has('=') || k.has('+')) this.zoomTarget -= kz;
+    if (k.has('-') || k.has('_')) { if (this.zoomTarget >= Math.log(this.maxScale) - 0.02 && this.onAbove) this.onAbove(); else this.zoomTarget += kz; }
   }
 }

@@ -156,7 +156,7 @@ export class Ladder {
    *  Earth's small) */
   earthPivot: [number, number] = [6.1, 7.1];
   /** past the edge of the observable universe, where the view goes as the zoom comes out (metres, the top frame's
-   *  axes) and over what zoom (log10 m) it gets there: the middle of the keepers' world (levels/beyond.ts) */
+   *  axes) and over what zoom (log10 m) it gets there (none: the universe's middle, where it is) */
   beyond: { at: Vec3; from: number; to: number } | null = null;
 
   constructor(ms = Date.now(), readonly place: Place = BOULDER) {

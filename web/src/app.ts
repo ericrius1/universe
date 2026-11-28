@@ -26,8 +26,7 @@ import { FlyUi } from './ui/fly';
 import { Gardens, HAVENS_CAPTIONS, HAVENS_WORDS } from './gardens';
 import { Score } from './audio/score';
 import { CELL_FILM, mixFilm, type Film as Look } from './cosmos/film';
-import { approach, JEWEL, SEAM, jewelS, jewelZ, seamMix, cellWay } from './loop';
-import { JEWEL_GLASS, WORLD_C, WORLD_R, logSOf, type BeyondView } from './cosmos/levels/beyond';
+import { approach, JEWEL, SEAM, jewelS, jewelZ, seamMix, cellWay, ballR } from './loop';
 import { setOrigin, rel, origin, gpuTime } from './engine/origin';
 import type { Cosmos } from './cosmos';
 import { NM } from './cosmos/frames';
@@ -56,14 +55,7 @@ const BASE = import.meta.env.BASE_URL;
 const NO_ORIGIN = params.has('noorigin');
 // the dive ends in Seven Havens' gardens (gardens.ts), or under ?nogardens (and on a dome) in Boulder's meadow as before
 export const GARDENS = !params.has('nogardens') && !params.has('dome');
-// (and past the edge of the universe, where the zoom goes on now: the keepers' world, cosmos/levels/beyond.ts; not on a
-// dome, which stops at the edge)
-const BEYOND_PLACE: CosmosPlace = {
-  // (inside their sky, short of where zooming out leaves it for the jewel: src/loop.ts SEAM)
-  id: 'u:beyond', name: 'Beyond', short: 'Beyond', logS: logSOf(140), yaw: 0.3, pitch: -0.08, size: '2 m',
-  line: 'What holds it all.',
-};
-export const COSMOS_PLACES = [...(params.has('dome') ? [] : [BEYOND_PLACE]), ...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES), ...(params.has('dome') ? [] : WELL_PLACES)];
+export const COSMOS_PLACES = [...(GARDENS ? cosmosPlaces(HAVENS_WORDS) : BOULDER_PLACES), ...(params.has('dome') ? [] : WELL_PLACES)];
 if (GARDENS) {
   applyGardensStory();
   for (const s of TOUR) {
@@ -78,15 +70,21 @@ for (const p of COSMOS_PLACES) SIZE[p.id] = p.size;
 
 // the haze inside each compartment: (colour, background)
 type Haze = [Vec3, Vec3];
+// (quiet ones: deep water with a breath of each compartment's colour, not washes of it)
 const HAZE: Record<string, Haze> = {
   // (the tissue at the bottom of the dive, Lyra's cornea: a dim mauve, her eye's violet in it)
-  outside: [[0.05, 0.034, 0.062], [0.028, 0.019, 0.037]],
-  cytosol: [[0.006, 0.016, 0.026], [0.0025, 0.007, 0.012]],
-  nucleus: [[0.008, 0.007, 0.03], [0.004, 0.0035, 0.015]],
-  mito: [[0.016, 0.006, 0.006], [0.007, 0.0025, 0.003]],
-  er: [[0.005, 0.02, 0.02], [0.002, 0.009, 0.009]],
-  golgi: [[0.025, 0.018, 0.005], [0.01, 0.007, 0.002]],
+  outside: [[0.04, 0.031, 0.046], [0.022, 0.017, 0.027]],
+  cytosol: [[0.005, 0.011, 0.016], [0.002, 0.0048, 0.0072]],
+  nucleus: [[0.0045, 0.0075, 0.0145], [0.0019, 0.0032, 0.0064]],
+  mito: [[0.013, 0.008, 0.008], [0.006, 0.0035, 0.0035]],
+  er: [[0.006, 0.014, 0.015], [0.0025, 0.0065, 0.007]],
+  golgi: [[0.018, 0.015, 0.008], [0.008, 0.0065, 0.0035]],
 };
+/** where the zoom is below the atom (log10 m, and its name), outermost first */
+const QUANTUM_CRUMBS: [number, string][] = [
+  [-9.45, 'A carbon atom'], [-10.6, 'Its empty cloud'], [-14, 'Its nucleus'], [-14.9, 'A proton'], [-16, 'A quark'], [-18, 'The vacuum'],
+  [-32, 'Quantum foam'], [-34.8, 'Past the Planck length'], [-38.5, 'Infinity'], [-40, 'The first light'],
+];
 const CRUMB: Record<string, string> = { nucleus: 'Nucleus', mito: 'Mitochondrion', er: 'Endoplasmic reticulum', golgi: 'Golgi' };
 
 export class App {
@@ -149,10 +147,11 @@ export class App {
   /** how much of the frame is the cosmos's (eased toward 1 above the cell, 0 in it; a film's own: mixDriven) */
   mix = 1;
   mixDriven = false;
-  /** one bead made glass, the keepers' world inside it (src/loop.ts): its middle (nm) and radius */
+  /** the bead of DNA the loop goes into (src/loop.ts), below which is the world below the atom: its middle (nm) and
+   *  radius */
   jewel: { at: Vec3; r: number } | null = null;
-  /** the zoom goes round the loop by hand as the loop film does (seamed()): out of the keepers' world onto the jewel, into
-   *  the jewel out into their world */
+  /** the zoom goes round the loop by hand as the loop film does (seamed()): into the bead, down past the atom to the
+   *  light past the Planck length, and out of it into the universe's ball from above; and back */
   private seamOn = false;
   /** zooming straight in from the skin, untouched since: the cell's zoom keeps to the film's way down to the jewel */
   private diving = false;
@@ -244,6 +243,8 @@ export class App {
     this.cell = cell;
     ({ r: this.r, world: this.world, controls: this.controls, field: this.field, walkers: this.walkers, fil: this.fil, mols: this.mols } = cell);
     for (const p of cell.places) this.places.set(p.id, p);
+    // (round the loop, a place below the atom, inside the bead: one atom's cloud round the eye)
+    if (this.seamOn) this.places.set('atom', { id: 'atom', name: 'Below the atom', scale: 0.12, at: [...JEWEL.at] as Vec3, yaw: 0.4, pitch: -0.3, line: 'Almost all of it empty. Keep going.', art: 'dna' });
     const controls = this.controls;
     const start = this.places.get(params.get('place') ?? this.realms.window.place ?? 'tissue') ?? this.places.get('tissue')!;
     controls.set(start.at, this.fit(start.scale), start.yaw, start.pitch);
@@ -384,8 +385,7 @@ export class App {
   /** the dock's places: those in the window, above the cell and in it */
   private dockPlaces(): Place[] {
     const w = this.realms.window;
-    // (the keepers' world past the edge only where it's built: not on a dome)
-    const up = COSMOS_PLACES.filter((p) => inWindow(w, p.logS, 0.05) && (p.logS <= 26.97 || this.realms.wants('beyond')) && this.placeOnWay(p));
+    const up = COSMOS_PLACES.filter((p) => inWindow(w, p.logS, 0.05) && this.placeOnWay(p));
     const down = [...this.places.values()].filter((p) => inWindow(w, Math.log10(this.fit(p.scale) * NM), 0.3));
     return [...up.map(asPlace), ...down];
   }
@@ -416,7 +416,7 @@ export class App {
     if (this.widened || whole(this.realms.window)) return;
     this.widened = true;
     void this.realms.expand(this.realm === 'cosmos' ? this.cosmos.controls.logS : CELL_TOP - 1);
-    // (the keepers' world and the round of the loop, if the whole universe has them)
+    // (the round of the loop, if the whole universe has it)
     if (this.realms.seamed && !this.seamOn) this.seamed();
     this.fullMax = this.seamOn ? SEAM.Z_END : this.fullMax;
     this.applyWindow();
@@ -439,7 +439,7 @@ export class App {
   private holds() {
     const cc = this.cosmos.controls;
     const h = this.realms.holds(cc.logS);
-    // (round the loop by hand, out past the keepers' sky onto the jewel: the cell has to be in)
+    // (round the loop by hand, out past the universe's ball into the light below the atom: the cell has to be in)
     if (this.seamOn && !this.cell) h.ceiling = Math.min(h.ceiling ?? Infinity, SEAM.DOWN[0]);
     cc.floor = h.floor;
     cc.ceiling = h.ceiling;
@@ -453,8 +453,8 @@ export class App {
     this.cosmos.controls.enabled = realm === 'cosmos';
     if (now) this.mix = realm === 'cosmos' ? 1 : 0;
   }
-  /** the zoom round the loop by hand (main boot, over the gardens): the jewel in the strand, the zoom's top past the
-   *  keepers' sky to the loop film's last view, and the cell's way in down to the jewel */
+  /** the zoom round the loop by hand (main boot, over the gardens): the bead in the strand, the zoom's top past the edge
+   *  of the universe to the top of the seam, and the cell's way in down to the bead */
   seamed() {
     this.seamOn = true;
     this.jewel = JEWEL;
@@ -464,9 +464,15 @@ export class App {
   }
   private seamCell() {
     this.controls.guide = { arrive: SEAM.S0 * 0.95, at: (s) => this.cellGuide(s) };
+    // (below the atom, dozens of decades to cross by hand: the zoom quicker the further in, up to six times, from a
+    // tenth of the atom's width, and quicker still through the desert below the quark)
+    this.controls.zoomGain = (s) => {
+      const l = Math.log10(s * NM), u = (x: number) => Math.min(1, Math.max(0, x));
+      return 1 + 5 * u((-10.8 - l) / 1.5) + 4 * u((-17.5 - l) / 1.5) * u((l + 32) / 1.5);
+    };
   }
   /** where zooming in by hand takes the cell's camera: the film's way down while diving — and back to it, a moment after
-   *  a look round, however the visitor turned (`settle`: the dive always ends on the jewel) — else onto the jewel when
+   *  a look round, however the visitor turned (`settle`: the dive always ends on the bead) — else onto the bead when
    *  it's near and ahead (null: the visitor's own zoom, toward what's under the cursor) */
   private cellGuide(s: number): { pivot: Vec3; yaw: number; pitch: number; exact?: boolean; settle?: boolean } | null {
     const c = this.controls, j = JEWEL;
@@ -478,10 +484,10 @@ export class App {
     const ahead = ((j.at[0] - c.position[0]) * c.forward[0] + (j.at[1] - c.position[1]) * c.forward[1] + (j.at[2] - c.position[2]) * c.forward[2]) / Math.max(d, 1e-9);
     return ahead > 0.94 ? { pivot: j.at, yaw: c.yaw, pitch: c.pitch } : null;
   }
-  /** the loop's seam by hand (src/loop.ts SEAM): out past the keepers' sky the cell's camera comes onto the jewel as far
-   *  out as the cosmos's is from their world's middle, the two crossing as in the film, and the cell has it once it's
-   *  more than half; in on the jewel past the film's first view the cosmos comes in round it the same way. True while
-   *  it sets the crossing itself */
+  /** the loop's seam by hand (src/loop.ts SEAM): out past the universe's ball the cell's camera comes onto the bead in
+   *  the light below the atom (SEAM.DELTA decades round), the two crossing as in the film, and the cell has it once it's
+   *  more than half; in on the bead down through that light the cosmos comes in round it the same way. True while it
+   *  sets the crossing itself */
   private seam(dt: number): boolean {
     if (!this.cell) return false;
     const c = this.controls, cc = this.cosmos.controls, J = JEWEL, D = SEAM.DOWN;
@@ -493,16 +499,15 @@ export class App {
     // (diving down to the jewel, or on it, the pivot is the dive's: a touch doesn't move it onto what's under the finger,
     // nor a pinch's drift pan it)
     c.keepPivot = this.realm === 'cell' && (this.diving || (off < c.scale * 2 && c.scale < SEAM.S0 * 4));
-    // (on the jewel and zooming in, the view comes onto its middle as it goes: a pinch left it a hair to one side, and the
-    // zoom went on into the glass and stopped there, never crossing)
+    // (on the bead and zooming in, the view comes onto its middle as it goes: a pinch left it a hair to one side, and the
+    // zoom went on past it and stopped there, never going in)
     if (this.realm === 'cell' && off < c.scale * 2 && c.zoomingIn && !c.flying) {
       const k = 1 - Math.exp(-dt * 8);
       for (let i = 0; i < 3; i++) c.pivot[i] += (J.at[i] - c.pivot[i]) * k;
       off = vec3.distance(c.pivot, J.at);
     }
-    // (as near as the cosmos takes it from, on the jewel; the keepers' world ready for it before it's needed)
+    // (on the bead, as far in as where the cosmos takes it from)
     c.minScale = off < c.scale * 2 || this.diving ? jewelS(D[0]) : 1.2;
-    if (this.realm === 'cell' && c.scale < 300 && vec3.distance(c.position, J.at) < 60 * c.scale) this.cosmos.beyond?.load();
     if (this.realm === 'cosmos') {
       if (cc.flying || cc.logS <= D[0]) return false;
       const z = cc.logS, m = seamMix(z);
@@ -514,9 +519,11 @@ export class App {
     }
     if (off > c.scale * 0.05 || c.flying || c.scale >= SEAM.S0) return false;
     const z = jewelZ(c.scale);
-    if (z >= D[1]) return false;
-    // (into the jewel, out into the keepers' world: it has to be in)
-    if (!this.cosmos.beyond || !this.realms.isReady('beyond')) return false;
+    // (just out of the band, the cell's alone: no ease of the crossing back with the cosmos following the cell's zoom,
+    // which would show the cosmos's view at the bottom of its own zoom, her eye, for a moment)
+    if (z >= D[1]) { if (this.realm !== 'cell' || z > D[1] + 3) return false; this.mix = 0; return true; }
+    // (down through the light, out into the universe's ball: it has to be in)
+    if (!this.realms.isReady('web')) return false;
     vec3.copy(c.pivot, J.at);
     const m = seamMix(z);
     cc.set(z, c.yaw, c.pitch);
@@ -780,6 +787,8 @@ export class App {
   where(p: Vec3): { name: string; org: number } { return this.cell ? this.cell.where(p) : { name: 'outside', org: -1 }; }
 
   private crumbs(S: number, at: { name: string; org: number }): string[] {
+    // (in the bead, below the atom: the way down from the strand, its last few steps)
+    if (this.jewel && S < 0.3 && vec3.distance(this.controls.pivot, this.jewel.at) < 1) return ['DNA', ...QUANTUM_CRUMBS.filter(([l]) => Math.log10(S * NM) < l).map(([, n]) => n)].slice(-4);
     if (S > 30000) return ['Human tissue'];
     if (at.name === 'outside') return ['Tissue', S > 3000 ? 'Between cells' : 'Outside the cell'];
     if (at.name === 'neighbor') return ['Tissue', 'A neighbouring cell'];
@@ -792,8 +801,6 @@ export class App {
   }
 
   frame(dt: number) {
-    // (the keepers' world drawn from the cosmos's own camera unless the jewel asks otherwise this frame: jewelFrame)
-    if (this.cosmos.beyond) this.cosmos.beyond.view = null;
     this.journey?.(dt);
     this.tour.update(dt);
     this.guiding.frame(dt, this.intro.showing);
@@ -815,17 +822,8 @@ export class App {
       this.controls.reach = fading && this.realm === 'cosmos' ? 4 : 1;
       if (fading && this.realm === 'cosmos') this.controls.set(this.places.get('tissue')!.at, Math.min(this.controls.maxScale * 4, cc.S / NM), cc.yaw, cc.pitch);
     }
-    // (the jewel crossing with the cosmos: the cosmos's scene and the keepers' world drawn first, the cell then reads
-    // them, the cosmos laid over after)
-    const early = fading && !!this.jewel && !!this.cosmos.beyond && cc.logS > 26;
-    if (early) {
-      this.cosmos.update(dt);
-      this.below(dt);
-      this.kit.run(this.cosmos.r.offscreen());
-    }
-    // (the cell's frame, laid into the film below — cosmos/renderer.ts lay — by its share; crossing with the keepers'
-    // world, much darker than it, a share that comes in later, or its light would show through theirs too soon)
-    this.cellShare = this.mix >= 1 ? 0 : early ? (1 - this.mix) ** 3 : 1 - this.mix;
+    // (the cell's frame, laid into the film below — cosmos/renderer.ts lay — by its share)
+    this.cellShare = this.mix >= 1 ? 0 : 1 - this.mix;
     // (the upscaler while the cell's frame is in the picture: the camera it reprojects by is the cell's)
     if (this.taau) this.taau.params.on = this.mix < 1 && !(window as unknown as { __taauOff?: boolean }).__taauOff;
     if (this.mix < 1) { this.r.post.set({ lay: this.cellShare }); this.cellFrame(dt); }
@@ -833,11 +831,11 @@ export class App {
     if (this.mix > 0) {
       // (the gardens at the bottom of the dive drawn with it, between its views and its draw: gardens.ts)
       const t0 = performance.now();
-      if (!early) this.cosmos.update(dt);
+      this.cosmos.update(dt);
       const t1 = performance.now();
-      if (!early) this.below(dt);
+      this.below(dt);
       const t2 = performance.now();
-      if (early) this.kit.run(this.cosmos.r.finish()); else this.cosmos.r.frame();
+      this.cosmos.r.frame();
       this.belowAfter();
       // (the frame's CPU time, its parts: the report's, ui/report.ts)
       this.cpu.cosmos = t1 - t0; this.cpu.gardens = t2 - t1; this.cpu.run = performance.now() - t2;
@@ -855,7 +853,7 @@ export class App {
     const cc = this.cosmos.controls, kit = this.kit;
     const S = this.cosmos.S / NM;
     const fovW = 2 * S * Math.tan(kit.camera.fovY / 2) * (kit.size.css[0] / kit.size.css[1]);
-    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.wellCrumbs() ?? (this.cosmos.beyond && cc.logS > 27.4 ? this.cosmos.crumbs() : address(cc.logS, this.cosmos.short)), hover: null, mouse: cc.mouse });
+    this.hud.update({ fov: fovW, nmPerPx: fovW / kit.size.css[0], timeScale: 1, crumbs: this.wellCrumbs() ?? (cc.logS > 27.2 ? ['The first light'] : address(cc.logS, this.cosmos.short)), hover: null, mouse: cc.mouse });
     // (still at the place flown to: about as close)
     if (this.cosmosAt && !cc.flying && Math.abs(cc.logS - this.cosmosAt.logS) > 0.8) this.cosmosAt = null;
     this.hud.setHere(this.cosmosAt?.id ?? null);
@@ -938,7 +936,7 @@ export class App {
     const away = this.seamOn && this.jewel ? Math.exp(Math.min(60, Math.max(0, vec3.distance(c.position, this.jewel.at) / S - 3))) : 1;
     const chrom = this.jewel ? Math.min(1e30, 2.6 * S * (1 + (S / 4) ** 3) * away) : 1e30;
     this.r.globals.set({ lodReach: [reach(10.74), reach(1.1), chrom, 0] as never });
-    this.jewelFrame(dt);
+    this.quantumFrame(dt);
     // the molecular field: the motors walking (games add their own actors first), then generation round the focus
     if (!this.game) this.field.actorCount = 0;
     this.walkers.update(this.bioTime, c.pivot, S);
@@ -962,29 +960,34 @@ export class App {
     this.hud.setHere(this.at?.id ?? null);
   }
 
-  /** the jewel this frame (src/loop.ts): the keepers' world drawn from where this camera is, as it would be in their
-   *  world (the jewel's glass their sky's radius times JEWEL_GLASS), for the jewel's pass to see through */
-  private jewelFrame(dt: number) {
-    const r = this.r, b = this.cosmos.beyond, j = this.jewel, J = r.jewelU;
-    r.first = () => [];
-    const c = this.controls, kit = this.kit;
+  /** the world below the atom this frame (src/loop.ts, shaders/quantum.wgsl): drawn round the bead from this camera, in
+   *  units of its distance, wherever the bead is more than half a pixel (it's drawn as its atoms: the strand's own bead
+   *  gives way to it); over the whole frame inside it, where the cell isn't drawn under it. Across the seam, the universe's ball it gathers into is the cosmos's, as big */
+  private quantumFrame(dt: number) {
+    const r = this.r, j = this.jewel, J = r.quantumU, c = this.controls, kit = this.kit;
+    r.quantumOn = r.covered = false;
+    if (!j || !J) return;
+    const S = c.scale, L = Math.log10(S * NM);
+    // (the eye from the bead in view distances: from the pivot, which is on the bead by then — its last hair off it,
+    // a float's, let go well before it'd be magnified into the picture)
+    const k = Math.min(1, Math.max(0, L + 11)) / S;
+    const eye: Vec3 = [(c.pivot[0] - j.at[0]) * k - c.forward[0], (c.pivot[1] - j.at[1]) * k - c.forward[1], (c.pivot[2] - j.at[2]) * k - c.forward[2]];
     // (not while it'd be under a pixel)
-    const dist = j ? Math.hypot(c.position[0] - j.at[0], c.position[1] - j.at[1], c.position[2] - j.at[2]) : 0;
-    const px = j ? j.r / Math.max(dist, 1e-6) / ((2 * Math.tan(kit.camera.fovY / 2)) / kit.size.render[1]) : 0;
-    r.jewelOn = !!(j && b && b.ready && J) && px > 0.5;
-    if (!r.jewelOn || !j || !b || !J) return;
-    J.set({ center: rel(j.at), radius: j.r, inner: [1.8, 1.45, 0.74, 0], tint: [0.7, 0.75, 0.92, 1], flags: [1, 0, 0, 0] });
-    // (crossing with the cosmos, its own camera — the same view — draws their world: App.frame)
-    if (this.mix > 0) { b.view = null; return; }
-    const k = j.r / JEWEL_GLASS / WORLD_R;
-    const eye: Vec3 = [WORLD_C[0] + (c.position[0] - j.at[0]) / k, WORLD_C[1] + (c.position[1] - j.at[1]) / k, WORLD_C[2] + (c.position[2] - j.at[2]) / k];
-    const fov = kit.camera.fovY, [W, H] = kit.size.render, th = Math.tan(fov / 2);
-    const view: BeyondView = { eye, fwd: [...c.forward] as Vec3, right: [...c.right] as Vec3, up: [...c.up] as Vec3, tanHalf: th, aspect: W / Math.max(1, H), pxAngle: (2 * th) / H };
-    b.view = view;
-    b.universe = false;
-    b.update(this.cosmos.controls.logS, dt);
-    r.first = () => (b.on ? this.cosmos.r.after : []);
+    const pxA = (2 * Math.tan(kit.camera.fovY / 2)) / kit.size.render[1];
+    if (j.r / (vec3.length(eye) * S) < pxA * 0.5) return;
+    this.quantumTime += dt;
+    const zc = jewelZ(S);
+    r.quantumOn = true;
+    r.covered = L < -9.7;
+    J.set({
+      center: rel(j.at), radius: j.r, eye, L,
+      view: [this.quantumTime % 3600, pxA, zc < SEAM.DOWN[1] + 0.3 ? ballR(zc) : 0, 0],
+      flags: [1, vec3.length(eye) * S > j.r * 1.2 ? 1 : 0, 0, 0],
+    });
+    if (r.covered) this.hover = 0;
   }
+  /** the world below the atom's own clock (s): a film's, by its frame */
+  quantumTime = 0;
 
   /** read depth and id under the cursor (a frame or two late) */
   private probe() {

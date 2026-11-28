@@ -6,7 +6,7 @@
 // scaled down to that height (lanczos) rather than at the size rendered.
 import puppeteer from 'puppeteer-core';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const [name = 'trailer', w = '1920', h = '1080'] = process.argv.slice(2);
@@ -14,8 +14,13 @@ const width = Number(w), height = Number(h);
 const FFMPEG = process.env.FFMPEG ?? (process.platform === 'win32' ? 'C:/Users/ericr/codeprojects/tools/ffmpeg/bin/ffmpeg.exe' : 'ffmpeg');
 const clean = !!process.env.CLEAN;
 const dir = resolve('..', 'film', clean ? `${name}-clean` : name);
-rmSync(resolve(dir, 'frames'), { recursive: true, force: true });
-rmSync(resolve(dir, 'audio.wav'), { force: true });
+// (FROM/UNTIL: a stretch of a film that renders any stretch as it would in the whole — the loop's — into the frames
+// already there, kept)
+const part = process.env.FROM || process.env.UNTIL ? `&from=${process.env.FROM ?? 0}${process.env.UNTIL ? `&until=${process.env.UNTIL}` : ''}` : '';
+if (!part) {
+  rmSync(resolve(dir, 'frames'), { recursive: true, force: true });
+  rmSync(resolve(dir, 'audio.wav'), { force: true });
+}
 
 const browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${process.env.CDP ?? 9740}`, defaultViewport: null, protocolTimeout: 0 });
 const tag = `about:blank#film-${process.pid}-${Date.now()}`;
@@ -26,7 +31,7 @@ await page.setViewport({ width, height, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') console.log(`[error] ${m.text()}`); });
 const t0 = Date.now();
-await page.goto(`http://127.0.0.1:${process.env.PORT ?? 5740}/?film=${name}&notitle${clean ? '&clean' : ''}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.goto(`http://127.0.0.1:${process.env.PORT ?? 5740}/?film=${name}&notitle${clean ? '&clean' : ''}${part}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 let last = -1;
 for (;;) {
   await new Promise((r) => setTimeout(r, 3000));
@@ -41,9 +46,11 @@ await browser.disconnect().catch(() => {});
 
 const frames = existsSync(resolve(dir, 'frames')) ? readdirSync(resolve(dir, 'frames')).filter((f) => f.endsWith('.jpg')).length : 0;
 if (!frames) process.exit(1);
+if (part) { console.log(`${frames} frames in ${dir}/frames`); process.exit(0); }
 const outH = Number(process.env.OUT_H || 0);
 const out = resolve(dir, `universe-${name}${clean ? '-clean' : ''}${outH ? `-${outH}p` : ''}.mp4`);
-const args = ['-y', '-framerate', '30', '-i', resolve(dir, 'frames', 'f%05d.jpg')];
+const fps = existsSync(resolve(dir, 'meta.json')) ? JSON.parse(readFileSync(resolve(dir, 'meta.json'), 'utf8')).fps ?? 30 : 30;
+const args = ['-y', '-framerate', String(fps), '-i', resolve(dir, 'frames', 'f%05d.jpg')];
 const audio = resolve(dir, 'audio.wav');
 if (existsSync(audio)) args.push('-i', audio, '-c:a', 'aac', '-b:a', '256k', '-shortest');
 // (scaled down: a shareable file, about 3.5 Mbit/s, so two minutes stay under ~60 MB)
@@ -51,4 +58,4 @@ if (outH) args.push('-vf', `scale=-2:${outH}:flags=lanczos`, '-c:v', 'libx264', 
 else args.push('-c:v', 'libx264', '-preset', 'slow', '-crf', '17');
 args.push('-pix_fmt', 'yuv420p', '-movflags', '+faststart', out);
 execFileSync(FFMPEG, args, { stdio: 'inherit' });
-console.log('wrote', out, `${frames} frames, ${(frames / 30).toFixed(1)} s`);
+console.log('wrote', out, `${frames} frames, ${(frames / fps).toFixed(1)} s`);

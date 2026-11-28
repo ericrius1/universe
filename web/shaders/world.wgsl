@@ -16,7 +16,7 @@ struct Globals {
   timeScale: f32, shellSolid: f32, highlight: f32, dof: f32,    // shellSolid: membranes opaque (1) or glass (0)
   origin: vec3f, hazeBg: f32,       // the floating origin (nm): every position the GPU computes with is relative to it;
                                     // how far the empty background is the haze itself (a film's: src/loop.ts)
-  jewel: vec4f,                     // the jewel (src/loop.ts): its middle (relative) and radius; no bead inside it
+  jewel: vec4f,                     // the loop's bead (src/loop.ts): its middle (relative) and radius; no crowd round it
   lodReach: vec4f,                  // how far off (nm) a nucleosome, and a base pair, are still molecules (lodPx over 9);
                                     // z: how far round the focus chromatin is (a film's, round its jewel: chromReach)
 }
@@ -316,14 +316,17 @@ fn ggx(n: vec3f, h: vec3f, a: f32) -> f32 {
 }
 
 fn luma(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
-// colour held back: no channel further from the grey than its lightness allows (molecules have no colour; the one
-// they're given is a choice, so a restrained one), and never quite black
+// colour held back: no channel further from the grey than its lightness allows, and then only a little over half of
+// that (molecules have no colour; the one they're given is a choice, so a quiet one: tints of pearl, not paints), the
+// grey itself a warm one, and never quite black
+const HELD_CHROMA = 0.52;
+const HELD_GREY = vec3f(1.02, 1.0, 0.97);
 fn held(c: vec3f) -> vec3f {
   let l = luma(c);
   let d = c - vec3f(l);
   let m = max(max(abs(d.x), abs(d.y)), abs(d.z));
-  let cap = l * 2.0 + 0.004;
-  return max(vec3f(l) + d * min(1.0, cap / max(m, 1e-6)), vec3f(0.003));
+  let cap = l * 1.4 + 0.004;
+  return max(vec3f(l) * HELD_GREY + d * min(1.0, cap / max(m, 1e-6)) * HELD_CHROMA, vec3f(0.003));
 }
 // a small turn about the grey axis, and a lightness nudge
 fn hueShift(c: vec3f, h: f32, l: f32) -> vec3f {
@@ -342,13 +345,13 @@ fn vary(c: vec3f, id: u32) -> vec3f {
 }
 
 // the light in the water round a thing, by its normal: brighter and cooler toward the key, warm and deep away from it
-const AMB_SKY = vec3f(0.18, 0.22, 0.31);
-const AMB_GROUND = vec3f(0.07, 0.05, 0.05);
+const AMB_SKY = vec3f(0.16, 0.19, 0.25);
+const AMB_GROUND = vec3f(0.06, 0.05, 0.05);
 fn ambient(n: vec3f) -> vec3f {
   let k = dot(n, normalize(G.keyDir)) * 0.5 + 0.5;
   return mix(AMB_GROUND, AMB_SKY, k * k * (3.0 - 2.0 * k));
 }
-const KEY_C = vec3f(1.0, 0.95, 0.88) * 1.65;
+const KEY_C = vec3f(1.0, 0.96, 0.9) * 1.4;
 
 fn bioLight(n: vec3f, v: vec3f, s0: Surf) -> vec3f {
   var s = s0;

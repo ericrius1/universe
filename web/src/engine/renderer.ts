@@ -5,7 +5,7 @@
 import type { Kit, RunEntry, Texture, UniformBuffer, RenderPass, StorageBuffer } from '@ericrius1/weft';
 import worldShader from '../../shaders/world.wgsl';
 import post from '../../shaders/post.wgsl';
-import jewelShader from '../../shaders/jewel.wgsl';
+import quantumShader from '../../shaders/quantum.wgsl';
 import jewelLay from '../../shaders/jewel_lay.wgsl';
 import motes from '../../shaders/motes.wgsl';
 import type { Globals } from '../../shaders/world.wgsl';
@@ -37,11 +37,11 @@ export class Renderer {
   readonly dofOut: Texture;
   /** compute work that must run before the scene (molecule generation, culling) */
   readonly before: RunEntry[] = [];
-  /** another's work to run first this frame (the keepers' world, for the jewel to read) */
-  first: () => RunEntry[] = () => [];
-  /** the jewel (src/loop.ts): its uniform, once it's made (jewel()) */
-  jewelU: UniformBuffer<any> | null = null;
-  jewelOn = false;
+  /** the world below the atom round the loop's bead (src/loop.ts): its uniform, once it's made (quantum()) */
+  quantumU: UniformBuffer<any> | null = null;
+  quantumOn = false;
+  /** it covers the whole frame: the cell's own work isn't drawn under it */
+  covered = false;
   private items: RunEntry[];
 
   /** how the cell is drawn: 'light' (lit, the default) or 'illustrative' (flat colour, occlusion, ink and fog, after
@@ -132,19 +132,21 @@ export class Renderer {
   }
   private afterComp: number;
 
-  /** one bead made glass, the world in `inside` seen through it (drawn from this camera): drawn over the cell's light
-   *  after its composite, its depth with it, before the focus and the bloom */
-  jewel(inside: Texture, hi: boolean) {
+  /** the world below the atom round the loop's bead (shaders/quantum.wgsl, drawn from this camera): over the cell's
+   *  light after its composite, its depth with it, before the focus and the bloom */
+  quantum() {
     const k = this.kit;
-    const J = this.jewelU = k.uniforms(jewelShader.structs.Jewel, 'jewel');
-    const tex = k.texture({ label: 'jewel', format: 'rgba16float', size: 'render' });
-    const on = () => this.jewelOn;
-    const p = k.pass({ label: 'jewel', color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled: on });
-    p.fullscreen(jewelShader, { label: 'jewel', fragment: 'fs', constants: { HI: hi ? 1 : 0 }, bind: { J, litTex: this.lit, depthTex: this.depth, worldTex: inside } as never });
-    const lay = k.pass({ label: 'jewel.lay', color: [{ target: this.lit, clear: false }], depth: { target: this.depth, clear: false }, enabled: on });
-    lay.fullscreen(jewelLay, { label: 'jewel.lay', fragment: 'fs', blend: 'premultiplied', depthWrite: true, depthCompare: 'always', bind: { J, jewelTex: tex } as never });
+    const J = this.quantumU = k.uniforms(quantumShader.structs.Quantum, 'quantum');
+    const tex = k.texture({ label: 'quantum', format: 'rgba16float', size: 'render' });
+    const on = () => this.quantumOn;
+    const p = k.pass({ label: 'quantum', color: [{ target: tex, clear: [0, 0, 0, 0] }], enabled: on });
+    p.fullscreen(quantumShader, { label: 'quantum', fragment: 'fs', bind: { J, depthTex: this.depth } as never });
+    const lay = k.pass({ label: 'quantum.lay', color: [{ target: this.lit, clear: false }], depth: { target: this.depth, clear: false }, enabled: on });
+    lay.fullscreen(jewelLay, { label: 'quantum.lay', fragment: 'fs', blend: 'premultiplied', depthWrite: true, depthCompare: 'always', bind: { J, jewelTex: tex } as never });
     this.items.splice(this.afterComp, 0, p, lay);
+    this.qItems = [p, lay];
   }
+  private qItems: RunEntry[] = [];
 
   /** its frame laid into the film's HDR (`target`, the cosmos's: one bloom and one grade for every picture of the dive),
    *  weighted by the post uniform's `lay` — under what's there as the two hand over — after this frame's own work */
@@ -163,7 +165,9 @@ export class Renderer {
     if (!this.parts.crowdShade) this.crowd.V.set({ on: 0 });
     const shut = (G.get('shellSolid') as number) >= 0.999 && !this.eyeInNucleus();
     this.crowd.V.set({ look: this.look === 'illustrative' || this.look === 1 ? 1 : 0, shut: shut ? 1 : 0 });
-    return [...this.first(), ...this.before, ...this.crowd.work(), ...this.items];
+    // (under the world below the atom where it covers the frame, none of the cell's own: only it, the focus after it)
+    if (this.covered && this.quantumOn) return [...this.qItems, ...this.items.slice(this.items.length - 2)];
+    return [...this.before, ...this.crowd.work(), ...this.items];
   }
   frame() { this.kit.run(this.work()); }
 }

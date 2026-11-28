@@ -59,16 +59,6 @@ export const ADDRESS = ['The observable universe', 'Laniakea', 'The Local Group'
 
 export const COSMOS_STORY: CosmosChapter[] = [
   {
-    place: 'u:beyond', short: 'Beyond', part: 'Outside the horizon', title: 'Beyond', scale: '2 m', like: 'a whole universe held like glass in a palm',
-    stats: [{ v: '35 orders', k: 'of scale inside' }, { v: 'One loop', k: 'top meets bottom' }],
-    text: 'Past the glowing horizon of the observable universe, the zoom steps outside the frame entirely. Here everything we can ever see sits as a single luminous sphere tended in a quiet sanctuary—and keep pulling back and the scale folds seamlessly into a single jewel inside a living strand of DNA.',
-    look: [
-      { t: 'Zoom in through the marble to fall across 35 powers of ten back into a living cell.' },
-      { t: 'Zoom out past the sky to cross the seam into the molecular jewel at the bottom of the dive.' },
-    ],
-    know: 'From the observable universe (10²⁷ m) down to a single DNA base pair (10⁻¹⁰ m), the entire zoom spans 37 orders of magnitude.',
-  },
-  {
     place: 'u:universe', short: 'Universe', part: 'Everything we can see', title: 'The observable universe', scale: '93 billion light-years', like: 'shrink it to the size of the Earth and the Milky Way is as long as a bus',
     stats: [{ v: '13.8 Gyr', k: 'age of light' }, { v: '2.725 K', k: 'afterglow' }, { v: '93B ly', k: 'diameter' }],
     text: 'This is everything whose light has had time to reach us in 13.8 billion years. It is not all there is: it is a horizon, like the sea\'s, and every place in the universe has its own. The mottled skin is the oldest light there is, the cosmic microwave background, let go when the universe was 380,000 years old and had cooled enough to turn clear.',

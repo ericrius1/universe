@@ -24,7 +24,8 @@ export class CosmosControls {
   yaw = 0.4;
   pitch = -0.55;
   readonly min = -3.8;
-  /** the top of the zoom: the edge of the observable universe, or past it to the keepers' world (levels/beyond.ts) */
+  /** the top of the zoom: the edge of the observable universe seen whole, or past it to the loop's seam (Universe's
+   *  src/loop.ts SEAM: its ball shrinking into the light below the atom) */
   max = 27.15;
   /** where a visit starts: the edge of the observable universe (the place's own view of it) */
   readonly start = 26.95;
